@@ -1,12 +1,12 @@
 /**
-* Name: Placeholder
+* Name: NewModel
 * Based on the internal empty template. 
-* Author: Lorenzo Deflorian, Riccardo Fragale
+* Author: Lorenzo
 * Tags: 
 */
 
 
-model Placeholder
+model NewModel
 
 /* Insert your model definition here */
 

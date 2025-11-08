@@ -2,3 +2,10 @@
 *.bak
 *.tmp
 *.DS_Store
+
+
+# GAMA
+.built_in_models*
+.gama*
+
+.metadata
