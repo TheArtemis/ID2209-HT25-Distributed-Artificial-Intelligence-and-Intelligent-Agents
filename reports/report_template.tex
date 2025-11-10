@@ -1,0 +1,133 @@
+\documentclass[a4paper,12pt]{article}
+
+% --- PACKAGES ---
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+% --- PAGE SETUP ---
+\geometry{margin=2.5cm}
+\setlength{\parskip}{0.7em}
+\setlength{\parindent}{0pt}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{DAIIA Assignment Report}
+\lhead{Your Name}
+\cfoot{\thepage}
+
+% --- SECTION FORMATTING ---
+\titleformat{\section}{\large\bfseries\color{blue}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\bfseries}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}[runin]{\bfseries}{\thesubsubsection}{0.5em}{}[.]
+
+% --- TITLE ---
+\title{\textbf{DAIIA Assignment Report}\\[0.5em]
+\large Course: [Course Name] \\[0.3em]
+Assignment: [Assignment Title]}
+\author{[Lorenzo Deflorian...] \\[0.3em]
+KTH Royal Institute of Technology \\[0.3em]
+Email: \texttt{[ldef@kth.se ...]}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% --- SECTION 0 ---
+\section{Important Notes (Read Before Starting)}
+\begin{itemize}[leftmargin=*]
+  \item At the end of each assignment description, you will find a list of deliverables.
+  \item These deliverables define the key points that will be checked in your code and report.
+  \item You must:
+  \begin{itemize}
+    \item Show in your source code that all deliverables are implemented.
+    \item Demonstrate them in your use cases.
+  \end{itemize}
+  \item Missing deliverables will require resubmission of a complete report.
+\end{itemize}
+
+% --- SECTION 1 ---
+\section{Running Instructions}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{How to run the program:} Describe the exact steps.
+  \item \textbf{Expected inputs:} Explain what inputs are needed and how to provide them.
+  \item \textbf{Important:}
+  \begin{itemize}
+    \item Instructions must work exactly as written.
+    \item You are responsible for uploading:
+    \begin{itemize}
+      \item This report (PDF only)
+      \item Complete and working source code
+      \item Any additional files needed to run the program
+    \end{itemize}
+  \end{itemize}
+\end{itemize}
+
+% --- SECTION 2 ---
+\section{General Overview}
+\subsection{Solution Summary}
+Summarize your overall approach. Mention assumptions or limitations here.
+
+% --- SECTION 3 ---
+\section{Section Reports}
+Repeat the structure below for each part of the assignment.
+
+\subsection*{Section X: [Section Name]}
+\subsubsection*{3.1 Explanation}
+Describe what this section requires and how you approached solving it.
+
+\subsubsection*{3.2 Code}
+Include relevant code snippets below:
+
+\begin{verbatim}
+# Example code snippet
+def example():
+    print("Hello, DAIIA!")
+\end{verbatim}
+
+Optionally include screenshots with:
+\begin{center}
+  \includegraphics[width=0.8\textwidth]{example_code.png}
+\end{center}
+
+\subsubsection*{3.3 Demonstration}
+Provide two use cases for this section.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Input:} Describe the input.
+  \item \textbf{Screenshot:} Include program execution/output.
+  \item \textbf{Interpretation:} Briefly explain the result.
+\end{enumerate}
+
+% --- SECTION 4 ---
+\section{Challenge / Bonus Section (Optional)}
+If you attempted bonus tasks, describe them here.
+
+\subsection*{Challenge X: [Challenge Name]}
+\subsubsection*{4.1 Explanation}
+Explain the challenge and your approach.
+
+\subsubsection*{4.2 Code}
+Show relevant code snippets and screenshots.
+
+\subsubsection*{4.3 Demonstration}
+Provide 4 complete use cases:
+\begin{enumerate}[leftmargin=*]
+  \item Input description.
+  \item Screenshot of program execution/output.
+  \item Short explanation of results.
+\end{enumerate}
+
+% --- SECTION 5 ---
+\section{Final Remarks}
+Summarize what you learned, any limitations, and potential improvements.
+Optionally include any extra comments.
+
+\end{document}
