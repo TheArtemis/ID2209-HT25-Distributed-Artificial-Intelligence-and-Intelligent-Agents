@@ -45,6 +45,10 @@ global {
                 set hasMemory <- true;
             }
             
+            ask stores {
+    			location <- rnd(point(100, 100));
+			}
+            
             ask guests {
             	infoCenter <- center[0];
         	}
@@ -64,12 +68,23 @@ species InformationCenter{
         draw square(5) color: #black;
         draw "info center" at: location color: #black;
     }
+    
+    Shop getShopFor(string need) {
+        // find all shops matching the requested need (trait)
+        list<Shop> matching <- shops where (each.trait = need);
+        if (length(matching) > 0) {
+            return one_of(matching);
+        } else {
+            return nil;
+        }
+    }
 
 }
 
 species Shop{
 	// nil is a sort of constant in GAML for empty string
     string trait <- nil;
+    point location;
 
     aspect base{
         if (trait = "water")
@@ -78,11 +93,15 @@ species Shop{
             draw "water shop" color: #black;
 
         }
-        else //When trait is food
+        else
         {
             draw triangle(5) color: #brown;
             draw "food shop" color: #black;
         }
+    }
+    
+    string getShopType(string need) {
+    	return trait;
     }
 }
 
@@ -90,14 +109,12 @@ species Guest skills:[moving]{
 
     int hunger <- 0;
     int thirsty <- 0;
+    bool onTheWayToShop <- false;
 
-    // The guest knows by default the place of the center
     InformationCenter infoCenter <- nil;
 
-    //The shop to be visited after asking the info center
     Shop targetShop;
 
-    //Memory of the places visited
     Shop memory <- nil;
 
     bool hasMemory <- false;
@@ -109,21 +126,51 @@ species Guest skills:[moving]{
         draw "guest" at: location color: #black;
     }
     
-    /*
-     * This runs every step
-     */
     reflex manage_needs {
         // increase at different rates
         hunger <- min(100, hunger + 2);
         thirsty <- min(100, thirsty + 1);
 
-        // if one of them is maxed, go to the info center
-        if (hunger = 100 or thirsty = 100) {
-            // move toward the info center
+        if ((hunger = 100 or thirsty = 100) and onTheWayToShop = false) {
             do goto target: infoCenter.location speed: 0.3;
         }
     }
 
+    /*
+     * 
+     * 
+     */
+    reflex reached_info_center when:
+	    infoCenter != nil
+	    and onTheWayToShop = false
+	    and targetShop = nil
+	    and (location distance_to infoCenter.location) < 1.0 {
+	
+	    string need <- (hunger = 100) ? "food" :
+	                   ((thirsty = 100) ? "water" : nil);
+	
+	    if (need != nil) {
+	        targetShop <- infoCenter.getShopFor(need: need);
+	        if (targetShop != nil) {
+	            onTheWayToShop <- true;
+	            do goto target: targetShop.location speed: 0.5;
+	        }
+	    }
+	}
+
+    
+    reflex reached_shop when: targetShop != nil and (location distance_to targetShop.location) < 1.0 {
+        string need <- targetShop.getShopType("");
+        
+        if (need = "food") {
+        	hunger <- 0;
+        } else {
+        	thirsty <- 0;
+        }
+        
+        onTheWayToShop <- false;
+        targetShop <- nil;
+    }
 }
 
 species SecurityGuard skills:[moving]{
