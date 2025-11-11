@@ -127,49 +127,95 @@ species Guest skills:[moving]{
     }
     
     reflex manage_needs {
-        // increase at different rates
-        hunger <- min(100, hunger + 2);
-        thirsty <- min(100, thirsty + 1);
+        hunger <- min(1000, hunger + rnd(0, 1));
+        thirsty <- min(1000, thirsty + rnd(0, 1));
 
-        if ((hunger = 100 or thirsty = 100) and onTheWayToShop = false) {
+        // Go to info center when EITHER need reaches 80
+        if ((hunger >= 800 or thirsty >= 800) and onTheWayToShop = false and targetShop = nil) {
             do goto target: infoCenter.location speed: 0.3;
         }
     }
+    
+    // Wander around when not hungry or thirsty
+    reflex wander when: hunger < 800 and thirsty < 800 and onTheWayToShop = false and targetShop = nil {
+        do wander speed: 0.8;
+    }
 
     /*
-     * 
-     * 
+     * Reflex when guest reaches the information center
      */
     reflex reached_info_center when:
-	    infoCenter != nil
-	    and onTheWayToShop = false
-	    and targetShop = nil
-	    and (location distance_to infoCenter.location) < 1.0 {
-	
-	    string need <- (hunger = 100) ? "food" :
-	                   ((thirsty = 100) ? "water" : nil);
-	
-	    if (need != nil) {
-	        targetShop <- infoCenter.getShopFor(need: need);
-	        if (targetShop != nil) {
-	            onTheWayToShop <- true;
-	            do goto target: targetShop.location speed: 0.5;
-	        }
-	    }
+        infoCenter != nil
+        and onTheWayToShop = false
+        and targetShop = nil
+        and (location distance_to infoCenter.location) < 1.0 {
+
+        // Check BOTH needs
+        bool needFood <- (hunger >= 800);
+        bool needWater <- (thirsty >= 800);
+        
+        // If no needs, exit early
+        if (!needFood and !needWater) {
+            return;
+        }
+        
+        // Determine which need to address
+        string primaryNeed;
+        
+        if (hunger = thirsty) {
+            // If equal, choose randomly
+            primaryNeed <- one_of(["food", "water"]);
+        } else if (hunger > thirsty) {
+            primaryNeed <- "food";
+        } else {
+            primaryNeed <- "water";
+        }
+        
+        targetShop <- infoCenter.getShopFor(need: primaryNeed);
+        
+        if (targetShop = nil) {
+            write "No target shop found for " + primaryNeed;
+            return; 
+        }
+               
+        onTheWayToShop <- true;
+        write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
+	}
+
+	// Reflex to continuously move to the shop
+	reflex moving_to_shop when: onTheWayToShop = true and targetShop != nil {
+	    do goto target: targetShop.location speed: 0.9;
 	}
 
     
     reflex reached_shop when: targetShop != nil and (location distance_to targetShop.location) < 1.0 {
-        string need <- targetShop.getShopType("");
+        string shopType <- targetShop.getShopType("");
         
-        if (need = "food") {
-        	hunger <- 0;
-        } else {
-        	thirsty <- 0;
+        // Satisfy the need for this shop type
+        if (shopType = "food") {
+            hunger <- 0;
+            write "Ate food! Hunger reset.";
+        } else if (shopType = "water") {
+            thirsty <- 0;
+            write "Drank water! Thirst reset.";
         }
         
-        onTheWayToShop <- false;
-        targetShop <- nil;
+        // Check if they still have another need
+        bool stillNeedFood <- (hunger >= 800);
+        bool stillNeedWater <- (thirsty >= 800);
+        
+        if (stillNeedFood or stillNeedWater) {
+            // They still need something, go back to info center
+            write "Still need something! Going back to info center.";
+            targetShop <- nil;
+            onTheWayToShop <- false;
+            // The manage_needs reflex will send them back to info center
+        } else {
+            // All needs satisfied
+            write "All needs satisfied!";
+            onTheWayToShop <- false;
+            targetShop <- nil;
+        }
     }
 }
 
@@ -198,9 +244,3 @@ experiment MyExperiment type:gui{
     }
 
 }
-
-
-
-
-
-
