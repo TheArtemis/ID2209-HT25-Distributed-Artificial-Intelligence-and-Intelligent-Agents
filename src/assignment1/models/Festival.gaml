@@ -22,18 +22,28 @@ global {
         init {
             create InformationCenter number: numCenter returns: center;
             
-            create Shop number: numShop returns: shops;
+            create Shop number: numShop returns: stores;
 
-            ask [shops[0], shops[2]]{
+            ask [stores[0], stores[2]]{
                 set trait <- "food";
             }
 
-            ask [shops[1], shops[3]]{
+            ask [stores[1], stores[3]]{
                 set trait <- "water";
             }
 
             create Guest number: numGuests returns: guests;
-            create SecurityGuard number: 1 returns: guard;
+            create SecurityGuard number: 1 returns: guards;
+
+            // Asking to the information center
+            ask center {
+                set shops <- stores;
+                set guard <- guards[0];
+            }
+
+            ask [guests[0], guests[4], guests[7]]{
+                set hasMemory <- true;
+            }
         }
 }
 
@@ -76,6 +86,17 @@ species Guest skills:[moving]{
 
     int hunger <- 0;
     int thirsty <- 0;
+
+    // The guest knows by default the place of the center
+    InformationCenter infoCenter;
+
+    //The shop to be visited after asking the info center
+    Shop targetShop;
+
+    //Memory of the places visited
+    Shop memory <- nil;
+
+    bool hasMemory <- false;
 
     aspect base{
         
