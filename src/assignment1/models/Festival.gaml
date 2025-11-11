@@ -44,6 +44,10 @@ global {
             ask [guests[0], guests[4], guests[7]]{
                 set hasMemory <- true;
             }
+            
+            ask guests {
+            	infoCenter <- center[0];
+        	}
         }
 }
 
@@ -88,7 +92,7 @@ species Guest skills:[moving]{
     int thirsty <- 0;
 
     // The guest knows by default the place of the center
-    InformationCenter infoCenter;
+    InformationCenter infoCenter <- nil;
 
     //The shop to be visited after asking the info center
     Shop targetShop;
@@ -103,6 +107,21 @@ species Guest skills:[moving]{
         rgb peopleColor <- #green;
         draw circle(3) at: location color: #pink;
         draw "guest" at: location color: #black;
+    }
+    
+    /*
+     * This runs every step
+     */
+    reflex manage_needs {
+        // increase at different rates
+        hunger <- min(100, hunger + 2);
+        thirsty <- min(100, thirsty + 1);
+
+        // if one of them is maxed, go to the info center
+        if (hunger = 100 or thirsty = 100) {
+            // move toward the info center
+            do goto target: infoCenter.location speed: 0.3;
+        }
     }
 
 }
