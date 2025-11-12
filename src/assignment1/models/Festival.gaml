@@ -18,8 +18,10 @@ global {
     int maxHunger <- 1000;
     int maxThirst <- 1000;
     
-    int hungerThreshold <- 800;
-    int thirstThreshold <- 800;
+    int hungerThreshold <- 400;
+    int thirstThreshold <- 400;
+    
+    float movingSpeed <- 0.75;
     
     
     point infoCenterLocalization <- point(50,50);
@@ -121,6 +123,7 @@ species Guest skills:[moving]{
     int hunger <- 0;
     int thirsty <- 0;
     bool onTheWayToShop <- false;
+    float distanceTravelled <- 0.0;
 
     InformationCenter infoCenter <- nil;
 
@@ -156,6 +159,9 @@ species Guest skills:[moving]{
         if (status != "") {
             draw status at: location + {0, -2} color: statusColor font: font("Arial", 10, #bold);
         }
+        
+        // Display distance travelled
+        draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
     }
     
     reflex update_needs {
@@ -164,7 +170,8 @@ species Guest skills:[moving]{
     }
     
     action go_infocenter {
-    	do goto target: infoCenter.location speed: 0.3;
+    	do goto target: infoCenter.location speed: movingSpeed;
+    	distanceTravelled <- distanceTravelled + movingSpeed;
     }
     
     reflex manage_needs {
@@ -176,7 +183,8 @@ species Guest skills:[moving]{
     
     // Wander around when not hungry or thirsty
     reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil {
-        do wander speed: 0.8;
+        do wander speed: movingSpeed;
+        distanceTravelled <- distanceTravelled + movingSpeed;
     }
 
     /*
@@ -222,7 +230,8 @@ species Guest skills:[moving]{
 
 	// Reflex to continuously move to the shop
 	reflex moving_to_shop when: onTheWayToShop = true and targetShop != nil {
-	    do goto target: targetShop.location speed: 0.9;
+	    do goto target: targetShop.location speed: movingSpeed;
+	    distanceTravelled <- distanceTravelled + movingSpeed;
 	}
 	
 	
@@ -364,6 +373,9 @@ species SmartGuest parent: Guest{
         if (status != "") {
             draw status at: location + {0, -2} color: statusColor font: font("Arial", 10, #bold);
         }
+        
+        // Display distance travelled
+        draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
         
         }
 	
