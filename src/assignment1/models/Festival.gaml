@@ -38,17 +38,14 @@ global {
                 set trait <- "water";
             }
 
-            create Guest number: numGuests returns: guests;
+            create Guest number: 1 returns: guests;
+            create SmartGuest number: 1 returns: smartGuests;
             create SecurityGuard number: 1 returns: guards;
 
             // Asking to the information center
             ask center {
                 set shops <- stores;
                 set guard <- guards[0];
-            }
-
-            ask [guests[0], guests[4], guests[7]]{
-                set hasMemory <- true;
             }
             
             ask stores {
@@ -57,6 +54,10 @@ global {
             
             ask guests {
             	infoCenter <- center[0];
+        	}
+        	
+        	ask smartGuests {
+        		infoCenter <- center[0];
         	}
         }
 }
@@ -111,6 +112,10 @@ species Shop{
     }
 }
 
+species BadApple skills:[moving] {
+	
+}
+
 species Guest skills:[moving]{
 
     int hunger <- 0;
@@ -120,25 +125,52 @@ species Guest skills:[moving]{
     InformationCenter infoCenter <- nil;
 
     Shop targetShop;
-
+	
+	
+	// refactored
     Shop memory <- nil;
-
-    bool hasMemory <- false;
-
+    
+   
     aspect base{
-        
         rgb peopleColor <- #green;
-        draw circle(3) at: location color: #pink;
+        draw circle(1) at: location color: #pink;
         draw "guest" at: location color: #black;
+        
+        // Display status below the guest name
+        string status <- "";
+        rgb statusColor <- #black;
+        bool isHungry <- hunger >= hungerThreshold;
+        bool isThirsty <- thirsty >= thirstThreshold;
+        
+        if (isHungry and isThirsty) {
+            status <- "hungry & thirsty";
+            statusColor <- #purple;  // Purple for both needs
+        } else if (isHungry) {
+            status <- "hungry";
+            statusColor <- #red;
+        } else if (isThirsty) {
+            status <- "thirsty";
+            statusColor <- #blue;
+        }
+        
+        if (status != "") {
+            draw status at: location + {0, -2} color: statusColor font: font("Arial", 10, #bold);
+        }
+    }
+    
+    reflex update_needs {
+    	hunger <- min(maxHunger, hunger + rnd(0, 1));
+        thirsty <- min(maxThirst, thirsty + rnd(0, 1));
+    }
+    
+    action go_infocenter {
+    	do goto target: infoCenter.location speed: 0.3;
     }
     
     reflex manage_needs {
-        hunger <- min(maxHunger, hunger + rnd(0, 1));
-        thirsty <- min(maxThirst, thirsty + rnd(0, 1));
-
         // Go to info center when EITHER need reaches 80
         if ((hunger >= hungerThreshold or thirsty >= thirstThreshold) and onTheWayToShop = false and targetShop = nil) {
-            do goto target: infoCenter.location speed: 0.3;
+            do go_infocenter;
         }
     }
     
@@ -192,22 +224,21 @@ species Guest skills:[moving]{
 	reflex moving_to_shop when: onTheWayToShop = true and targetShop != nil {
 	    do goto target: targetShop.location speed: 0.9;
 	}
-
-    
-    reflex reached_shop when: targetShop != nil and (location distance_to targetShop.location) < 1.0 {
-        string shopType <- targetShop.getShopType("");
-        
-        // Satisfy the need for this shop type
-        if (shopType = "food") {
+	
+	
+	action satisfy_needs {
+		string shopType <- targetShop.getShopType("");
+		if (shopType = "food") {
             hunger <- 0;
             write "Ate food! Hunger reset.";
         } else if (shopType = "water") {
             thirsty <- 0;
             write "Drank water! Thirst reset.";
         }
-        
-        // Check if they still have another need
-        bool stillNeedFood <- (hunger >= hungerThreshold);
+	}
+	
+	action check_for_more_needs {
+		bool stillNeedFood <- (hunger >= hungerThreshold);
         bool stillNeedWater <- (thirsty >= thirstThreshold);
         
         if (stillNeedFood or stillNeedWater) {
@@ -222,7 +253,120 @@ species Guest skills:[moving]{
             onTheWayToShop <- false;
             targetShop <- nil;
         }
+	}
+
+    
+    reflex reached_shop when: targetShop != nil and (location distance_to targetShop.location) < 1.0 {      
+        
+        // Satisfy the need for this shop type
+        do satisfy_needs;        
+        
+        // Check if they still have another need
+        do check_for_more_needs;
     }
+}
+
+species SmartGuest parent: Guest{
+	list <Shop> visitedPlaces;
+	
+	reflex manage_needs{        
+        // Go to info center when EITHER need reaches 80
+        if ((hunger >= hungerThreshold or thirsty >= thirstThreshold) and onTheWayToShop = false and targetShop = nil) {
+            // No visited places go to info center
+            if (length(visitedPlaces)) <= 0 {
+            	do go_infocenter;
+            	return;
+            }
+            
+            bool visitNewPlace <- rnd(0, 1);  
+            if (!visitNewPlace) {
+            	do go_infocenter;
+            	return;
+            }
+            
+            list shuffledPlaces <- shuffle(visitedPlaces);
+            loop i from: 0 to: length(shuffledPlaces) - 1{  
+            	Shop candidateShop <- shuffledPlaces[i];          	
+            	if (hunger >= hungerThreshold) {   
+            		if (candidateShop.trait = "food") {
+            			targetShop <- candidateShop;
+            			onTheWayToShop <- true;  // FIXED: Added this line
+            			return;         		 
+            		}        		
+            		 
+            	}
+            	
+            	if (thirsty >= thirstThreshold) {   
+            		if (candidateShop.trait = "water") {
+            			targetShop <- candidateShop;
+            			onTheWayToShop <- true;  // FIXED: Added this line
+            			return;         		 
+            		}        		
+            		 
+            	}            	
+            	
+            }  
+            
+        }
+    }
+    
+    reflex reached_shop when: targetShop != nil and (location distance_to targetShop.location) < 1.0 {
+    	
+    	if (length(visitedPlaces) <= 0) {
+    		add targetShop to: visitedPlaces;
+    	}    
+    	
+    	bool found <- false;
+    	loop i from: 0 to: length(visitedPlaces) - 1{
+    		if (targetShop.location = visitedPlaces[i].location)
+    		{
+    			found <- true;
+    		}
+    	}  
+    	
+    	
+    	if (!found)
+    	{
+    		add targetShop to: visitedPlaces;
+    	}
+    	
+        
+        // Satisfy the need for this shop type
+        do satisfy_needs;        
+        
+        // Check if they still have another need
+        do check_for_more_needs;
+        
+        
+    }
+    
+    aspect base {rgb peopleColor <- #black;
+        draw circle(1) at: location color: #yellow;
+        draw "Smart guest" at: location color: #black;
+        
+        // Display status below the guest name
+        string status <- "";
+        rgb statusColor <- #black;
+        bool isHungry <- hunger >= hungerThreshold;
+        bool isThirsty <- thirsty >= thirstThreshold;
+        
+        if (isHungry and isThirsty) {
+            status <- "hungry & thirsty";
+            statusColor <- #purple;  // Purple for both needs
+        } else if (isHungry) {
+            status <- "hungry";
+            statusColor <- #red;
+        } else if (isThirsty) {
+            status <- "thirsty";
+            statusColor <- #blue;
+        }
+        
+        if (status != "") {
+            draw status at: location + {0, -2} color: statusColor font: font("Arial", 10, #bold);
+        }
+        
+        }
+	
 }
 
 species SecurityGuard skills:[moving]{
@@ -245,6 +389,7 @@ experiment MyExperiment type:gui{
             species SecurityGuard aspect: base;
             species Guest aspect: base;
             species Shop aspect: base;
+            species SmartGuest aspect: base;
         }
 
     }
