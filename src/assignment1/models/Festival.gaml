@@ -117,7 +117,7 @@ species Shop{
     }
 }
 
-species BadApple skills:[moving] {
+species BadApple skills:[moving] parent: Guest {
     list<Guest> guestsToAnnoy;
 
     // Tuning knobs
@@ -230,6 +230,19 @@ species Guest skills:[moving]{
     reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil {
         do wander speed: 0.8;
     }
+    
+    int prev_hunger <- hunger;
+	int prev_thirst <- thirsty;
+
+	reflex detect_unusual_increase {
+	    if ((hunger - prev_hunger) > 10 or (thirsty - prev_thirst) > 10) {
+	        write "Guest realizes something hit them!"; 
+	    }
+	
+	    // update memory for next step
+	    prev_hunger <- hunger;
+	    prev_thirst <- thirsty;
+	}
 
     /*
      * Reflex when guest reaches the information center
