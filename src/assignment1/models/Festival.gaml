@@ -41,7 +41,7 @@ global {
             create Guest number: 10 returns: guests;
             create SmartGuest number: 1 returns: smartGuests;
             create SecurityGuard number: 1 returns: guards;
-            create BadApple number: 2 returns: badApples;
+            create BadApple number: 5 returns: badApples;
 
             // Asking to the information center
             ask center {
@@ -55,6 +55,7 @@ global {
             
             ask guests {
             	infoCenter <- center[0];
+            	guard <- guards[0];
         	}
         	
         	ask smartGuests {
@@ -147,6 +148,7 @@ species BadApple skills:[moving] parent: Guest {
 
             // if close enough, "attack"
             if (self distance_to targetGuest < attack_range) {
+            	BadApple attacker <- self;
                 ask targetGuest {
                 	int   hunger_bump    <- 50;    // how much hunger to add
     				int   thirst_bump    <- 30;    // how much thirst to add
@@ -162,6 +164,8 @@ species BadApple skills:[moving] parent: Guest {
 
                     // make them stumble
                     do wander amplitude: shove_amplitude;
+                    
+  					do getAttacked(attacker);
                 }
             }
         }
@@ -173,6 +177,7 @@ species Guest skills:[moving]{
     int hunger <- 0;
     int thirsty <- 0;
     bool onTheWayToShop <- false;
+    SecurityGuard guard <- nil;
 
     InformationCenter infoCenter <- nil;
 
@@ -233,16 +238,13 @@ species Guest skills:[moving]{
     
     int prev_hunger <- hunger;
 	int prev_thirst <- thirsty;
-
-	reflex detect_unusual_increase {
-	    if ((hunger - prev_hunger) > 10 or (thirsty - prev_thirst) > 10) {
-	        write "Guest realizes something hit them!"; 
-	    }
 	
-	    // update memory for next step
-	    prev_hunger <- hunger;
-	    prev_thirst <- thirsty;
+	action getAttacked(BadApple attacker) {
+		ask guard {
+			do reportBadGuest(attacker);
+		}
 	}
+	
 
     /*
      * Reflex when guest reaches the information center
@@ -436,11 +438,26 @@ species SmartGuest parent: Guest{
 
 species SecurityGuard skills:[moving]{
     point location <- point(25,25);
+    Guest latestBadActor <- nil;
 
 
     aspect base{
         draw circle(1) at: location color: #blue;
         draw "guard" at: location color: #black;
+    }
+    
+    action reportBadGuest(Guest badGuest) {
+    	write("Bad guest reported.");
+    	latestBadActor <- badGuest;
+    	do goto target: badGuest.location speed: 1.2;
+    }
+    
+    reflex killNearbyBadActors when: latestBadActor != nil and (location distance_to latestBadActor.location) < 1.0  {
+    	ask latestBadActor {
+            write "A BadApple has been caught!";
+            do die;
+        }
+        latestBadActor <- nil;
     }
 }
 
