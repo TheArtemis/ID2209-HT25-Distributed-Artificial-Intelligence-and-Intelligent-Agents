@@ -15,6 +15,12 @@ global {
     int numShop <- 4;
     int numGuests <- 10;
     
+    int maxHunger <- 1000;
+    int maxThirst <- 1000;
+    
+    int hungerThreshold <- 800;
+    int thirstThreshold <- 800;
+    
     
     point infoCenterLocalization <- point(50,50);
 
@@ -127,17 +133,17 @@ species Guest skills:[moving]{
     }
     
     reflex manage_needs {
-        hunger <- min(1000, hunger + rnd(0, 1));
-        thirsty <- min(1000, thirsty + rnd(0, 1));
+        hunger <- min(maxHunger, hunger + rnd(0, 1));
+        thirsty <- min(maxThirst, thirsty + rnd(0, 1));
 
         // Go to info center when EITHER need reaches 80
-        if ((hunger >= 800 or thirsty >= 800) and onTheWayToShop = false and targetShop = nil) {
+        if ((hunger >= hungerThreshold or thirsty >= thirstThreshold) and onTheWayToShop = false and targetShop = nil) {
             do goto target: infoCenter.location speed: 0.3;
         }
     }
     
     // Wander around when not hungry or thirsty
-    reflex wander when: hunger < 800 and thirsty < 800 and onTheWayToShop = false and targetShop = nil {
+    reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil {
         do wander speed: 0.8;
     }
 
@@ -151,8 +157,8 @@ species Guest skills:[moving]{
         and (location distance_to infoCenter.location) < 1.0 {
 
         // Check BOTH needs
-        bool needFood <- (hunger >= 800);
-        bool needWater <- (thirsty >= 800);
+        bool needFood <- (hunger >= hungerThreshold);
+        bool needWater <- (thirsty >= thirstThreshold);
         
         // If no needs, exit early
         if (!needFood and !needWater) {
@@ -201,8 +207,8 @@ species Guest skills:[moving]{
         }
         
         // Check if they still have another need
-        bool stillNeedFood <- (hunger >= 800);
-        bool stillNeedWater <- (thirsty >= 800);
+        bool stillNeedFood <- (hunger >= hungerThreshold);
+        bool stillNeedWater <- (thirsty >= thirstThreshold);
         
         if (stillNeedFood or stillNeedWater) {
             // They still need something, go back to info center
