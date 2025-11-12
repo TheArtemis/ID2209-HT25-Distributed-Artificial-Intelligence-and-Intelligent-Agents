@@ -55,7 +55,6 @@ global {
             
             ask guests {
             	infoCenter <- center[0];
-            	guard <- guards[0];
         	}
         	
         	ask smartGuests {
@@ -90,6 +89,13 @@ species InformationCenter{
         } else {
             return nil;
         }
+    }
+    
+    action reportBadGuest(Guest attacker) {
+    	write("Bad guest reported.");
+    	ask guard {
+    		do orderToEliminate(attacker);
+    	}
     }
 
 }
@@ -177,7 +183,6 @@ species Guest skills:[moving]{
     int hunger <- 0;
     int thirsty <- 0;
     bool onTheWayToShop <- false;
-    SecurityGuard guard <- nil;
 
     InformationCenter infoCenter <- nil;
 
@@ -240,7 +245,7 @@ species Guest skills:[moving]{
 	int prev_thirst <- thirsty;
 	
 	action getAttacked(BadApple attacker) {
-		ask guard {
+		ask infoCenter {
 			do reportBadGuest(attacker);
 		}
 	}
@@ -446,8 +451,8 @@ species SecurityGuard skills:[moving]{
         draw "guard" at: location color: #black;
     }
     
-    action reportBadGuest(Guest badGuest) {
-    	write("Bad guest reported.");
+    action orderToEliminate(Guest badGuest) {
+    	write("Order to eliminate guest: " + badGuest + " received");
     	latestBadActor <- badGuest;
     	do goto target: badGuest.location speed: 1.2;
     }
