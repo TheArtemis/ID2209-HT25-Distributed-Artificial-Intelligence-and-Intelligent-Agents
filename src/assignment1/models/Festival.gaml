@@ -114,9 +114,6 @@ species Shop{
     }
 }
 
-species BadApple skills:[moving] {
-	
-}
 
 species Guest skills:[moving]{
 
