@@ -300,7 +300,6 @@ species SmartGuest parent: Guest{
 	list <Shop> visitedPlaces;
 	
 	reflex manage_needs{        
-        // Go to info center when EITHER need reaches 80
         if ((hunger >= hungerThreshold or thirsty >= thirstThreshold) and onTheWayToShop = false and targetShop = nil) {
             // No visited places go to info center
             if (length(visitedPlaces)) <= 0 {
@@ -320,7 +319,7 @@ species SmartGuest parent: Guest{
             	if (hunger >= hungerThreshold) {   
             		if (candidateShop.trait = "food") {
             			targetShop <- candidateShop;
-            			onTheWayToShop <- true;  // FIXED: Added this line
+            			onTheWayToShop <- true; 
             			return;         		 
             		}        		
             		 
@@ -329,7 +328,7 @@ species SmartGuest parent: Guest{
             	if (thirsty >= thirstThreshold) {   
             		if (candidateShop.trait = "water") {
             			targetShop <- candidateShop;
-            			onTheWayToShop <- true;  // FIXED: Added this line
+            			onTheWayToShop <- true; 
             			return;         		 
             		}        		
             		 
