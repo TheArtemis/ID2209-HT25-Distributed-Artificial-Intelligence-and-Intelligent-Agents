@@ -22,6 +22,7 @@ global {
     int thirstThreshold <- 300;
     
     float movingSpeed <- 0.75;
+    float movingSpeedUnderAttack <- 1.50;
     
     
     point infoCenterLocalization <- point(50,50);
@@ -189,13 +190,20 @@ species Guest skills:[moving]{
     }
     
     action go_infocenter {
-    	do goto target: infoCenter.location speed: movingSpeed;
-    	distanceTravelled <- distanceTravelled + movingSpeed;
+        if (beingAttacked = true)
+        {
+            do goto target: infoCenter.location speed: movingSpeedUnderAttack;
+        }
+        else
+        {
+            do goto target: infoCenter.location speed: movingSpeed;
+            distanceTravelled <- distanceTravelled + movingSpeed;
+        }
     }
     
     reflex manage_needs {
         // Go to info center when EITHER need reaches 80
-        if ((hunger >= hungerThreshold or thirsty >= thirstThreshold) and onTheWayToShop = false and targetShop = nil) {
+        if ((hunger >= hungerThreshold or thirsty >= thirstThreshold or beingAttacked = true) and onTheWayToShop = false and targetShop = nil) {
             currentAction <- "-> Info Center";
             do go_infocenter;
         } else if (hunger < hungerThreshold and thirsty < thirstThreshold) {
@@ -204,7 +212,7 @@ species Guest skills:[moving]{
     }
     
     // Wander around when not hungry or thirsty
-    reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil {
+    reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false {
         do wander speed: movingSpeed;
         distanceTravelled <- distanceTravelled + movingSpeed;
     }
@@ -513,7 +521,7 @@ species BadApple skills:[moving] parent: Guest {
                     attackerRef <- attacker;
                     do go_infocenter;
                 }
-                //targetGuest <- nil;
+                
             }
         }
 
@@ -545,7 +553,7 @@ species BadApple skills:[moving] parent: Guest {
                     attackerRef <- attacker;
                     do go_infocenter;
                 }
-                //smartTarget <- nil;
+                
             }
         }
                 
