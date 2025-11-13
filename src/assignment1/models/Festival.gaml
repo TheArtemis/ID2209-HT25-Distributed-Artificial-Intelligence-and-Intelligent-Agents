@@ -65,6 +65,7 @@ global {
         	
         	ask badApples {
         		guestsToAnnoy <- guests;
+                smartToAnnoy <- smartGuests;
         		infoCenter <- center[0];
         	}
         	
@@ -403,6 +404,7 @@ species SmartGuest parent: Guest{
 
 species BadApple skills:[moving] parent: Guest {
     list<Guest> guestsToAnnoy;
+    list<SmartGuest> smartToAnnoy;
 
     // Tuning knobs
     float sight_radius   <- 100.0;  // how far it can see targets
@@ -410,6 +412,7 @@ species BadApple skills:[moving] parent: Guest {
     float attack_range   <- 1.0;   // how close to "bump"
 
     Guest targetGuest <- nil;
+    SmartGuest smartTarget <- nil;
 
     aspect base {
         draw circle(1) at: location color: #red;
@@ -417,29 +420,51 @@ species BadApple skills:[moving] parent: Guest {
     }
 
     reflex cause_trouble {
-        // shuffle candidates and pick one randomly
-        list<Guest> candidates <- guestsToAnnoy where (self distance_to each < sight_radius);
-        if (length(candidates) > 0) {
-            list<Guest> shuffledCandidates <- shuffle(candidates);
-            targetGuest <- nil;
-            loop i from: 0 to: length(shuffledCandidates) - 1 {
-                int pick <- rnd(0, 1);
-                if (pick = 1) {
-                    targetGuest <- shuffledCandidates[i];
-                    break;
+
+        int pickwho <- rnd(0,5);
+        if (pickwho <= 2)
+        {
+            // shuffle candidates and pick one randomly
+            list<SmartGuest> candidates <- smartToAnnoy where (self distance_to each < sight_radius);
+            if (length(candidates) > 0) {
+                list<SmartGuest> shuffledCandidates <- shuffle(candidates);
+                smartTarget <- nil;
+                loop i from: 0 to: length(shuffledCandidates) - 1 {
+                    int pick <- rnd(0, 1);
+                    if (pick = 1) {
+                        smartTarget <- shuffledCandidates[i];
+                        break;
+                    }
                 }
+            } else {
+                smartTarget <- nil;
             }
-        } else {
-            targetGuest <- nil;
+        } else
+        {
+            // shuffle candidates and pick one randomly
+            list<Guest> candidates <- guestsToAnnoy where (self distance_to each < sight_radius);
+            if (length(candidates) > 0) {
+                list<Guest> shuffledCandidates <- shuffle(candidates);
+                targetGuest <- nil;
+                loop i from: 0 to: length(shuffledCandidates) - 1 {
+                    int pick <- rnd(0, 1);
+                    if (pick = 1) {
+                        targetGuest <- shuffledCandidates[i];
+                        break;
+                    }
+                }
+
+        }
         }
 
-        // chase if we have a target
+        // chase if we have a target of type normal guest
         if (targetGuest != nil) {
             do goto target: targetGuest speed: chase_speed;
 
             // if close enough, "attack"
             if (self distance_to targetGuest < attack_range) {
             	BadApple attacker <- self;
+            	write "Attacking a normal guest";
                 ask targetGuest {
                 	int   hunger_bump    <- 50;    // how much hunger to add
     				int   thirst_bump    <- 30;    // how much thirst to add
@@ -460,6 +485,37 @@ species BadApple skills:[moving] parent: Guest {
                 }
             }
         }
+
+        if (smartTarget != nil) {
+            do goto target: smartTarget speed: chase_speed;
+
+            // if close enough, "attack"
+            if (self distance_to smartTarget < attack_range) {
+            	BadApple attacker <- self;
+                write "Attacking a smart guest";
+                ask targetGuest {
+                	int   hunger_bump    <- 50;    // how much hunger to add
+    				int   thirst_bump    <- 30;    // how much thirst to add
+    				float shove_amplitude <- 2.0;  // how much the victim stumbles
+    				
+                    // make life harder
+                    hunger  <- min(100, hunger  + hunger_bump);
+                    thirsty <- min(100, thirsty + thirst_bump);
+
+                    // cancel their current trip so they re-plan
+                    onTheWayToShop <- false;
+                    targetShop <- nil;
+
+                    // make them stumble
+                    do wander amplitude: shove_amplitude;
+                    
+  					do getAttacked(attacker);
+                }
+            }
+        }
+
+
+
     }
 }
 
