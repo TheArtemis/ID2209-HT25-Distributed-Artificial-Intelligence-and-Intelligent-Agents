@@ -336,28 +336,43 @@ The SecurityGuard moves towards the BadApple's location and "kills" it upon reac
 \subsubsection*{4.3 Demonstration}
 Provided use cases for this challenge:
 \begin{enumerate}[leftmargin=*]
+  \item BadApple scans and approaches its targets
   \item A BadApple attacks a Guest.
-  \item Victim detects that it is being attacked
   \item InformationCenter is notified about the attack and informs the SecurityGuard.
   \item The SecurityGuard locates and eliminates the BadApple.
 \end{enumerate}
-\subsubsection*{4.1.1 BadApple Attack}
+\subsubsection*{4.1.1 BadApple scans and approaches its targets}
+The BadApple agent maintains a list of all other Guest agents in the simulation. It randomly selects one Guest from this list as its target and starts moving towards it.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\textwidth]{imgs/screenshots/bad/bad_approaching.png}
+  \caption{BadApple approaching its target Guest}
+  \label{fig:badAppleApproach}
+\end{figure}
+\subsubsection*{4.1.2 BadApple Attack}
 Each BadApple, which is a sub-agent of Guest, maintains a list of all other Guest agents. 
 It randomly selects a target Guest from this list and starts following it.
 When the BadApple gets within a certain distance of its target Guest, it performs an attack by randomly decreasing the target's hunger or thirst levels, or shaking the victim by bumping into it.
 Initial attack is illustrated in the figure below.
+Guest detects when it is being attacked by a BadApple. Upon detection, the victim Guest reports the incident to the InformationCenter by going to InformationCenter and notifying it about the BadApple's behavior.
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.6\textwidth]{imgs/screenshots/bad/attack_in_progress.png}
   \caption{Simulation snippet when BadApple is attacking a Guest}
   \label{fig:badAppleAttack}
 \end{figure}
-\subsubsection*{4.1.2 Reporting and Security Guard Intervention}
-Guest detects when it is being attacked by a BadApple. Upon detection, the victim Guest reports the incident to the InformationCenter, providing details about the BadApple's identity and location.
-\subsubsection*{4.1.3 InformationCenter is notified about the attack and informs the SecurityGuard.}
+\subsubsection*{4.1.3 InformationCenter is notified about the attack and informs the SecurityGuard}
+Upon receiving a report from a victim Guest about a BadApple attack, the InformationCenter records the location of the reported BadApple.
 The Information Center then instructs the Security Guard to locate and eliminate the reported BadApple.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\textwidth]{imgs/screenshots/bad/attack_reported.png}
+  \caption{InformationCenter notified about BadApple attack}
+  \label{fig:infoCenterNotified}
+\end{figure}
 \subsubsection*{4.1.4 The SecurityGuard locates and eliminates the BadApple.}
-The Security Guard moves towards the BadApple's location and "kills" it upon reaching it, as shown in the figure below.
+The SecurityGuard receives the location of the reported BadApple from the InformationCenter. It puts the BadApple agent into the list of misbehaving agents.
+Then it approaches and neutralizes the closest BadApple to guard's current position. 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.6\textwidth]{imgs/screenshots/bad/guard_kills.png}

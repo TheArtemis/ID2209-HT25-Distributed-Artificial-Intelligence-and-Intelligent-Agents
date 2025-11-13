@@ -78,6 +78,7 @@ species InformationCenter{
 
 	point location <- infoCenterLocalization;
 	list<Shop> shops;
+	bool notifiedAboutAttack <- false;
 
     //Added one guard per security shop
     SecurityGuard guard;
@@ -85,6 +86,10 @@ species InformationCenter{
     aspect base{
         draw square(5) color: #black;
         draw "info center" at: location color: #black;
+        
+        if (notifiedAboutAttack) {
+        	draw "BAD GUEST REPORTED" at: location + {0, -5} color: #red font: font("Arial", 10, #bold);
+        }
     }
     
     Shop getShopFor(string need) {
@@ -99,6 +104,7 @@ species InformationCenter{
     
     action reportBadGuest(Guest attacker) {
     	write("Bad guest reported.");
+    	notifiedAboutAttack <- true;
     	ask guard {
     		do orderToEliminate(attacker);
     	}
@@ -174,6 +180,11 @@ species Guest skills:[moving]{
         } else if (isThirsty) {
             status <- "thirsty";
             statusColor <- #blue;
+        }
+        
+        if (beingAttacked) {
+        	status <- "UNDER ATTACK";
+        	statusColor <- #red;
         }
         
         if (status != "") {
