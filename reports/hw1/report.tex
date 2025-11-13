@@ -1,0 +1,166 @@
+\documentclass[a4paper,12pt]{article}
+
+% --- PACKAGES ---
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+% --- PAGE SETUP ---
+\geometry{margin=2.5cm}
+\setlength{\parskip}{0.7em}
+\setlength{\parindent}{0pt}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{DAIIA Assignment Report}
+\lhead{Your Name}
+\cfoot{\thepage}
+
+% --- SECTION FORMATTING ---
+\titleformat{\section}{\large\bfseries\color{blue}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\bfseries}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}[runin]{\bfseries}{\thesubsubsection}{0.5em}{}[.]
+
+% --- TITLE ---
+\title{\textbf{DAIIA Assignment Report}\\[0.5em]
+\large Course: [Distributed Artificial Intelligence and AI Agents] \\[0.3em]
+Assignment: [Homework 1]}
+\author{[Lorenzo Deflorian, Riccardo Fragale, Jouzas Skarbalius] \\[0.3em]
+KTH Royal Institute of Technology \\[0.3em]
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% --- SECTION 1 ---
+\section{Running Instructions}
+Import the ZIP file given on GAMA and go to the folder assignment1/models. You will find a file
+called Festival.gaml where our model for the homework is implemented.
+Then, from the interface of GAMA, click on the play button and you will see a simulation.
+Use the tools provided by the GAMA simulation interface to adjust the speed, read the outputs
+and verify on screen that everything is working correctly.
+Note that changing the parameters \textit{numCenter,numShops and numGuests} will change the number of 
+agents that will apply on the screen and be part of the simulation. 
+
+% --- SECTION 2 ---
+\section{General Overview}
+
+\subsection{Agents}
+We have defined 4 main species:
+\begin{itemize}
+    \item InformationCenter
+    \item Shop 
+    \item SecurityGuard
+    \item Guest
+\end{itemize}
+We also have a subspecies of Guest that is called SmartGuest and has been implemented to obtain the objectives
+requested by challenge 1.
+
+The agent of type \textbf{InformationCenter} is responsible to give informations to all the agents that are asking him where the shops 
+are. He knows the locations of them and is also connected to a SecurityGuard that will be helpful for the 
+purpose of the second challenge. regarding the aspect of this agent, it is depicted as a black square of length 5 and its locations
+is right in the center of the field where the simulation is happening. All the other agents know by default the position of the InformationCenter.
+
+A \textbf{Shop} is an agent responsible of replenishing food or water to all the guests that are coming to them.
+They are divided into food shops and water shops and their position changes in each simulation.
+Water shops are depicted as grey triangles while food shops are red triangles.
+
+
+The \textbf{Guest}, instead, takes part in the festival and basically wonders randomically unless it is 
+either hungry or thirsty. In this case it goes to the InformationCenter and asks it
+where is it possible to find food or water to fulfill its need. Then he starts moving to the location
+given by the InformationCenter and "charges its batteries". Then, it continues moving aimlessly unless 
+it feels hungry or thirsty again(or both). A guest is a pink dot.
+
+As we said before, there is also the \textbf{SmartGuest} that has a memory and so it is able to remember the locations
+of the shops visited. In this way he could move less with respect to normal guests and it will satisfy its need faster.
+Said that, randomically it can go to the InformationCenter because he wants to discover new shops. The SmartGuest
+appears on screen as a yellow dot.
+
+Last but not the least, there is the \textbf{SecurityGuard} that is repsonsible to catch and kill all the guests
+that doesn't follow the rules of the festival and must be eliminated.
+The security guard is a blue dot and its starting position is northwest with respect to the InformationCenter.
+
+\subsection{Assumptions}
+Our model has 1 InformationCenter, 1 SecurityGuard, 4 Shops (two of which of type \textit{food} and two of type \textit{water}).
+Regarding the Guests, we have defined three Smart guests and seven guests without memory.
+
+\subsection{Goals}
+The goals of this homework are:
+\begin{itemize}
+    \item Introduction to the Gama platform
+    \item Working with agents
+    \item Learning the GAMA syntax
+    \item Creating different types of agents
+    \item Starting basic simulations
+    \item Little bit of movement and behaviour
+\end{itemize}
+
+
+
+% --- SECTION 3 ---
+\section{Basic implementation}
+
+\subsubsection*{3.1 Explanation}
+The basic implementation required us to create a simulation of a festival where Guests get hungry or 
+thirsty. If they do, they should go to an Information Center to ask for the 
+nearest Store that gives them what they need. Afterward, the Guests 
+should simply keep doing something until they get hungry/thirsty again (they wander randomically).
+
+\subsubsection*{3.2 Code}
+Include relevant code snippets below:
+
+\begin{verbatim}
+# Example code snippet
+def example():
+    print("Hello, DAIIA!")
+\end{verbatim}
+
+Optionally include screenshots with:
+
+
+\subsubsection*{3.3 Demonstration}
+Provide two use cases for this section.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Input:} Describe the input.
+  \item \textbf{Screenshot:} Include program execution/output.
+  \item \textbf{Interpretation:} Briefly explain the result.
+\end{enumerate}
+
+% --- SECTION 4 ---
+\section{Challenge / Bonus Section (Optional)}
+If you attempted bonus tasks, describe them here.
+
+\subsection*{Challenge X: [Challenge Name]}
+\subsubsection*{4.1 Explanation}
+Explain the challenge and your approach.
+
+\subsubsection*{4.2 Code}
+Show relevant code snippets and screenshots.
+
+\subsubsection*{4.3 Demonstration}
+Provide 4 complete use cases:
+\begin{enumerate}[leftmargin=*]
+  \item Input description.
+  \item Screenshot of program execution/output.
+  \item Short explanation of results.
+\end{enumerate}
+
+% --- SECTION 5 ---
+\section{Final Remarks}
+Overall this assignment was great. We had the opportunity to learn the basics of the syntax of Gamma
+and we were challenged to implemented interesting things.
+We realized that changing a bit the inputs or minor details might lead
+to big changes in each simulation.
+
+
+\end{document}
