@@ -137,23 +137,74 @@ Provide two use cases for this section.
 \end{enumerate}
 
 % --- SECTION 4 ---
-\section{Challenge / Bonus Section (Optional)}
-If you attempted bonus tasks, describe them here.
+\section{Challenges}
 
-\subsection*{Challenge X: [Challenge Name]}
+\subsection*{Challenge 1: Smart Guests}
 \subsubsection*{4.1 Explanation}
-Explain the challenge and your approach.
+For this challenge we implemented a new type of Guest, called SmartGuest, that has a memory of the shops he has visited.
+This way if he gets hungry or thirsty again, he can decide to either go to the InformationCenter to ask for a new shop or go directly to a known shop.
 
 \subsubsection*{4.2 Code}
-Show relevant code snippets and screenshots.
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.5\textwidth]{imgs/code/smart_guest.png}
+  \caption{Code snippet for SmartGuest behavior}
+  \label{fig:smart_guest}
+\end{figure}
+
+The code snippet in Figure \ref{fig:smart_guest} shows how the SmartGuest decides whether to go to a known shop or ask the InformationCenter for a new one. With a probability of 50\%, the SmartGuest chooses to visit a previously known shop from its memory of visited places. It randomly selects one shop that satisfies its current need (food or water) and heads there directly; otherwise it behaves like a normal Guest and goes to the InformationCenter.
+
+Whenever a SmartGuest visits a shop, it adds that shop to its list of visited places so it can remember it for future needs, reducing travel time on repeated needs.
 
 \subsubsection*{4.3 Demonstration}
-Provide 4 complete use cases:
+Provided use cases for this challenge:
 \begin{enumerate}[leftmargin=*]
-  \item Input description.
-  \item Screenshot of program execution/output.
-  \item Short explanation of results.
+  \item A smart guest with no memory goes to the info center.
+  \item A smart guest with memory still goes to the infor center to discover a new shop.
+  \item A smart guest decides to go to a known food shop from its memory.
+  \item A smart guest decides to go to a known water shop from its memory.
 \end{enumerate}
+
+\subsection*{4.3.1 Smart Guest with no memory}
+\begin{figure}[h]\
+  \centering
+  \includegraphics[width=0.5\textwidth]{imgs/screenshots/smart_guests/sg_no_mem_info_center.png}
+  \caption{Smart Guest with no memory going to Information Center}
+  \label{fig:case1}
+\end{figure}
+
+In Figure \ref{fig:case1}, we see a Smart Guest (yellow dot) that has no memory of shops. When it gets hungry, it goes to the Information Center (black square) to ask for the nearest food shop.
+
+\subsection*{4.3.2 Smart Guest discovering new shop}
+\begin{figure}[h]\
+  \centering
+  \includegraphics[width=0.5\textwidth]{imgs/screenshots/smart_guests/sg_1_mem_info_center.png}
+  \caption{Smart Guest discovering a new shop}
+  \label{fig:case2}
+\end{figure}
+
+In Figure \ref{fig:case2}, we see a Smart Guest (yellow dot) that already has one shop in its memory. However, it decides to go to the Information Center (black square) to discover a new shop instead of going to the known one.
+
+\subsection*{4.3.3 Smart Guest going to known food shop}
+\begin{figure}[h]\
+  \centering
+  \includegraphics[width=0.5\textwidth]{imgs/screenshots/smart_guests/sg_known_foodshop.png}
+  \caption{Smart Guest going to known food shop}
+  \label{fig:case3}
+\end{figure}
+
+In Figure \ref{fig:case3}, we see a Smart Guest (yellow dot) that has a food shop in its memory. When it gets hungry, it decides to go directly to the known food shop (red triangle) instead of asking the Information Center.
+
+\subsection*{4.3.4 Smart Guest going to known water shop}
+\begin{figure}[h]\
+  \centering
+  \includegraphics[width=0.5\textwidth]{imgs/screenshots/smart_guests/sg_known_watershop.png}
+  \caption{Smart Guest going to known water shop}
+  \label{fig:case4}
+\end{figure}
+
+In Figure \ref{fig:case4}, we see a Smart Guest (yellow dot) that has a water shop in its memory. When it gets thirsty, it decides to go directly to the known water shop (grey triangle) instead of asking the Information Center.
+
 
 % --- SECTION 5 ---
 \section{Final Remarks}
