@@ -9,3 +9,9 @@
 .gama*
 
 .metadata
+
+# Latex
+*.aux
+*.log   
+*.toc
+*.out
