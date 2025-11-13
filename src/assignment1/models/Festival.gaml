@@ -18,8 +18,8 @@ global {
     int maxHunger <- 1000;
     int maxThirst <- 1000;
     
-    int hungerThreshold <- 400;
-    int thirstThreshold <- 400;
+    int hungerThreshold <- 300;
+    int thirstThreshold <- 300;
     
     float movingSpeed <- 0.75;
     
@@ -40,10 +40,10 @@ global {
                 set trait <- "water";
             }
 
-            create Guest number: 10 returns: guests;
-            create SmartGuest number: 1 returns: smartGuests;
+            create Guest number: numGuests returns: guests;
+            create SmartGuest number: 3 returns: smartGuests;
             create SecurityGuard number: 1 returns: guards;
-            create BadApple number: 5 returns: badApples;
+            create BadApple number: 4 returns: badApples;
 
             // Asking to the information center
             ask center {
@@ -65,7 +65,9 @@ global {
         	
         	ask badApples {
         		guestsToAnnoy <- guests;
+        		infoCenter <- center[0];
         	}
+        	
         }
 }
 
@@ -123,60 +125,6 @@ species Shop{
     
     string getShopType(string need) {
     	return trait;
-    }
-}
-
-species BadApple skills:[moving] parent: Guest {
-    list<Guest> guestsToAnnoy;
-
-    // Tuning knobs
-    float sight_radius   <- 10.0;  // how far it can see targets
-    float chase_speed    <- 0.8;   // movement speed when chasing
-    float attack_range   <- 1.0;   // how close to "bump"
-
-    Guest targetGuest <- nil;
-
-    aspect base {
-        draw circle(1) at: location color: #red;
-        draw "bad apple" at: location color: #red;
-    }
-
-    reflex cause_trouble {
-        // pick closest guest to annoy within sight
-        list<Guest> candidates <- guestsToAnnoy where (self distance_to each < sight_radius);
-        if (length(candidates) > 0) {
-            targetGuest <- candidates closest_to self;
-        } else {
-            targetGuest <- nil;
-        }
-
-        // chase if we have a target
-        if (targetGuest != nil) {
-            do goto target: targetGuest speed: chase_speed;
-
-            // if close enough, "attack"
-            if (self distance_to targetGuest < attack_range) {
-            	BadApple attacker <- self;
-                ask targetGuest {
-                	int   hunger_bump    <- 50;    // how much hunger to add
-    				int   thirst_bump    <- 30;    // how much thirst to add
-    				float shove_amplitude <- 2.0;  // how much the victim stumbles
-    				
-                    // make life harder
-                    hunger  <- min(100, hunger  + hunger_bump);
-                    thirsty <- min(100, thirsty + thirst_bump);
-
-                    // cancel their current trip so they re-plan
-                    onTheWayToShop <- false;
-                    targetShop <- nil;
-
-                    // make them stumble
-                    do wander amplitude: shove_amplitude;
-                    
-  					do getAttacked(attacker);
-                }
-            }
-        }
     }
 }
 
@@ -451,6 +399,68 @@ species SmartGuest parent: Guest{
         
         }
 	
+}
+
+species BadApple skills:[moving] parent: Guest {
+    list<Guest> guestsToAnnoy;
+
+    // Tuning knobs
+    float sight_radius   <- 100.0;  // how far it can see targets
+    float chase_speed    <- 0.8;   // movement speed when chasing
+    float attack_range   <- 1.0;   // how close to "bump"
+
+    Guest targetGuest <- nil;
+
+    aspect base {
+        draw circle(1) at: location color: #red;
+        draw "bad apple" at: location color: #red;
+    }
+
+    reflex cause_trouble {
+        // shuffle candidates and pick one randomly
+        list<Guest> candidates <- guestsToAnnoy where (self distance_to each < sight_radius);
+        if (length(candidates) > 0) {
+            list<Guest> shuffledCandidates <- shuffle(candidates);
+            targetGuest <- nil;
+            loop i from: 0 to: length(shuffledCandidates) - 1 {
+                int pick <- rnd(0, 1);
+                if (pick = 1) {
+                    targetGuest <- shuffledCandidates[i];
+                    break;
+                }
+            }
+        } else {
+            targetGuest <- nil;
+        }
+
+        // chase if we have a target
+        if (targetGuest != nil) {
+            do goto target: targetGuest speed: chase_speed;
+
+            // if close enough, "attack"
+            if (self distance_to targetGuest < attack_range) {
+            	BadApple attacker <- self;
+                ask targetGuest {
+                	int   hunger_bump    <- 50;    // how much hunger to add
+    				int   thirst_bump    <- 30;    // how much thirst to add
+    				float shove_amplitude <- 2.0;  // how much the victim stumbles
+    				
+                    // make life harder
+                    hunger  <- min(100, hunger  + hunger_bump);
+                    thirsty <- min(100, thirsty + thirst_bump);
+
+                    // cancel their current trip so they re-plan
+                    onTheWayToShop <- false;
+                    targetShop <- nil;
+
+                    // make them stumble
+                    do wander amplitude: shove_amplitude;
+                    
+  					do getAttacked(attacker);
+                }
+            }
+        }
+    }
 }
 
 species SecurityGuard skills:[moving]{
