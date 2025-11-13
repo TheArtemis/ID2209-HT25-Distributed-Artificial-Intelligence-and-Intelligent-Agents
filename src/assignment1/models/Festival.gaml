@@ -319,7 +319,7 @@ species SmartGuest parent: Guest{
             	if (hunger >= hungerThreshold) {   
             		if (candidateShop.trait = "food") {
             			targetShop <- candidateShop;
-            			onTheWayToShop <- true;  // FIXED: Added this line
+            			onTheWayToShop <- true; 
             			return;         		 
             		}        		
             		 
@@ -328,7 +328,7 @@ species SmartGuest parent: Guest{
             	if (thirsty >= thirstThreshold) {   
             		if (candidateShop.trait = "water") {
             			targetShop <- candidateShop;
-            			onTheWayToShop <- true;  // FIXED: Added this line
+            			onTheWayToShop <- true; 
             			return;         		 
             		}        		
             		 
