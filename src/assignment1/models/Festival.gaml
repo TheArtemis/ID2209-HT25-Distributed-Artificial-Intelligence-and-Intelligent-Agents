@@ -40,9 +40,10 @@ global {
                 set trait <- "water";
             }
 
-            create Guest number: 1 returns: guests;
+            create Guest number: 10 returns: guests;
             create SmartGuest number: 1 returns: smartGuests;
             create SecurityGuard number: 1 returns: guards;
+            create BadApple number: 5 returns: badApples;
 
             // Asking to the information center
             ask center {
@@ -60,6 +61,10 @@ global {
         	
         	ask smartGuests {
         		infoCenter <- center[0];
+        	}
+        	
+        	ask badApples {
+        		guestsToAnnoy <- guests;
         	}
         }
 }
@@ -86,6 +91,13 @@ species InformationCenter{
         } else {
             return nil;
         }
+    }
+    
+    action reportBadGuest(Guest attacker) {
+    	write("Bad guest reported.");
+    	ask guard {
+    		do orderToEliminate(attacker);
+    	}
     }
 
 }
@@ -114,6 +126,59 @@ species Shop{
     }
 }
 
+species BadApple skills:[moving] parent: Guest {
+    list<Guest> guestsToAnnoy;
+
+    // Tuning knobs
+    float sight_radius   <- 10.0;  // how far it can see targets
+    float chase_speed    <- 0.8;   // movement speed when chasing
+    float attack_range   <- 1.0;   // how close to "bump"
+
+    Guest targetGuest <- nil;
+
+    aspect base {
+        draw circle(1) at: location color: #red;
+        draw "bad apple" at: location color: #red;
+    }
+
+    reflex cause_trouble {
+        // pick closest guest to annoy within sight
+        list<Guest> candidates <- guestsToAnnoy where (self distance_to each < sight_radius);
+        if (length(candidates) > 0) {
+            targetGuest <- candidates closest_to self;
+        } else {
+            targetGuest <- nil;
+        }
+
+        // chase if we have a target
+        if (targetGuest != nil) {
+            do goto target: targetGuest speed: chase_speed;
+
+            // if close enough, "attack"
+            if (self distance_to targetGuest < attack_range) {
+            	BadApple attacker <- self;
+                ask targetGuest {
+                	int   hunger_bump    <- 50;    // how much hunger to add
+    				int   thirst_bump    <- 30;    // how much thirst to add
+    				float shove_amplitude <- 2.0;  // how much the victim stumbles
+    				
+                    // make life harder
+                    hunger  <- min(100, hunger  + hunger_bump);
+                    thirsty <- min(100, thirsty + thirst_bump);
+
+                    // cancel their current trip so they re-plan
+                    onTheWayToShop <- false;
+                    targetShop <- nil;
+
+                    // make them stumble
+                    do wander amplitude: shove_amplitude;
+                    
+  					do getAttacked(attacker);
+                }
+            }
+        }
+    }
+}
 
 species Guest skills:[moving]{
 
@@ -183,6 +248,16 @@ species Guest skills:[moving]{
         do wander speed: movingSpeed;
         distanceTravelled <- distanceTravelled + movingSpeed;
     }
+    
+    int prev_hunger <- hunger;
+	int prev_thirst <- thirsty;
+	
+	action getAttacked(BadApple attacker) {
+		ask infoCenter {
+			do reportBadGuest(attacker);
+		}
+	}
+	
 
     /*
      * Reflex when guest reaches the information center
@@ -380,11 +455,26 @@ species SmartGuest parent: Guest{
 
 species SecurityGuard skills:[moving]{
     point location <- point(25,25);
+    Guest latestBadActor <- nil;
 
 
     aspect base{
         draw circle(1) at: location color: #blue;
         draw "guard" at: location color: #black;
+    }
+    
+    action orderToEliminate(Guest badGuest) {
+    	write("Order to eliminate guest: " + badGuest + " received");
+    	latestBadActor <- badGuest;
+    	do goto target: badGuest.location speed: 1.2;
+    }
+    
+    reflex killNearbyBadActors when: latestBadActor != nil and (location distance_to latestBadActor.location) < 1.0  {
+    	ask latestBadActor {
+            write "A BadApple has been caught!";
+            do die;
+        }
+        latestBadActor <- nil;
     }
 }
 
@@ -399,6 +489,7 @@ experiment MyExperiment type:gui{
             species Guest aspect: base;
             species Shop aspect: base;
             species SmartGuest aspect: base;
+            species BadApple aspect: base;
         }
 
     }
