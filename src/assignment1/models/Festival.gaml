@@ -229,6 +229,8 @@ species Guest skills:[moving]{
         and targetShop = nil
         and (location distance_to infoCenter.location) < 1.0 {
 
+        write "Reached info center; waiting for a shop to be assigned";
+
         // Check if guest was attacked and needs to report
         if (beingAttacked and attackerRef != nil) {
             ask infoCenter {
@@ -268,6 +270,7 @@ species Guest skills:[moving]{
                
         onTheWayToShop <- true;
         currentAction <- "-> " + primaryNeed + " shop";
+        write "The Information Center has assigned " + targetShop;
         write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
 	}
 
