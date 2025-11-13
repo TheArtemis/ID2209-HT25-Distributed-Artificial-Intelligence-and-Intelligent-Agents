@@ -399,7 +399,8 @@ species SmartGuest parent: Guest{
         
     }
     
-    aspect base {rgb peopleColor <- #black;
+    aspect base {
+        rgb peopleColor <- #black;
         draw circle(1) at: location color: #yellow;
         draw "Smart guest" at: location color: #black;
         
@@ -432,7 +433,9 @@ species SmartGuest parent: Guest{
         // Display distance travelled
         draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
         
-        }
+        // Display memory size
+        draw "mem: " + length(visitedPlaces) at: location + {0, -5.5} color: #purple font: font("Arial", 9, #plain);
+    }
 	
 }
 
