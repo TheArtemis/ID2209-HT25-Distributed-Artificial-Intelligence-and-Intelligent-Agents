@@ -299,7 +299,6 @@ species SmartGuest parent: Guest{
 	list <Shop> visitedPlaces;
 	
 	reflex manage_needs{        
-        // Go to info center when EITHER need reaches 80
         if ((hunger >= hungerThreshold or thirsty >= thirstThreshold) and onTheWayToShop = false and targetShop = nil) {
             // No visited places go to info center
             if (length(visitedPlaces)) <= 0 {
