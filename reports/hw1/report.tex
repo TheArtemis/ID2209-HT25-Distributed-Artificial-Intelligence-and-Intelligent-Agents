@@ -62,8 +62,8 @@ We have defined 4 main species:
     \item SecurityGuard
     \item Guest
 \end{itemize}
-We also have a subspecies of Guest that is called SmartGuest and has been implemented to obtain the objectives
-requested by challenge 1.
+We also have two subspecies of Guest that are called SmartGuest and BadApple and they have been implemented to obtain the objectives
+requested by challenge 1 and 2.
 
 The agent of type \textbf{InformationCenter} is responsible to give informations to all the agents that are asking him where the shops 
 are. He knows the locations of them and is also connected to a SecurityGuard that will be helpful for the 
@@ -82,11 +82,14 @@ given by the InformationCenter and "charges its batteries". Then, it continues m
 it feels hungry or thirsty again(or both). A guest is a pink dot.
 
 As we said before, there is also the \textbf{SmartGuest} that has a memory and so it is able to remember the locations
-of the shops visited. In this way he could move less with respect to normal guests and it will satisfy its need faster.
-Said that, randomically it can go to the InformationCenter because he wants to discover new shops. The SmartGuest
+of the shops visited. In this way he could move less with respect to normal guests and it will satisfy its need faster. The SmartGuest
 appears on screen as a yellow dot.
 
-Last but not the least, there is the \textbf{SecurityGuard} that is repsonsible to catch and kill all the guests
+The other subtype of Guest, called \textbf{BadApple} is requested for challenge 2 and it has the ability to 
+follow a guest and attack it, either by changing the direction towards it is moving or by reducing/adding thirstiness and hungryness.
+The other guests can report him to the InformationCenter which will use the SecurityGuard to kill the BadApple.
+
+Last but not the least, there is the \textbf{SecurityGuard} that is responsible to catch and kill all the badApples
 that doesn't follow the rules of the festival and must be eliminated.
 The security guard is a blue dot and its starting position is northwest with respect to the InformationCenter.
 
@@ -117,24 +120,98 @@ nearest Store that gives them what they need. Afterward, the Guests
 should simply keep doing something until they get hungry/thirsty again (they wander randomically).
 
 \subsubsection*{3.2 Code}
-Include relevant code snippets below:
+For this challenge we implemented all the requested agents and we setup a system through which there is a communication
+between the agents. In particular this is the portion of code 
+where we designed the interaction between the information center and the guest.
 
 \begin{verbatim}
-# Example code snippet
-def example():
-    print("Hello, DAIIA!")
+reflex reached_info_center when:
+        infoCenter != nil
+        and onTheWayToShop = false
+        and targetShop = nil
+        and (location distance_to infoCenter.location) < 1.0 {
+
+        // Check BOTH needs
+        bool needFood <- (hunger >= hungerThreshold);
+        bool needWater <- (thirsty >= thirstThreshold);
+        
+        // If no needs, exit early
+        if (!needFood and !needWater) {
+            return;
+        }
+        
+        // Determine which need to address
+        string primaryNeed;
+        
+        if (hunger = thirsty) {
+            // If equal, choose randomly
+            primaryNeed <- one_of(["food", "water"]);
+        } else if (hunger > thirsty) {
+            primaryNeed <- "food";
+        } else {
+            primaryNeed <- "water";
+        }
+        
+        targetShop <- infoCenter.getShopFor(need: primaryNeed);
+        
+        if (targetShop = nil) {
+            write "No target shop found for " + primaryNeed;
+            return; 
+        }
+               
+        onTheWayToShop <- true;
+        currentAction <- "-> " + primaryNeed + " shop";
+        write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
+	}
 \end{verbatim}
 
-Optionally include screenshots with:
+The info center checks the need of the guest and assign him a shop to go.
+The guest then starts going to the target shop.
+Whenever the guests are not thirsty nor hungry they remain on idle and they wander as it can be seven
+from the piece of code below.
+\begin{verbatim}
+  reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false {
+        do wander speed: movingSpeed;
+    }
+\end{verbatim}.
 
+One important aspect is that guests know the positionon the InformationCenter by default.
+\begin{verbatim}
+  ask guests {
+            	infoCenter <- center[0];
+        	}
+\end{verbatim}
+This ask is called inside the init and will be applied also for the other type of guests defined 
+for the two challenges.
+
+Finally, when the user reaches a shop wither the hungriness or the thirstiness are solved thanks to this
+reflex and the action it is subsequently calling.
+   
+\begin{verbatim}
+  reflex reached_shop when: targetShop != nil and (location distance_to targetShop.location) < 1.0 {      
+        
+        // Satisfy the need for this shop type
+        do satisfy_needs;        
+        
+    }
+
+    action satisfy_needs {
+		string shopType <- targetShop.getShopType("");
+		if (shopType = "food") {
+            hunger <- 0;
+            write "Ate food! Hunger reset.";
+        } else if (shopType = "water") {
+            thirsty <- 0;
+            write "Drank water! Thirst reset.";
+        }
+	}
+\end{verbatim}
 
 \subsubsection*{3.3 Demonstration}
-Provide two use cases for this section.
-
-\begin{enumerate}[leftmargin=*]
-  \item \textbf{Input:} Describe the input.
-  \item \textbf{Screenshot:} Include program execution/output.
-  \item \textbf{Interpretation:} Briefly explain the result.
+I will be providing a couple of use case for this initial part of the homework.
+\begin{enumerate}
+  \item An agent is assigned a food shop when it is hungry
+  \item An agent gets food and so hungry is set back to 0
 \end{enumerate}
 
 % --- SECTION 4 ---
@@ -148,9 +225,9 @@ This way if he gets hungry or thirsty again, he can decide to either go to the I
 \subsubsection*{4.2 Code}
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.5\textwidth]{imgs/code/smart_guest.png}
+  \includegraphics[width=0.6\textwidth]{imgs/code/smartGuestRiccardo.png}
   \caption{Code snippet for SmartGuest behavior}
-  \label{fig:smart_guest}
+  \label{fig:smartGuestRiccardo}
 \end{figure}
 
 The code snippet in Figure \ref{fig:smart_guest} shows how the SmartGuest decides whether to go to a known shop or ask the InformationCenter for a new one. With a probability of 50\%, the SmartGuest chooses to visit a previously known shop from its memory of visited places. It randomly selects one shop that satisfies its current need (food or water) and heads there directly; otherwise it behaves like a normal Guest and goes to the InformationCenter.
@@ -171,17 +248,17 @@ As shown in Figure \ref{fig:memory}, SmartGuests walk less compared to normal Gu
 \subsubsection*{4.3 Demonstration}
 Provided use cases for this challenge:
 \begin{enumerate}[leftmargin=*]
-  \item A smart guest with no memory goes to the info center.
+  \item A guest with no memory goes to the info center.
   \item A smart guest with memory still goes to the infor center to discover a new shop.
   \item A smart guest decides to go to a known food shop from its memory.
   \item A smart guest decides to go to a known water shop from its memory.
 \end{enumerate}
 
-\subsection*{4.3.1 Smart Guest with no memory}
+\subsection*{4.3.1 Guest with no memory}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.5\textwidth]{imgs/screenshots/smart_guests/sg_no_mem_info_center.png}
-  \caption{Smart Guest with no memory going to Information Center}
+  \caption{Guest with no memory going to Information Center}
   \label{fig:case1}
 \end{figure}
 
