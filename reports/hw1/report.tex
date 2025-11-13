@@ -3,6 +3,7 @@
 % --- PACKAGES ---
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
+\usepackage{float}
 \usepackage{hyperref}
 \usepackage{fancyhdr}
 \usepackage{titlesec}
@@ -145,7 +146,7 @@ For this challenge we implemented a new type of Guest, called SmartGuest, that h
 This way if he gets hungry or thirsty again, he can decide to either go to the InformationCenter to ask for a new shop or go directly to a known shop.
 
 \subsubsection*{4.2 Code}
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=0.5\textwidth]{imgs/code/smart_guest.png}
   \caption{Code snippet for SmartGuest behavior}
@@ -166,7 +167,7 @@ Provided use cases for this challenge:
 \end{enumerate}
 
 \subsection*{4.3.1 Smart Guest with no memory}
-\begin{figure}[h]\
+\begin{figure}[H]
   \centering
   \includegraphics[width=0.5\textwidth]{imgs/screenshots/smart_guests/sg_no_mem_info_center.png}
   \caption{Smart Guest with no memory going to Information Center}
@@ -176,7 +177,7 @@ Provided use cases for this challenge:
 In Figure \ref{fig:case1}, we see a Smart Guest (yellow dot) that has no memory of shops. When it gets hungry, it goes to the Information Center (black square) to ask for the nearest food shop.
 
 \subsection*{4.3.2 Smart Guest discovering new shop}
-\begin{figure}[h]\
+\begin{figure}[H]
   \centering
   \includegraphics[width=0.5\textwidth]{imgs/screenshots/smart_guests/sg_1_mem_info_center.png}
   \caption{Smart Guest discovering a new shop}
@@ -186,7 +187,7 @@ In Figure \ref{fig:case1}, we see a Smart Guest (yellow dot) that has no memory 
 In Figure \ref{fig:case2}, we see a Smart Guest (yellow dot) that already has one shop in its memory. However, it decides to go to the Information Center (black square) to discover a new shop instead of going to the known one.
 
 \subsection*{4.3.3 Smart Guest going to known food shop}
-\begin{figure}[h]\
+\begin{figure}[H]
   \centering
   \includegraphics[width=0.5\textwidth]{imgs/screenshots/smart_guests/sg_known_foodshop.png}
   \caption{Smart Guest going to known food shop}
@@ -196,7 +197,7 @@ In Figure \ref{fig:case2}, we see a Smart Guest (yellow dot) that already has on
 In Figure \ref{fig:case3}, we see a Smart Guest (yellow dot) that has a food shop in its memory. When it gets hungry, it decides to go directly to the known food shop (red triangle) instead of asking the Information Center.
 
 \subsection*{4.3.4 Smart Guest going to known water shop}
-\begin{figure}[h]\
+\begin{figure}[H]
   \centering
   \includegraphics[width=0.5\textwidth]{imgs/screenshots/smart_guests/sg_known_watershop.png}
   \caption{Smart Guest going to known water shop}
