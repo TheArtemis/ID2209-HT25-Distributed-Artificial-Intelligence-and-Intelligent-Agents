@@ -135,6 +135,7 @@ species Guest skills:[moving]{
     int thirsty <- 0;
     bool onTheWayToShop <- false;
     float distanceTravelled <- 0.0;
+    string currentAction <- "";
 
     InformationCenter infoCenter <- nil;
 
@@ -149,6 +150,11 @@ species Guest skills:[moving]{
         rgb peopleColor <- #green;
         draw circle(1) at: location color: #pink;
         draw "guest" at: location color: #black;
+        
+        // Display current action above the guest
+        if (currentAction != "") {
+            draw currentAction at: location + {0, 2} color: #orange font: font("Arial", 10, #bold);
+        }
         
         // Display status below the guest name
         string status <- "";
@@ -188,7 +194,10 @@ species Guest skills:[moving]{
     reflex manage_needs {
         // Go to info center when EITHER need reaches 80
         if ((hunger >= hungerThreshold or thirsty >= thirstThreshold) and onTheWayToShop = false and targetShop = nil) {
+            currentAction <- "-> Info Center";
             do go_infocenter;
+        } else if (hunger < hungerThreshold and thirsty < thirstThreshold) {
+        	currentAction <- "";
         }
     }
     
@@ -246,6 +255,7 @@ species Guest skills:[moving]{
         }
                
         onTheWayToShop <- true;
+        currentAction <- "-> " + primaryNeed + " shop";
         write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
 	}
 
@@ -276,12 +286,14 @@ species Guest skills:[moving]{
             write "Still need something! Going back to info center.";
             targetShop <- nil;
             onTheWayToShop <- false;
+            currentAction <- "";
             // The manage_needs reflex will send them back to info center
         } else {
             // All needs satisfied
             write "All needs satisfied!";
             onTheWayToShop <- false;
             targetShop <- nil;
+            currentAction <- "";
         }
 	}
 
@@ -303,12 +315,14 @@ species SmartGuest parent: Guest{
         if ((hunger >= hungerThreshold or thirsty >= thirstThreshold) and onTheWayToShop = false and targetShop = nil) {
             // No visited places go to info center
             if (length(visitedPlaces)) <= 0 {
+            	currentAction <- "-> Info Center";
             	do go_infocenter;
             	return;
             }
             
             bool visitNewPlace <- rnd(0, 1);  
             if (!visitNewPlace) {
+            	currentAction <- "-> Info Center";
             	do go_infocenter;
             	return;
             }
@@ -319,7 +333,8 @@ species SmartGuest parent: Guest{
             	if (hunger >= hungerThreshold) {   
             		if (candidateShop.trait = "food") {
             			targetShop <- candidateShop;
-            			onTheWayToShop <- true; 
+            			onTheWayToShop <- true;
+            			currentAction <- "-> Known " + candidateShop.trait + " shop"; 
             			return;         		 
             		}        		
             		 
@@ -328,7 +343,8 @@ species SmartGuest parent: Guest{
             	if (thirsty >= thirstThreshold) {   
             		if (candidateShop.trait = "water") {
             			targetShop <- candidateShop;
-            			onTheWayToShop <- true; 
+            			onTheWayToShop <- true;
+            			currentAction <- "-> Known " + candidateShop.trait + " shop"; 
             			return;         		 
             		}        		
             		 
@@ -336,6 +352,8 @@ species SmartGuest parent: Guest{
             	
             }  
             
+        } else if (hunger < hungerThreshold and thirsty < thirstThreshold) {
+        	currentAction <- "";
         }
     }
     
@@ -372,6 +390,11 @@ species SmartGuest parent: Guest{
     aspect base {rgb peopleColor <- #black;
         draw circle(1) at: location color: #yellow;
         draw "Smart guest" at: location color: #black;
+        
+        // Display current action above the guest
+        if (currentAction != "") {
+            draw currentAction at: location + {0, 2} color: #orange font: font("Arial", 10, #bold);
+        }
         
         // Display status below the guest name
         string status <- "";
