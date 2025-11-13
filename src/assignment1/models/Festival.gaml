@@ -135,6 +135,8 @@ species Guest skills:[moving]{
     int thirsty <- 0;
     bool onTheWayToShop <- false;
     float distanceTravelled <- 0.0;
+    bool beingAttacked <- false;
+    BadApple attackerRef <- nil;
     string currentAction <- "";
 
     InformationCenter infoCenter <- nil;
@@ -209,13 +211,6 @@ species Guest skills:[moving]{
     
     int prev_hunger <- hunger;
 	int prev_thirst <- thirsty;
-	
-	action getAttacked(BadApple attacker) {
-		ask infoCenter {
-			do reportBadGuest(attacker);
-		}
-	}
-	
 
     /*
      * Reflex when guest reaches the information center
@@ -225,6 +220,15 @@ species Guest skills:[moving]{
         and onTheWayToShop = false
         and targetShop = nil
         and (location distance_to infoCenter.location) < 1.0 {
+
+        // Check if guest was attacked and needs to report
+        if (beingAttacked and attackerRef != nil) {
+            ask infoCenter {
+                do reportBadGuest(myself.attackerRef);
+            }
+            beingAttacked <- false;
+            attackerRef <- nil;
+        }
 
         // Check BOTH needs
         bool needFood <- (hunger >= hungerThreshold);
@@ -446,8 +450,9 @@ species BadApple skills:[moving] parent: Guest {
 
     reflex cause_trouble {
 
-        int pickwho <- rnd(0,5);
-        if (pickwho <= 2)
+        // Probability of 2/6 to attack a smart guest, otherwise the normal ones
+        int pickWhichType <- rnd(0,5);
+        if (pickWhichType < 2)
         {
             // shuffle candidates and pick one randomly
             list<SmartGuest> candidates <- smartToAnnoy where (self distance_to each < sight_radius);
@@ -506,8 +511,12 @@ species BadApple skills:[moving] parent: Guest {
                     // make them stumble
                     do wander amplitude: shove_amplitude;
                     
-  					do getAttacked(attacker);
+                    // Set attacked flag and go to info center
+                    beingAttacked <- true;
+                    attackerRef <- attacker;
+                    do go_infocenter;
                 }
+                //targetGuest <- nil;
             }
         }
 
@@ -518,7 +527,7 @@ species BadApple skills:[moving] parent: Guest {
             if (self distance_to smartTarget < attack_range) {
             	BadApple attacker <- self;
                 write "Attacking a smart guest";
-                ask targetGuest {
+                ask smartTarget {
                 	int   hunger_bump    <- 50;    // how much hunger to add
     				int   thirst_bump    <- 30;    // how much thirst to add
     				float shove_amplitude <- 2.0;  // how much the victim stumbles
@@ -534,14 +543,21 @@ species BadApple skills:[moving] parent: Guest {
                     // make them stumble
                     do wander amplitude: shove_amplitude;
                     
-  					do getAttacked(attacker);
+                    // Set attacked flag and go to info center
+                    beingAttacked <- true;
+                    attackerRef <- attacker;
+                    do go_infocenter;
                 }
+                //smartTarget <- nil;
             }
         }
+                
+        }
+        
 
 
 
-    }
+    
 }
 
 species SecurityGuard skills:[moving]{
