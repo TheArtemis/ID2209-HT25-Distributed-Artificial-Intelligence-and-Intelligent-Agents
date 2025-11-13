@@ -573,6 +573,7 @@ species BadApple skills:[moving] parent: Guest {
 
 species SecurityGuard skills:[moving]{
     point location <- point(25,25);
+    list<Guest> badActors <- nil;
     Guest latestBadActor <- nil;
 
 
@@ -583,8 +584,11 @@ species SecurityGuard skills:[moving]{
     
     action orderToEliminate(Guest badGuest) {
     	write("Order to eliminate guest: " + badGuest + " received");
-    	latestBadActor <- badGuest;
-    	do goto target: badGuest.location speed: 1.2;
+    	add badGuest to: badActors;
+    	Guest closestBadActor <- badActors closest_to self;
+    	write("Executing kill order for: " + badGuest);
+    	latestBadActor <- closestBadActor;
+    	do goto target: closestBadActor.location speed: 1.2;
     }
     
     reflex killNearbyBadActors when: latestBadActor != nil and (location distance_to latestBadActor.location) < 1.0  {
