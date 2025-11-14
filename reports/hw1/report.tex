@@ -30,7 +30,7 @@
 \title{\textbf{DAIIA Assignment Report}\\[0.5em]
 \large Course: [Distributed Artificial Intelligence and AI Agents] \\[0.3em]
 Assignment: [Homework 1]}
-\author{[Lorenzo Deflorian, Riccardo Fragale, Jouzas Skarbalius] \\[0.3em]
+\author{[Lorenzo Deflorian, Riccardo Fragale, Juozas Skarbalius] \\[0.3em]
 KTH Royal Institute of Technology \\[0.3em]
 }
 \date{\today}
@@ -48,8 +48,8 @@ called Festival.gaml where our model for the homework is implemented.
 Then, from the interface of GAMA, click on the play button and you will see a simulation.
 Use the tools provided by the GAMA simulation interface to adjust the speed, read the outputs
 and verify on screen that everything is working correctly.
-Note that changing the parameters \textit{numCenter,numShops and numGuests} will change the number of 
-agents that will apply on the screen and be part of the simulation. 
+Note that changing the parameters \textit{numCenter,numShop and numGuests} will change the number of 
+agents that will appear on the screen and be part of the simulation. 
 
 % --- SECTION 2 ---
 \section{General Overview}
@@ -67,7 +67,7 @@ requested by challenge 1 and 2.
 
 The agent of type \textbf{InformationCenter} is responsible to give informations to all the agents that are asking him where the shops 
 are. He knows the locations of them and is also connected to a SecurityGuard that will be helpful for the 
-purpose of the second challenge. regarding the aspect of this agent, it is depicted as a black square of length 5 and its locations
+purpose of the second challenge. Regarding the aspect of this agent, it is depicted as a black square of length 5 and its location
 is right in the center of the field where the simulation is happening. All the other agents know by default the position of the InformationCenter.
 
 A \textbf{Shop} is an agent responsible of replenishing food or water to all the guests that are coming to them.
@@ -75,9 +75,9 @@ They are divided into food shops and water shops and their position changes in e
 Water shops are depicted as grey triangles while food shops are red triangles.
 
 
-The \textbf{Guest}, instead, takes part in the festival and basically wonders randomically unless it is 
-either hungry or thirsty. In this case it goes to the InformationCenter and asks it
-where is it possible to find food or water to fulfill its need. Then he starts moving to the location
+The \textbf{Guest}, instead, takes part in the festival and basically wanders randomly unless it is 
+either hungry or thirsty. In this case it goes to the InformationCenter and asks
+where to find food or water to fulfill its need. Then he starts moving to the location
 given by the InformationCenter and "charges its batteries". Then, it continues moving aimlessly unless 
 it feels hungry or thirsty again(or both). A guest is a pink dot.
 
@@ -86,16 +86,16 @@ of the shops visited. In this way he could move less with respect to normal gues
 appears on screen as a yellow dot.
 
 The other subtype of Guest, called \textbf{BadApple} is requested for challenge 2 and it has the ability to 
-follow a guest and attack it, either by changing the direction towards it is moving or by reducing/adding thirstiness and hungryness.
-The other guests can report him to the InformationCenter which will use the SecurityGuard to kill the BadApple.
+follow a guest and attack it, either by changing direction towards the guest or by reducing/adding thirstiness and hungriness.
+Other guests can report him to the InformationCenter which will use the SecurityGuard to kill the BadApple.
 
 Last but not the least, there is the \textbf{SecurityGuard} that is responsible to catch and kill all the badApples
-that doesn't follow the rules of the festival and must be eliminated.
-The security guard is a blue dot and its starting position is northwest with respect to the InformationCenter.
+that do not follow the rules of the festival and must be eliminated.
+The security guard is a blue dot and its starting position is north-west with respect to the InformationCenter.
 
 \subsection{Assumptions}
 Our model has 1 InformationCenter, 1 SecurityGuard, 4 Shops (two of which of type \textit{food} and two of type \textit{water}).
-Regarding the Guests, we have defined three Smart guests and seven guests without memory.
+Regarding the Guests, we have defined three SmartGuests and seven guests without memory.
 
 \subsection{Goals}
 The goals of this homework are:
@@ -116,8 +116,8 @@ The goals of this homework are:
 \subsubsection*{3.1 Explanation}
 The basic implementation required us to create a simulation of a festival where Guests get hungry or 
 thirsty. If they do, they should go to an Information Center to ask for the 
-nearest Store that gives them what they need. Afterward, the Guests 
-should simply keep doing something until they get hungry/thirsty again (they wander randomically).
+nearest Shop that gives them what they need. Afterward, the Guests 
+should simply keep doing something until they get hungry/thirsty again (they wander randomly).
 
 \subsubsection*{3.2 Code}
 For this challenge we implemented all the requested agents and we setup a system through which there is a communication
@@ -175,7 +175,7 @@ from the piece of code below.
     }
 \end{verbatim}.
 
-One important aspect is that guests know the positionon the InformationCenter by default.
+One important aspect is that guests know the position of the InformationCenter by default.
 \begin{verbatim}
   ask guests {
             	infoCenter <- center[0];
@@ -184,7 +184,7 @@ One important aspect is that guests know the positionon the InformationCenter by
 This ask is called inside the init and will be applied also for the other type of guests defined 
 for the two challenges.
 
-Finally, when the user reaches a shop wither the hungriness or the thirstiness are solved thanks to this
+Finally, when the user reaches a shop, the hunger or the thirst are solved thanks to this
 reflex and the action it is subsequently calling.
    
 \begin{verbatim}
@@ -240,9 +240,9 @@ sine the thirstiness is above the threshold.
 
 
 % --- SECTION 4 ---
-\section{Challenges}
+\section{Challenge 1}
 
-\subsection*{Challenge 1: Smart Guests}
+\subsection*{Smart Guests}
 \subsubsection*{4.1 Explanation}
 For this challenge we implemented a new type of Guest, called SmartGuest, that has a memory of the shops he has visited.
 This way if he gets hungry or thirsty again, he can decide to either go to the InformationCenter to ask for a new shop or go directly to a known shop.
@@ -255,7 +255,7 @@ This way if he gets hungry or thirsty again, he can decide to either go to the I
   \label{fig:smartGuestRiccardo}
 \end{figure}
 
-The code snippet in Figure \ref{fig:smart_guest} shows how the SmartGuest decides whether to go to a known shop or ask the InformationCenter for a new one. With a probability of 50\%, the SmartGuest chooses to visit a previously known shop from its memory of visited places. It randomly selects one shop that satisfies its current need (food or water) and heads there directly; otherwise it behaves like a normal Guest and goes to the InformationCenter.
+The code snippet in Figure \ref{fig:smartGuestRiccardo} shows how the SmartGuest decides whether to go to a known shop or ask the InformationCenter for a new one. With a probability of 50\%, the SmartGuest chooses to visit a previously known shop from its memory of visited places. It randomly selects one shop that satisfies its current need (food or water) and heads there directly; otherwise it behaves like a normal Guest and goes to the InformationCenter.
 
 Whenever a SmartGuest visits a shop, it adds that shop to its list of visited places so it can remember it for future needs, reducing travel time on repeated needs.
 
@@ -319,11 +319,11 @@ In Figure \ref{fig:case3}, we see a Smart Guest (yellow dot) that has a food sho
 
 In Figure \ref{fig:case4}, we see a Smart Guest (yellow dot) that has a water shop in its memory. When it gets thirsty, it decides to go directly to the known water shop (grey triangle) instead of asking the Information Center.
 
-\subsection*{Challenge 2: Security Guard and Bad Apples}
-\subsubsection*{4.1 Explanation}
+\section*{Challenge 2: SecurityGuard and Bad Apples}
+\subsection*{5.1 Explanation}
 For this challenge we implemented the behavior of a BadApple agent (a guest type that attacks other guests) and a SecurityGuard agent that eliminates BadApples when reported by other guests.
 Bad behaving agents are reported by the victim Guest agent to the InformationCenter, which then instructs the SecurityGuard to locate and eliminate the reported BadApple.
-\subsubsection*{4.2 Code}
+\subsection*{5.2 Code}
 The BadApple agent randomly selects a target Guest to follow and attack. When it gets close enough to the target, it performs an attack by reducing the target's hunger or thirst levels, or by shaking the victim by bumping into it.
 When a Guest is attacked, it reports the incident to the InformationCenter. The InformationCenter then instructs the SecurityGuard to locate and eliminate the reported BadApple.
 The SecurityGuard moves towards the BadApple's location and "kills" it upon reaching it.
@@ -333,7 +333,7 @@ The SecurityGuard moves towards the BadApple's location and "kills" it upon reac
   \caption{Code snippet for BadApple attack behavior}
   \label{fig:badAppleCode}
 \end{figure}
-\subsubsection*{4.3 Demonstration}
+\subsection*{5.3 Demonstration}
 Provided use cases for this challenge:
 \begin{enumerate}[leftmargin=*]
   \item BadApple scans and approaches its targets
@@ -341,7 +341,7 @@ Provided use cases for this challenge:
   \item InformationCenter is notified about the attack and informs the SecurityGuard.
   \item The SecurityGuard locates and eliminates the BadApple.
 \end{enumerate}
-\subsubsection*{4.1.1 BadApple scans and approaches its targets}
+\subsubsection*{5.3.1 BadApple scans and approaches its targets}
 The BadApple agent maintains a list of all other Guest agents in the simulation. It randomly selects one Guest from this list as its target and starts moving towards it.
 \begin{figure}[H]
   \centering
@@ -349,7 +349,7 @@ The BadApple agent maintains a list of all other Guest agents in the simulation.
   \caption{BadApple approaching its target Guest}
   \label{fig:badAppleApproach}
 \end{figure}
-\subsubsection*{4.1.2 BadApple Attack}
+\subsubsection*{5.3.2 BadApple Attack}
 Each BadApple, which is a sub-agent of Guest, maintains a list of all other Guest agents. 
 It randomly selects a target Guest from this list and starts following it.
 When the BadApple gets within a certain distance of its target Guest, it performs an attack by randomly decreasing the target's hunger or thirst levels, or shaking the victim by bumping into it.
@@ -361,7 +361,7 @@ Guest detects when it is being attacked by a BadApple. Upon detection, the victi
   \caption{Simulation snippet when BadApple is attacking a Guest}
   \label{fig:badAppleAttack}
 \end{figure}
-\subsubsection*{4.1.3 InformationCenter is notified about the attack and informs the SecurityGuard}
+\subsubsection*{5.3.3 InformationCenter is notified about the attack and informs the SecurityGuard}
 Upon receiving a report from a victim Guest about a BadApple attack, the InformationCenter records the location of the reported BadApple.
 The Information Center then instructs the Security Guard to locate and eliminate the reported BadApple.
 \begin{figure}[H]
@@ -370,7 +370,7 @@ The Information Center then instructs the Security Guard to locate and eliminate
   \caption{InformationCenter notified about BadApple attack}
   \label{fig:infoCenterNotified}
 \end{figure}
-\subsubsection*{4.1.4 The SecurityGuard locates and eliminates the BadApple.}
+\subsubsection*{5.3.4 The SecurityGuard locates and eliminates the BadApple.}
 The SecurityGuard receives the location of the reported BadApple from the InformationCenter. It puts the BadApple agent into the list of misbehaving agents.
 Then it approaches and neutralizes the closest BadApple to guard's current position. 
 \begin{figure}[H]
@@ -382,7 +382,7 @@ Then it approaches and neutralizes the closest BadApple to guard's current posit
 
 % --- SECTION 5 ---
 \section{Final Remarks}
-Overall this assignment was great. We had the opportunity to learn the basics of the syntax of Gamma
+Overall this assignment was great. We had the opportunity to learn the basics of the syntax of GAMA
 and we were challenged to implemented interesting things.
 We realized that changing a bit the inputs or minor details might lead
 to big changes in each simulation.

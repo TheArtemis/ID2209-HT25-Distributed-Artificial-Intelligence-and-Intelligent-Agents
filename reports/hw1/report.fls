@@ -1,8 +1,8 @@
-PWD /Volumes/Data/KTH/agents/ID2209-HT25-Distributed-Artificial-Intelligence-and-Intelligent-Agents/reports/hw1
+PWD /Users/itsrich/Documents/VSCode/ID2209-HT25-Distributed-Artificial-Intelligence-and-Intelligent-Agents/reports/hw1
 INPUT /usr/local/texlive/2025/texmf.cnf
 INPUT /usr/local/texlive/2025/texmf-dist/web2c/texmf.cnf
 INPUT /usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt
-INPUT /Volumes/Data/KTH/agents/ID2209-HT25-Distributed-Artificial-Intelligence-and-Intelligent-Agents/reports/hw1/report.tex
+INPUT /Users/itsrich/Documents/VSCode/ID2209-HT25-Distributed-Artificial-Intelligence-and-Intelligent-Agents/reports/hw1/report.tex
 OUTPUT report.log
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls
