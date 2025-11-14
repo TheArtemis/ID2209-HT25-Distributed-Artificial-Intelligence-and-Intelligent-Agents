@@ -8,8 +8,6 @@
 
 model Festival
 
-/* Insert your model definition here */
-
 global {
     int numCenter <- 1;
     int numShop <- 4;
@@ -80,7 +78,6 @@ species InformationCenter{
 	list<Shop> shops;
 	bool notifiedAboutAttack <- false;
 
-    //Added one guard per security shop
     SecurityGuard guard;
 
     aspect base{
@@ -93,7 +90,6 @@ species InformationCenter{
     }
     
     Shop getShopFor(string need) {
-        // find all shops matching the requested need (trait)
         list<Shop> matching <- shops where (each.trait = need);
         if (length(matching) > 0) {
             return one_of(matching);
@@ -103,7 +99,6 @@ species InformationCenter{
     }
     
     Shop getShopForSmart(string need, list<Shop> memory) {
-        // find all shops matching the requested need (trait)
         list<Shop> matching <- shops where (each.trait = need);
         
         if (length(matching) = 0) {
@@ -133,7 +128,6 @@ species InformationCenter{
 }
 
 species Shop{
-	// nil is a sort of constant in GAML for empty string
     string trait <- nil;
     point location;
 
@@ -193,7 +187,7 @@ species Guest skills:[moving]{
         
         if (isHungry and isThirsty) {
             status <- "hungry & thirsty";
-            statusColor <- #purple;  // Purple for both needs
+            statusColor <- #purple;  
         } else if (isHungry) {
             status <- "hungry";
             statusColor <- #red;
@@ -233,7 +227,6 @@ species Guest skills:[moving]{
     }
     
     reflex manage_needs {
-        // Go to info center when EITHER need reaches 80
         if ((hunger >= hungerThreshold or thirsty >= thirstThreshold or beingAttacked = true) and onTheWayToShop = false and targetShop = nil) {
             currentAction <- "-> Info Center";
             do go_infocenter;
@@ -242,7 +235,6 @@ species Guest skills:[moving]{
         }
     }
     
-    // Wander around when not hungry or thirsty
     reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false {
         do wander speed: movingSpeed;
         distanceTravelled <- distanceTravelled + movingSpeed;
@@ -251,9 +243,7 @@ species Guest skills:[moving]{
     int prev_hunger <- hunger;
 	int prev_thirst <- thirsty;
 
-    /*
-     * Reflex when guest reaches the information center
-     */
+
     reflex reached_info_center when:
         infoCenter != nil
         and onTheWayToShop = false
@@ -270,8 +260,7 @@ species Guest skills:[moving]{
             beingAttacked <- false;
             attackerRef <- nil;
         }
-
-        // Check BOTH needs
+        // Check needs
         bool needFood <- (hunger >= hungerThreshold);
         bool needWater <- (thirsty >= thirstThreshold);
         
@@ -420,7 +409,6 @@ species SmartGuest parent: Guest{
             attackerRef <- nil;
         }
 
-        // Check BOTH needs
         bool needFood <- (hunger >= hungerThreshold);
         bool needWater <- (thirsty >= thirstThreshold);
         
@@ -503,7 +491,7 @@ species SmartGuest parent: Guest{
         
         if (isHungry and isThirsty) {
             status <- "hungry & thirsty";
-            statusColor <- #purple;  // Purple for both needs
+            statusColor <- #purple; 
         } else if (isHungry) {
             status <- "hungry";
             statusColor <- #red;
