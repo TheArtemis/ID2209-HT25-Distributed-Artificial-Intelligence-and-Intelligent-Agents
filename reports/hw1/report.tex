@@ -79,7 +79,9 @@ The \textbf{Guest}, instead, takes part in the festival and basically wanders ra
 either hungry or thirsty. In this case it goes to the InformationCenter and asks
 where to find food or water to fulfill its need. Then he starts moving to the location
 given by the InformationCenter and "charges its batteries". Then, it continues moving aimlessly unless 
-it feels hungry or thirsty again(or both). A guest is a pink dot.
+it feels hungry or thirsty again(or both). 
+The initial value for hunger and thirst are set to 0, the maximum value reachable is 1000 and the threshold is set to 300.
+A guest is a pink dot.
 
 As we said before, there is also the \textbf{SmartGuest} that has a memory and so it is able to remember the locations
 of the shops visited. In this way he could move less with respect to normal guests and it will satisfy its need faster. The SmartGuest
@@ -95,7 +97,7 @@ The security guard is a blue dot and its starting position is north-west with re
 
 \subsection{Assumptions}
 Our model has 1 InformationCenter, 1 SecurityGuard, 4 Shops (two of which of type \textit{food} and two of type \textit{water}).
-Regarding the Guests, we have defined three SmartGuests and seven guests without memory.
+Regarding the Guests, we have defined 3 SmartGuests, 10 guests without memory and 4 BadApples.
 
 \subsection{Goals}
 The goals of this homework are:
@@ -121,7 +123,18 @@ should simply keep doing something until they get hungry/thirsty again (they wan
 
 \subsubsection*{3.2 Code}
 For this challenge we implemented all the requested agents and we setup a system through which there is a communication
-between the agents. In particular this is the portion of code 
+between the agents. 
+
+First of all, a thing we need to specify is that every loop the hunger and the thirst are updated in the following way
+\begin{verbatim}
+  reflex update_needs {
+    	hunger <- min(maxHunger, hunger + rnd(0, 1));
+        thirsty <- min(maxThirst, thirsty + rnd(0, 1));
+    }
+\end{verbatim}
+In fact the need of food and water increase randomically (maximums and threshold are already specified in the previous section of this document).
+
+Going on, this is the portion of code 
 where we designed the interaction between the information center and the guest.
 
 \begin{verbatim}
@@ -164,6 +177,7 @@ reflex reached_info_center when:
         write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
 	}
 \end{verbatim}
+
 
 The info center checks the need of the guest and assign him a shop to go.
 The guest then starts going to the target shop.
