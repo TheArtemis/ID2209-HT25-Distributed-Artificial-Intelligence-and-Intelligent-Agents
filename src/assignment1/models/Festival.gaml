@@ -22,6 +22,7 @@ global {
     int thirstThreshold <- 300;
     
     float movingSpeed <- 0.75;
+    float movingSpeedUnderAttack <- 1.50;
     
     
     point infoCenterLocalization <- point(50,50);
@@ -77,6 +78,7 @@ species InformationCenter{
 
 	point location <- infoCenterLocalization;
 	list<Shop> shops;
+	bool notifiedAboutAttack <- false;
 
     //Added one guard per security shop
     SecurityGuard guard;
@@ -84,6 +86,10 @@ species InformationCenter{
     aspect base{
         draw square(5) color: #black;
         draw "info center" at: location color: #black;
+        
+        if (notifiedAboutAttack) {
+        	draw "BAD GUEST REPORTED" at: location + {0, -5} color: #red font: font("Arial", 10, #bold);
+        }
     }
     
     Shop getShopFor(string need) {
@@ -96,8 +102,29 @@ species InformationCenter{
         }
     }
     
+    Shop getShopForSmart(string need, list<Shop> memory) {
+        // find all shops matching the requested need (trait)
+        list<Shop> matching <- shops where (each.trait = need);
+        
+        if (length(matching) = 0) {
+            return nil;
+        }
+        
+        // Filter out shops that are in memory
+        list<Shop> notInMemory <- matching where !(memory contains each);
+        
+        // If there are shops not in memory, return one of them
+        if (length(notInMemory) > 0) {
+            return one_of(notInMemory);
+        } else {
+            // All shops are in memory, return a random one
+            return one_of(matching);
+        }
+    }
+    
     action reportBadGuest(Guest attacker) {
     	write("Bad guest reported.");
+    	notifiedAboutAttack <- true;
     	ask guard {
     		do orderToEliminate(attacker);
     	}
@@ -175,6 +202,11 @@ species Guest skills:[moving]{
             statusColor <- #blue;
         }
         
+        if (beingAttacked) {
+        	status <- "UNDER ATTACK";
+        	statusColor <- #red;
+        }
+        
         if (status != "") {
             draw status at: location + {0, -2} color: statusColor font: font("Arial", 10, #bold);
         }
@@ -189,13 +221,20 @@ species Guest skills:[moving]{
     }
     
     action go_infocenter {
-    	do goto target: infoCenter.location speed: movingSpeed;
-    	distanceTravelled <- distanceTravelled + movingSpeed;
+        if (beingAttacked = true)
+        {
+            do goto target: infoCenter.location speed: movingSpeedUnderAttack;
+        }
+        else
+        {
+            do goto target: infoCenter.location speed: movingSpeed;
+            distanceTravelled <- distanceTravelled + movingSpeed;
+        }
     }
     
     reflex manage_needs {
         // Go to info center when EITHER need reaches 80
-        if ((hunger >= hungerThreshold or thirsty >= thirstThreshold) and onTheWayToShop = false and targetShop = nil) {
+        if ((hunger >= hungerThreshold or thirsty >= thirstThreshold or beingAttacked = true) and onTheWayToShop = false and targetShop = nil) {
             currentAction <- "-> Info Center";
             do go_infocenter;
         } else if (hunger < hungerThreshold and thirsty < thirstThreshold) {
@@ -204,7 +243,7 @@ species Guest skills:[moving]{
     }
     
     // Wander around when not hungry or thirsty
-    reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil {
+    reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false {
         do wander speed: movingSpeed;
         distanceTravelled <- distanceTravelled + movingSpeed;
     }
@@ -220,6 +259,8 @@ species Guest skills:[moving]{
         and onTheWayToShop = false
         and targetShop = nil
         and (location distance_to infoCenter.location) < 1.0 {
+
+        write "Reached info center; waiting for a shop to be assigned";
 
         // Check if guest was attacked and needs to report
         if (beingAttacked and attackerRef != nil) {
@@ -260,6 +301,7 @@ species Guest skills:[moving]{
                
         onTheWayToShop <- true;
         currentAction <- "-> " + primaryNeed + " shop";
+        write "The Information Center has assigned " + targetShop;
         write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
 	}
 
@@ -360,6 +402,58 @@ species SmartGuest parent: Guest{
         	currentAction <- "";
         }
     }
+    
+    reflex reached_info_center when:
+        infoCenter != nil
+        and onTheWayToShop = false
+        and targetShop = nil
+        and (location distance_to infoCenter.location) < 1.0 {
+
+        write "Smart Guest reached info center; waiting for a shop to be assigned";
+
+        // Check if guest was attacked and needs to report
+        if (beingAttacked and attackerRef != nil) {
+            ask infoCenter {
+                do reportBadGuest(myself.attackerRef);
+            }
+            beingAttacked <- false;
+            attackerRef <- nil;
+        }
+
+        // Check BOTH needs
+        bool needFood <- (hunger >= hungerThreshold);
+        bool needWater <- (thirsty >= thirstThreshold);
+        
+        // If no needs, exit early
+        if (!needFood and !needWater) {
+            return;
+        }
+        
+        // Determine which need to address
+        string primaryNeed;
+        
+        if (hunger = thirsty) {
+            // If equal, choose randomly
+            primaryNeed <- one_of(["food", "water"]);
+        } else if (hunger > thirsty) {
+            primaryNeed <- "food";
+        } else {
+            primaryNeed <- "water";
+        }
+        
+        // Pass memory to info center to get a shop not in memory
+        targetShop <- infoCenter.getShopForSmart(need: primaryNeed, memory: visitedPlaces);
+        
+        if (targetShop = nil) {
+            write "No target shop found for " + primaryNeed;
+            return; 
+        }
+               
+        onTheWayToShop <- true;
+        currentAction <- "-> " + primaryNeed + " shop";
+        write "The Information Center has assigned " + targetShop + " (considering memory)";
+        write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
+	}
     
     reflex reached_shop when: targetShop != nil and (location distance_to targetShop.location) < 1.0 {
     	
@@ -516,7 +610,7 @@ species BadApple skills:[moving] parent: Guest {
                     attackerRef <- attacker;
                     do go_infocenter;
                 }
-                //targetGuest <- nil;
+                
             }
         }
 
@@ -548,7 +642,7 @@ species BadApple skills:[moving] parent: Guest {
                     attackerRef <- attacker;
                     do go_infocenter;
                 }
-                //smartTarget <- nil;
+                
             }
         }
                 
@@ -562,6 +656,7 @@ species BadApple skills:[moving] parent: Guest {
 
 species SecurityGuard skills:[moving]{
     point location <- point(25,25);
+    list<Guest> badActors <- nil;
     Guest latestBadActor <- nil;
 
 
@@ -572,8 +667,11 @@ species SecurityGuard skills:[moving]{
     
     action orderToEliminate(Guest badGuest) {
     	write("Order to eliminate guest: " + badGuest + " received");
-    	latestBadActor <- badGuest;
-    	do goto target: badGuest.location speed: 1.2;
+    	add badGuest to: badActors;
+    	Guest closestBadActor <- badActors closest_to self;
+    	write("Executing kill order for: " + badGuest);
+    	latestBadActor <- closestBadActor;
+    	do goto target: closestBadActor.location speed: 1.2;
     }
     
     reflex killNearbyBadActors when: latestBadActor != nil and (location distance_to latestBadActor.location) < 1.0  {
