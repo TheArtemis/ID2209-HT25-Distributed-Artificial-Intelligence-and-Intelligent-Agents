@@ -264,12 +264,12 @@ This way if he gets hungry or thirsty again, he can decide to either go to the I
 \subsubsection*{4.2 Code}
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.6\textwidth]{imgs/code/smartGuestRiccardo.png}
+  \includegraphics[width=0.6\textwidth]{imgs/code/reach_info_center_updated.png}
   \caption{Code snippet for SmartGuest behavior}
-  \label{fig:smartGuestRiccardo}
+  \label{fig:reach_info_smart}
 \end{figure}
 
-The code snippet in Figure \ref{fig:smartGuestRiccardo} shows how the SmartGuest decides whether to go to a known shop or ask the InformationCenter for a new one. With a probability of 50\%, the SmartGuest chooses to visit a previously known shop from its memory of visited places. It randomly selects one shop that satisfies its current need (food or water) and heads there directly; otherwise it behaves like a normal Guest and goes to the InformationCenter.
+The code snippet in Figure \ref{fig:reach_info_smart} shows how the SmartGuest decides whether to go to a known shop or ask the InformationCenter for a new one. With a probability of 50\%, the SmartGuest chooses to visit a previously known shop from its memory of visited places. It randomly selects one shop that satisfies its current need (food or water) and heads there directly; otherwise it behaves like a normal Guest and goes to the InformationCenter.
 
 Whenever a SmartGuest visits a shop, it adds that shop to its list of visited places so it can remember it for future needs, reducing travel time on repeated needs.
 
