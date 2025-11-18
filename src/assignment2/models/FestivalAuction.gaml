@@ -15,6 +15,8 @@ global {
     
     int maxHunger <- 1000;
     int maxThirst <- 1000;
+
+    float reductionPerRound <- 100.0;
     
     int hungerThreshold <- 300;
     int thirstThreshold <- 300;
@@ -72,11 +74,20 @@ global {
         }
 }
 
-species Auctioneer{
+species Auctioneer skills: [fipa]{
+	
+	string prize <- "cloth";
+    float price <- 1000.0;
+
+    reflex sendProposalToAllGuests when: (time = 1)
+    {
+        write '(Time ' + time + '):' + name + ' sent a public message to all bidders.';
+        do start_conversation to: list(Guest) protocol:"fipa-contract-net" performative: 'cfp' contents:["My proposal is price"];
+    }
 	
 	aspect base{
 		draw square(5) color: #blue;
-		draw "auction" at: location color: #black;
+		draw "auctioneer" at: location color: #black;
 	}
 }
 
@@ -158,7 +169,7 @@ species Shop{
     }
 }
 
-species Guest skills:[moving]{
+species Guest skills:[moving, fipa]{
 
     int hunger <- 0;
     int thirsty <- 0;
@@ -220,6 +231,12 @@ species Guest skills:[moving]{
     reflex update_needs {
     	hunger <- min(maxHunger, hunger + rnd(0, 1));
         thirsty <- min(maxThirst, thirsty + rnd(0, 1));
+    }
+    
+    reflex receiveCalls when: !empty(cfps){
+    	loop cfpMsg over: cfps{
+    		 write '(Time ' + time + '):' + name + ' receive a cfp message from '+ agent(cfpMsg.sender).name + " with content: "+ cfpMsg;
+    	}
     }
     
     action go_infocenter {
