@@ -309,14 +309,14 @@ species Guest skills:[moving, fipa]{
         targetShop <- infoCenter.getShopFor(need: primaryNeed);
         
         if (targetShop = nil) {
-            write "No target shop found for " + primaryNeed;
+            //write "No target shop found for " + primaryNeed;
             return; 
         }
                
         onTheWayToShop <- true;
         currentAction <- "-> " + primaryNeed + " shop";
-        write "The Information Center has assigned " + targetShop;
-        write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
+        //write "The Information Center has assigned " + targetShop;
+        //write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
 	}
 
 	// Reflex to continuously move to the shop
@@ -330,10 +330,10 @@ species Guest skills:[moving, fipa]{
 		string shopType <- targetShop.getShopType("");
 		if (shopType = "food") {
             hunger <- 0;
-            write "Ate food! Hunger reset.";
+            //write "Ate food! Hunger reset.";
         } else if (shopType = "water") {
             thirsty <- 0;
-            write "Drank water! Thirst reset.";
+            //write "Drank water! Thirst reset.";
         }
 	}
 	
@@ -343,14 +343,14 @@ species Guest skills:[moving, fipa]{
         
         if (stillNeedFood or stillNeedWater) {
             // They still need something, go back to info center
-            write "Still need something! Going back to info center.";
+            //write "Still need something! Going back to info center.";
             targetShop <- nil;
             onTheWayToShop <- false;
             currentAction <- "";
             // The manage_needs reflex will send them back to info center
         } else {
             // All needs satisfied
-            write "All needs satisfied!";
+            //write "All needs satisfied!";
             onTheWayToShop <- false;
             targetShop <- nil;
             currentAction <- "";
@@ -458,14 +458,14 @@ species SmartGuest parent: Guest{
         targetShop <- infoCenter.getShopForSmart(need: primaryNeed, memory: visitedPlaces);
         
         if (targetShop = nil) {
-            write "No target shop found for " + primaryNeed;
+            //write "No target shop found for " + primaryNeed;
             return; 
         }
                
         onTheWayToShop <- true;
         currentAction <- "-> " + primaryNeed + " shop";
-        write "The Information Center has assigned " + targetShop + " (considering memory)";
-        write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
+        //write "The Information Center has assigned " + targetShop + " (considering memory)";
+        //write "Going to " + targetShop + " to get " + primaryNeed + " - hunger: " + hunger + ", thirst: " + thirsty;
 	}
     
     reflex reached_shop when: targetShop != nil and (location distance_to targetShop.location) < 1.0 {
@@ -601,7 +601,7 @@ species BadApple skills:[moving] parent: Guest {
             // if close enough, "attack"
             if (self distance_to targetGuest < attack_range) {
             	BadApple attacker <- self;
-            	write "Attacking a normal guest";
+            	//write "Attacking a normal guest";
                 ask targetGuest {
                 	int   hunger_bump    <- 50;    // how much hunger to add
     				int   thirst_bump    <- 30;    // how much thirst to add
@@ -633,7 +633,7 @@ species BadApple skills:[moving] parent: Guest {
             // if close enough, "attack"
             if (self distance_to smartTarget < attack_range) {
             	BadApple attacker <- self;
-                write "Attacking a smart guest";
+                //write "Attacking a smart guest";
                 ask smartTarget {
                 	int   hunger_bump    <- 50;    // how much hunger to add
     				int   thirst_bump    <- 30;    // how much thirst to add
@@ -679,10 +679,10 @@ species SecurityGuard skills:[moving]{
     }
     
     action orderToEliminate(Guest badGuest) {
-    	write("Order to eliminate guest: " + badGuest + " received");
+    	//write("Order to eliminate guest: " + badGuest + " received");
     	add badGuest to: badActors;
     	Guest closestBadActor <- badActors closest_to self;
-    	write("Executing kill order for: " + badGuest);
+    	//write("Executing kill order for: " + badGuest);
     	latestBadActor <- closestBadActor;
     	do goto target: closestBadActor.location speed: 1.2;
     }
