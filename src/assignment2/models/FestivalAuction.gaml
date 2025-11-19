@@ -29,10 +29,10 @@ global {
     point infoCenterLocalization <- point(50,50);
     
     // Auction stuff
-    list<string> all_items <- ["weed", "cocaine", "lsd"];
-    float weed_price <- 1000.0;
-    float cocaine_price <- 1000.0;
-    float lsd_price <- 1000.0;    
+    list<string> all_items <- ["alcohol", "sugar", "astonishings"];
+    float alcohol_price <- 1000.0;
+    float sugar_price <- 1000.0;
+    float astonishings_price <- 1000.0;    
     
 
     // Initialize the agents
@@ -95,16 +95,16 @@ species Auctioneer skills: [fipa]{
 	list<string> items <- all_items;
 
     // randomize the initial prices
-    float auctioned_weed_price <- rnd(weed_price * min_inc_coeff, weed_price * max_inc_coeff);
-    float auctioned_cocaine_price <- rnd(cocaine_price * min_inc_coeff, cocaine_price * max_inc_coeff);
-    float auctioned_lsd_price <- rnd(lsd_price * min_inc_coeff, lsd_price * max_inc_coeff);  
+    float auctioned_alcohol_price <- rnd(alcohol_price * min_inc_coeff, alcohol_price * max_inc_coeff);
+    float auctioned_sugar_price <- rnd(sugar_price * min_inc_coeff, sugar_price * max_inc_coeff);
+    float auctioned_astonishings_price <- rnd(astonishings_price * min_inc_coeff, astonishings_price * max_inc_coeff);  
 
     // this will be the price that the auctioneer will not accept to sell below
-    float baseline_weed_price <- weed_price * baseline_min_price_coeff;
-    float baseline_cocaine_price <- cocaine_price * baseline_min_price_coeff;
-    float baseline_lsd_price <- lsd_price * baseline_min_price_coeff;	
+    float baseline_alcohol_price <- alcohol_price * baseline_min_price_coeff;
+    float baseline_sugar_price <- sugar_price * baseline_min_price_coeff;
+    float baseline_astonishings_price <- astonishings_price * baseline_min_price_coeff;    
 	
-    // Separate state for each auction (weed=0, cocaine=1, lsd=2)
+    // Separate state for each auction (alcohol=0, sugar=1, astonishings=2)
     list<string> auction_state <- ["init","init","init"];
     list<float> current_auction_price <- [0.0, 0.0, 0.0];
     list<int> auction_iteration <- [0, 0, 0];
@@ -112,7 +112,7 @@ species Auctioneer skills: [fipa]{
     float price_decrease_factor <- 0.9;
     
     // Store proposals for each item to avoid mailbox consumption issues
-    map<string, list<message>> pending_proposals <- map(["weed"::[], "cocaine"::[], "lsd"::[]]);
+    map<string, list<message>> pending_proposals <- map(["alcohol"::[], "sugar"::[], "astonishings"::[]]);
 
     /* 
     
@@ -123,41 +123,41 @@ species Auctioneer skills: [fipa]{
     - aborted: the auction is aborted   
 
     Index mapping:
-    0 = weed
-    1 = cocaine
-    2 = lsd
+    0 = alcohol
+    1 = sugar
+    2 = astonishings
 
      */
 
-    // Start weed auction
-    reflex start_weed_auction when: (auction_state[0] = "init" and time >= 15) {
-        auction_id[0] <- string(auctioneer_id) + "-weed-" + string(auction_iteration[0]);
-        current_auction_price[0] <- auctioned_weed_price;
+    // Start alcohol auction
+    reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= 15) {
+        auction_id[0] <- string(auctioneer_id) + "-alcohol-" + string(auction_iteration[0]);
+        current_auction_price[0] <- auctioned_alcohol_price;
         auction_state[0] <- "running";
         
-        write "Starting auction for weed";
+        write "Starting auction for alcohol";
         write "Initial price: " + current_auction_price[0];
         write "Auction ID: " + auction_id[0];
     }
     
-    // Start cocaine auction
-    reflex start_cocaine_auction when: (auction_state[1] = "init" and time >= 15) {
-        auction_id[1] <- string(auctioneer_id) + "-cocaine-" + string(auction_iteration[1]);
-        current_auction_price[1] <- auctioned_cocaine_price;
+    // Start sugar auction
+    reflex start_sugar_auction when: (auction_state[1] = "init" and time >= 15) {
+        auction_id[1] <- string(auctioneer_id) + "-sugar-" + string(auction_iteration[1]);
+        current_auction_price[1] <- auctioned_sugar_price;
         auction_state[1] <- "running";
         
-        write "Starting auction for cocaine";
+        write "Starting auction for sugar";
         write "Initial price: " + current_auction_price[1];
         write "Auction ID: " + auction_id[1];
     }
     
-    // Start lsd auction
-    reflex start_lsd_auction when: (auction_state[2] = "init" and time >= 15) {
-        auction_id[2] <- string(auctioneer_id) + "-lsd-" + string(auction_iteration[2]);
-        current_auction_price[2] <- auctioned_lsd_price;
+    // Start astonishings auction
+    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= 15) {
+        auction_id[2] <- string(auctioneer_id) + "-astonishings-" + string(auction_iteration[2]);
+        current_auction_price[2] <- auctioned_astonishings_price;
         auction_state[2] <- "running";
         
-        write "Starting auction for lsd";
+        write "Starting auction for astonishings";
         write "Initial price: " + current_auction_price[2];
         write "Auction ID: " + auction_id[2];
     }
@@ -167,42 +167,42 @@ species Auctioneer skills: [fipa]{
         loop proposeMsg over: proposes {
             list contents_list <- list(proposeMsg.contents);
             string item <- string(contents_list[0]);
-            
+
             // Add to the appropriate item's proposal list
-            if (item = "weed") {
-                add proposeMsg to: pending_proposals["weed"];
-            } else if (item = "cocaine") {
-                add proposeMsg to: pending_proposals["cocaine"];
-            } else if (item = "lsd") {
-                add proposeMsg to: pending_proposals["lsd"];
+            if (item = "alcohol") {
+                add proposeMsg to: pending_proposals["alcohol"];
+            } else if (item = "sugar") {
+                add proposeMsg to: pending_proposals["sugar"];
+            } else if (item = "astonishings") {
+                add proposeMsg to: pending_proposals["astonishings"];
             }
         }
     }
 
-    // Weed auction iteration
-    reflex weed_auction_iteration when: (auction_state[0] = "running") {
+    // Alcohol auction iteration
+    reflex alcohol_auction_iteration when: (auction_state[0] = "running") {
         if (even(time)) {
-            do auction_iteration_even(0, "weed", baseline_weed_price);
+            do auction_iteration_even(0, "alcohol", baseline_alcohol_price);
         } else {
-            do auction_iteration_odd(0, "weed");
+            do auction_iteration_odd(0, "alcohol");
         }
     }
     
-    // Cocaine auction iteration
-    reflex cocaine_auction_iteration when: (auction_state[1] = "running") {
+    // Sugar auction iteration
+    reflex sugar_auction_iteration when: (auction_state[1] = "running") {
         if (even(time)) {
-            do auction_iteration_even(1, "cocaine", baseline_cocaine_price);
+            do auction_iteration_even(1, "sugar", baseline_sugar_price);
         } else {
-            do auction_iteration_odd(1, "cocaine");
+            do auction_iteration_odd(1, "sugar");
         }
     }
     
-    // LSD auction iteration
-    reflex lsd_auction_iteration when: (auction_state[2] = "running") {
+    // Astonishings auction iteration
+    reflex astonishings_auction_iteration when: (auction_state[2] = "running") {
         if (even(time)) {
-            do auction_iteration_even(2, "lsd", baseline_lsd_price);
+            do auction_iteration_even(2, "astonishings", baseline_astonishings_price);
         } else {
-            do auction_iteration_odd(2, "lsd");
+            do auction_iteration_odd(2, "astonishings");
         }
     }
     
@@ -270,38 +270,38 @@ species Auctioneer skills: [fipa]{
         auction_state[idx] <- "completed";
     }
 
-    reflex completeAuction_weed when: (auction_state[0] = "completed") {
-        write '(Time ' + time + '):' + name + ' completed the weed auction.';
+    reflex completeAuction_alcohol when: (auction_state[0] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the alcohol auction.';
         auction_state[0] <- "init";
         auction_iteration[0] <- auction_iteration[0] + 1;
     }
     
-    reflex completeAuction_cocaine when: (auction_state[1] = "completed") {
-        write '(Time ' + time + '):' + name + ' completed the cocaine auction.';
+    reflex completeAuction_sugar when: (auction_state[1] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the sugar auction.';
         auction_state[1] <- "init";
         auction_iteration[1] <- auction_iteration[1] + 1;
     }
     
-    reflex completeAuction_lsd when: (auction_state[2] = "completed") {
-        write '(Time ' + time + '):' + name + ' completed the lsd auction.';
+    reflex completeAuction_astonishings when: (auction_state[2] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the astonishings auction.';
         auction_state[2] <- "init";
         auction_iteration[2] <- auction_iteration[2] + 1;
     }
 
-    reflex abortAuction_weed when: (auction_state[0] = "abort") {
-        write '(Time ' + time + '):' + name + ' aborted the weed auction.';
+    reflex abortAuction_alcohol when: (auction_state[0] = "abort") {
+        write '(Time ' + time + '):' + name + ' aborted the alcohol auction.';
         auction_state[0] <- "init";
         auction_iteration[0] <- auction_iteration[0] + 1;
     }
     
-    reflex abortAuction_cocaine when: (auction_state[1] = "abort") {
-        write '(Time ' + time + '):' + name + ' aborted the cocaine auction.';
+    reflex abortAuction_sugar when: (auction_state[1] = "abort") {
+        write '(Time ' + time + '):' + name + ' aborted the sugar auction.';
         auction_state[1] <- "init";
         auction_iteration[1] <- auction_iteration[1] + 1;
     }
     
-    reflex abortAuction_lsd when: (auction_state[2] = "abort") {
-        write '(Time ' + time + '):' + name + ' aborted the lsd auction.';
+    reflex abortAuction_astonishings when: (auction_state[2] = "abort") {
+        write '(Time ' + time + '):' + name + ' aborted the astonishings auction.';
         auction_state[2] <- "init";
         auction_iteration[2] <- auction_iteration[2] + 1;
     }
@@ -427,9 +427,9 @@ species Guest skills:[moving, fipa]{
     float min_value_factor <- 0.9;
     float max_value_factor <- 1.1;
 
-    float weed_value <- rnd(weed_price * min_value_factor, weed_price * max_value_factor);
-    float cocaine_value <- rnd(cocaine_price * min_value_factor, cocaine_price * max_value_factor);
-    float lsd_value <- rnd(lsd_price * min_value_factor, lsd_price * max_value_factor);
+    float alcohol_value <- rnd(alcohol_price * min_value_factor, alcohol_price * max_value_factor);
+    float sugar_value <- rnd(sugar_price * min_value_factor, sugar_price * max_value_factor);
+    float ashtonishings_value <- rnd(astonishings_price * min_value_factor, astonishings_price * max_value_factor);
 
     // Receive CFP messages from auctioneer - only participate when in wander state
     reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false {
@@ -451,12 +451,12 @@ species Guest skills:[moving, fipa]{
             
             // Check if price is acceptable
             float max_price;
-            if (auction_item = 'weed') {
-                max_price <- weed_value;
-            } else if (auction_item = 'cocaine') {
-                max_price <- cocaine_value;
-            } else if (auction_item = 'lsd') {
-                max_price <- lsd_value;
+            if (auction_item = 'alchol') {
+                max_price <- alcohol_value;
+            } else if (auction_item ='sugar') {
+                max_price <- sugar_value;
+            } else if (auction_item = 'ashtonishings') {
+                max_price <- ashtonishings_value;
             }
             
             if (auction_price <= max_price) {
