@@ -104,13 +104,15 @@ species Auctioneer skills: [fipa]{
     float baseline_cocaine_price <- cocaine_price * baseline_min_price_coeff;
     float baseline_lsd_price <- lsd_price * baseline_min_price_coeff;	
 	
-    // iteration variables
-    string current_auction_item <- nil;
-    float current_auction_price <- 0.0;
-    int auction_iteration <- 0;
-    string auction_state <- "init";
-    string auction_id <- nil;
+    // Separate state for each auction (weed=0, cocaine=1, lsd=2)
+    list<string> auction_state <- ["init","init","init"];
+    list<float> current_auction_price <- [0.0, 0.0, 0.0];
+    list<int> auction_iteration <- [0, 0, 0];
+    list<string> auction_id <- [nil, nil, nil];
     float price_decrease_factor <- 0.9;
+    
+    // Store proposals for each item to avoid mailbox consumption issues
+    map<string, list<message>> pending_proposals <- map(["weed"::[], "cocaine"::[], "lsd"::[]]);
 
     /* 
     
@@ -120,118 +122,190 @@ species Auctioneer skills: [fipa]{
     - completed: the auction is completed
     - aborted: the auction is aborted   
 
-    examples:
-    
-    init -> running (many) -> completed
-    init -> running (many) -> aborted
+    Index mapping:
+    0 = weed
+    1 = cocaine
+    2 = lsd
 
      */
 
-    reflex start_auction when: (auction_state = "init" and time >= rnd(10,100)) {
-        current_auction_item <- one_of(items);
-        auction_id <- string(auctioneer_id) + "-" + string(auction_iteration);
-
-        // set the initial price for the current auction item
-        if (current_auction_item = "weed") {
-            current_auction_price <- auctioned_weed_price;
-        } else if (current_auction_item = "cocaine") {
-            current_auction_price <- auctioned_cocaine_price;
-        } else if (current_auction_item = "lsd") {
-            current_auction_price <- auctioned_lsd_price;
+    // Start weed auction
+    reflex start_weed_auction when: (auction_state[0] = "init" and time >= 15) {
+        auction_id[0] <- string(auctioneer_id) + "-weed-" + string(auction_iteration[0]);
+        current_auction_price[0] <- auctioned_weed_price;
+        auction_state[0] <- "running";
+        
+        write "Starting auction for weed";
+        write "Initial price: " + current_auction_price[0];
+        write "Auction ID: " + auction_id[0];
+    }
+    
+    // Start cocaine auction
+    reflex start_cocaine_auction when: (auction_state[1] = "init" and time >= 15) {
+        auction_id[1] <- string(auctioneer_id) + "-cocaine-" + string(auction_iteration[1]);
+        current_auction_price[1] <- auctioned_cocaine_price;
+        auction_state[1] <- "running";
+        
+        write "Starting auction for cocaine";
+        write "Initial price: " + current_auction_price[1];
+        write "Auction ID: " + auction_id[1];
+    }
+    
+    // Start lsd auction
+    reflex start_lsd_auction when: (auction_state[2] = "init" and time >= 15) {
+        auction_id[2] <- string(auctioneer_id) + "-lsd-" + string(auction_iteration[2]);
+        current_auction_price[2] <- auctioned_lsd_price;
+        auction_state[2] <- "running";
+        
+        write "Starting auction for lsd";
+        write "Initial price: " + current_auction_price[2];
+        write "Auction ID: " + auction_id[2];
+    }
+    
+    // Central proposal collection - runs ONCE per cycle to avoid mailbox consumption
+    reflex collect_proposals when: !empty(proposes) {
+        loop proposeMsg over: proposes {
+            list contents_list <- list(proposeMsg.contents);
+            string item <- string(contents_list[0]);
+            
+            // Add to the appropriate item's proposal list
+            if (item = "weed") {
+                add proposeMsg to: pending_proposals["weed"];
+            } else if (item = "cocaine") {
+                add proposeMsg to: pending_proposals["cocaine"];
+            } else if (item = "lsd") {
+                add proposeMsg to: pending_proposals["lsd"];
+            }
         }
+    }
 
-        write "Starting auction for " + current_auction_item;
-        write "Initial price: " + current_auction_price;
-        write "Auction ID: " + auction_id;
-
-        auction_state <- "running";
-
-    }   
-
-    reflex auction_iteration when: (auction_state = "running") {
-
+    // Weed auction iteration
+    reflex weed_auction_iteration when: (auction_state[0] = "running") {
         if (even(time)) {
-            do auction_iteration_even;
+            do auction_iteration_even(0, "weed", baseline_weed_price);
         } else {
-            do auction_iteration_odd;
-        }  
+            do auction_iteration_odd(0, "weed");
+        }
     }
+    
+    // Cocaine auction iteration
+    reflex cocaine_auction_iteration when: (auction_state[1] = "running") {
+        if (even(time)) {
+            do auction_iteration_even(1, "cocaine", baseline_cocaine_price);
+        } else {
+            do auction_iteration_odd(1, "cocaine");
+        }
+    }
+    
+    // LSD auction iteration
+    reflex lsd_auction_iteration when: (auction_state[2] = "running") {
+        if (even(time)) {
+            do auction_iteration_even(2, "lsd", baseline_lsd_price);
+        } else {
+            do auction_iteration_odd(2, "lsd");
+        }
+    }
+    
+    
 
-    action auction_iteration_odd {
-        // on odd rounds we receive the proposals
-        do receiveProposals;
+    action auction_iteration_odd(int idx, string item) {
+        // on odd rounds we receive the proposals for this auction from our stored map
+        do receiveProposals(idx, item);
 
-        // if we get here it means that no guest has offered a price higher than the current auction price
-
+        // if we get here it means that no guest has won yet
         // so we lower the price for the next iteration
-        current_auction_price <- current_auction_price * price_decrease_factor;
+        current_auction_price[idx] <- current_auction_price[idx] * price_decrease_factor;
     }
 
-    action auction_iteration_even {
-
+    action auction_iteration_even(int idx, string item, float baseline_price) {
         // check if the current price is lower than the baseline price
-        if (current_auction_item = "weed") {
-            if (current_auction_price < baseline_weed_price) {
-                auction_state <- "abort";
-            }
-        } else if (current_auction_item = "cocaine") {
-            if (current_auction_price < baseline_cocaine_price) {
-                auction_state <- "abort";
-            }
-        } else if (current_auction_item = "lsd") {
-            if (current_auction_price < baseline_lsd_price) {
-                auction_state <- "abort";
-            }
+        if (current_auction_price[idx] < baseline_price) {
+            auction_state[idx] <- "abort";
+            return;
         }
 
         // on even rounds we send the proposal
-        write "Auction iteration for " + current_auction_item;
-        write "Current price: " + current_auction_price;
-        do sendProposalToAllGuests;
+        write "Auction iteration for " + item;
+        write "Current price: " + current_auction_price[idx];
+        do sendProposalToGuests(item, current_auction_price[idx]);
     }
 
-    action sendProposalToAllGuests {
-        write '(Time ' + time + '):' + name + ' sent a proposal for ' + current_auction_item + ' at price ' + current_auction_price;
-        do start_conversation to: list(Guest) protocol: 'fipa-contract-net' performative: 'cfp' contents: [current_auction_item, current_auction_price];    
+    action sendProposalToGuests(string item, float price) {
+        write '(Time ' + time + '):' + name + ' sent a CFP for ' + item + ' at price ' + price;
+        do start_conversation to: list(Guest) protocol: 'fipa-contract-net' performative: 'cfp' contents: [item, price];    
     }   
 
-    action receiveProposals {
-        // check if any guest has sent an accept-proposal
-        if empty(proposes) {
+    action receiveProposals(int idx, string item) {
+        // Get proposals for this specific item from our pending map
+        list<message> item_proposes <- pending_proposals[item];
+        
+        write '(Time ' + time + '):' + name + ' found ' + length(item_proposes) + ' proposals for ' + item;
+        
+        if empty(item_proposes) {
             return;
         }
 
         // pick the first proposal as winner
-        message winnerMsg <- proposes[0];
+        message winnerMsg <- item_proposes[0];
         Guest winner <- agent(winnerMsg.sender);
         
-        write '(Time ' + time + '):' + name + ' received ' + length(proposes) + ' proposals';
+        write '(Time ' + time + '):' + name + ' received ' + length(item_proposes) + ' proposals for ' + item;
         write '(Time ' + time + '):' + name + ' selected winner: ' + winner.name;
         
         // accept the winner's proposal
-        do accept_proposal message: winnerMsg contents: [current_auction_item, current_auction_price];
+        do accept_proposal message: winnerMsg contents: [item, current_auction_price[idx]];
         
-        // reject all other proposals (if there are any)
-        if length(proposes) > 1 {
-            loop proposeMsg over: proposes {
+        // reject all other proposals for this item (if there are any)
+        if length(item_proposes) > 1 {
+            loop proposeMsg over: item_proposes {
                 if (proposeMsg != winnerMsg) {
                     do reject_proposal message: proposeMsg contents: ['Too late, item sold'];
                 }
             }
         }
         
-        auction_state <- "completed";
+        // Clear the pending proposals for this item
+        pending_proposals[item] <- [];
+        
+        auction_state[idx] <- "completed";
     }
 
-    reflex completeAuction when: (auction_state = "completed") {
-        write '(Time ' + time + '):' + name + ' completed the auction.';
-        auction_state <- "init";
+    reflex completeAuction_weed when: (auction_state[0] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the weed auction.';
+        auction_state[0] <- "init";
+        auction_iteration[0] <- auction_iteration[0] + 1;
+    }
+    
+    reflex completeAuction_cocaine when: (auction_state[1] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the cocaine auction.';
+        auction_state[1] <- "init";
+        auction_iteration[1] <- auction_iteration[1] + 1;
+    }
+    
+    reflex completeAuction_lsd when: (auction_state[2] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the lsd auction.';
+        auction_state[2] <- "init";
+        auction_iteration[2] <- auction_iteration[2] + 1;
     }
 
-    reflex abortAuction when: (auction_state = "abort") {
-        write '(Time ' + time + '):' + name + ' aborted the auction.';
-        auction_state <- "init";
+    reflex abortAuction_weed when: (auction_state[0] = "abort") {
+        write '(Time ' + time + '):' + name + ' aborted the weed auction.';
+        auction_state[0] <- "init";
+        auction_iteration[0] <- auction_iteration[0] + 1;
     }
+    
+    reflex abortAuction_cocaine when: (auction_state[1] = "abort") {
+        write '(Time ' + time + '):' + name + ' aborted the cocaine auction.';
+        auction_state[1] <- "init";
+        auction_iteration[1] <- auction_iteration[1] + 1;
+    }
+    
+    reflex abortAuction_lsd when: (auction_state[2] = "abort") {
+        write '(Time ' + time + '):' + name + ' aborted the lsd auction.';
+        auction_state[2] <- "init";
+        auction_iteration[2] <- auction_iteration[2] + 1;
+    }
+
 
 	
 	aspect base{
@@ -357,8 +431,8 @@ species Guest skills:[moving, fipa]{
     float cocaine_value <- rnd(cocaine_price * min_value_factor, cocaine_price * max_value_factor);
     float lsd_value <- rnd(lsd_price * min_value_factor, lsd_price * max_value_factor);
 
-    // Receive CFP messages from auctioneer
-    reflex receiveCFP when: !empty(cfps) {
+    // Receive CFP messages from auctioneer - only participate when in wander state
+    reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false {
         loop cfpMsg over: cfps {
             list contents_list <- list(cfpMsg.contents);
             string auction_item <- string(contents_list[0]);
@@ -372,7 +446,7 @@ species Guest skills:[moving, fipa]{
             if (!is_interested) {
                 write '(Time ' + time + '):' + name + ' is not interested in ' + auction_item;
                 do refuse message: cfpMsg contents: ['Not interested in this item'];
-                return;
+                continue;
             }
             
             // Check if price is acceptable
