@@ -127,7 +127,7 @@ species Auctioneer skills: [fipa]{
 
      */
 
-    reflex start_auction when: (auction_state = "init") {
+    reflex start_auction when: (auction_state = "init" and time >= rnd(10,100)) {
         current_auction_item <- one_of(items);
         auction_id <- string(auctioneer_id) + "-" + string(auction_iteration);
 
@@ -191,7 +191,7 @@ species Auctioneer skills: [fipa]{
     }
 
     action sendProposalToAllGuests {
-        write '(Time ' + time + '):' + name + ' sent a CFP for ' + current_auction_item + ' at price ' + current_auction_price;
+        write '(Time ' + time + '):' + name + ' sent a proposal for ' + current_auction_item + ' at price ' + current_auction_price;
         do start_conversation to: list(Guest) protocol: 'fipa-contract-net' performative: 'cfp' contents: [current_auction_item, current_auction_price];    
     }   
 
@@ -395,7 +395,7 @@ species Guest skills:[moving, fipa]{
         }
     }
     
-    // Handle accept/reject from auctioneer
+    // Handle acception from auctioneer
     reflex handleAuctionResult when: !empty(accept_proposals) {
         loop acceptMsg over: accept_proposals {
             list contents_list <- list(acceptMsg.contents);
@@ -405,6 +405,7 @@ species Guest skills:[moving, fipa]{
         }
     }
     
+    // Handle rejection from auctioneer
     reflex handleRejection when: !empty(reject_proposals) {
         loop rejectMsg over: reject_proposals {
             list contents_list <- list(rejectMsg.contents);
@@ -935,5 +936,4 @@ experiment MyExperiment type:gui{
 
 }
 
-/* Insert your model definition here */
 
