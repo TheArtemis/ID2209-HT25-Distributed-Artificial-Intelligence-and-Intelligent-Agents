@@ -1,7 +1,7 @@
 /**
-* Name: NewModel
+* Name: FestivalAuction
 * Based on the internal empty template. 
-* Author: Lorenzo
+* Author: Lorenzo Deflorian, Riccardo Fragale, Juozas Skarbalius
 * Tags: 
 */
 
@@ -191,61 +191,44 @@ species Auctioneer skills: [fipa]{
     }
 
     action sendProposalToAllGuests {
-        write '(Time ' + time + '):' + name + ' sent a public message to all bidders.';
-        do start_conversation to: list(Guest) protocol:"fipa-contract-net" performative: 'cfp' contents:["My proposal is price"];    
+        write '(Time ' + time + '):' + name + ' sent a CFP for ' + current_auction_item + ' at price ' + current_auction_price;
+        do start_conversation to: list(Guest) protocol: 'fipa-contract-net' performative: 'cfp' contents: [current_auction_item, current_auction_price];    
     }   
 
     action receiveProposals {
-        // check if any guest has sent a proposal
-    	if empty(cfps) {
-    		return;
-    	}
-
-        // receive all the proposals
-    	
-        // TODO: check if this works
-    	/* loop cfpMsg over: cfps{
-            Guest guest <- agent(cfpMsg.sender);
-            float proposalPrice <- cfpMsg.contents[0];
-            
-
-            // TODO: cheeck if this works
-            write '(Time ' + time + '):' + name + ' receive a proposal from '+ guest.name + " with price: "+ proposalPrice;
-            if (proposalPrice > current_auction_price) {
-                current_auction_price <- proposalPrice;
-            }
-    	} */ 
-        
-
-        // proposals is a list of guests if the guests that want to buy the current auction item
-
-        list<Guest> proposals <- [];
-
-        if length(proposals) < 0 {
-            // no guest has offered a price higher than the current auction price
+        // check if any guest has sent an accept-proposal
+        if empty(proposes) {
             return;
         }
 
-        // get the first proposal
-        Guest firstProposal <- proposals[0];
-        do acceptProposal(firstProposal);
-
-        auction_state <- "completed";   
+        // pick the first proposal as winner
+        message winnerMsg <- proposes[0];
+        Guest winner <- agent(winnerMsg.sender);
+        
+        write '(Time ' + time + '):' + name + ' received ' + length(proposes) + ' proposals';
+        write '(Time ' + time + '):' + name + ' selected winner: ' + winner.name;
+        
+        // accept the winner's proposal
+        do accept_proposal message: winnerMsg contents: [current_auction_item, current_auction_price];
+        
+        // reject all other proposals (if there are any)
+        if length(proposes) > 1 {
+            loop proposeMsg over: proposes {
+                if (proposeMsg != winnerMsg) {
+                    do reject_proposal message: proposeMsg contents: ['Too late, item sold'];
+                }
+            }
+        }
+        
+        auction_state <- "completed";
     }
 
     reflex completeAuction when: (auction_state = "completed") {
-        // TODO: send a message to all guests to complete the auction
         write '(Time ' + time + '):' + name + ' completed the auction.';
         auction_state <- "init";
     }
 
-    action acceptProposal(Guest guest) {
-        // TODO: accept the proposal with a message
-        write '(Time ' + time + '):' + name + ' accepted the proposal from guest ' + guest.name + " with price: "+ current_auction_price;
-    }
-
     reflex abortAuction when: (auction_state = "abort") {
-        // TODO: send a message to all guests to abort the auction
         write '(Time ' + time + '):' + name + ' aborted the auction.';
         auction_state <- "init";
     }
@@ -374,70 +357,59 @@ species Guest skills:[moving, fipa]{
     float cocaine_value <- rnd(cocaine_price * min_value_factor, cocaine_price * max_value_factor);
     float lsd_value <- rnd(lsd_price * min_value_factor, lsd_price * max_value_factor);
 
-    reflex wait_for_auction when: current_auction_state = "no_auction" {
-        write '(Time ' + time + '):' + name + ' is waiting for an auction to start';
-        do receiveAuctionProposal;
-    }
-
-
-    action check_if_interested_in_auction(string auction_item) {
-        // check if we are interest in this auction
-        if (interest_items contains auction_item) {
-            return true;
-        }
-
-        // if not we add it to the skipped auctions list
-        add auction_item to: skipped_auctions;
-
-        return false;
-
-    }
-
-    // TODO: implement this
-    action receiveAuctionInit{
-
-        if empty(cfps) {
-            return;
-        }
-
+    // Receive CFP messages from auctioneer
+    reflex receiveCFP when: !empty(cfps) {
         loop cfpMsg over: cfps {
-            write '(Time ' + time + '):' + name + ' receive a cfp message from '+ agent(cfpMsg.sender).name + " with content: "+ cfpMsg;
-        }
-    }
-
-    reflex busy_auctioning when: current_auction_state = "busy" {
-
-        // we read the auction prices from the cfp messages
-
-
-        // if we are interested we send a proposal
-    }
-
-    action receiveAuctionProposal {
-        if empty(cfps) {
-            return;
-        }
-
-        
-        loop cfpMsg over: cfps{
-            write '(Time ' + time + '):' + name + ' receive a cfp message from '+ agent(cfpMsg.sender).name + " with content: "+ cfpMsg;
-        }
-        
-        
-
-        // check if we like this price
-        interested <- check_if_interested_in_auction(current_auction_item);
-
-        if (interested) {
-            current_auction_state <- "busy";
+            list contents_list <- list(cfpMsg.contents);
+            string auction_item <- string(contents_list[0]);
+            float auction_price <- float(contents_list[1]);
+            
+            write '(Time ' + time + '):' + name + ' received CFP for ' + auction_item + ' at price ' + auction_price;
+            
+            // Check if interested in this item
+            bool is_interested <- interest_items contains auction_item;
+            
+            if (!is_interested) {
+                write '(Time ' + time + '):' + name + ' is not interested in ' + auction_item;
+                do refuse message: cfpMsg contents: ['Not interested in this item'];
+                return;
+            }
+            
+            // Check if price is acceptable
+            float max_price;
+            if (auction_item = 'weed') {
+                max_price <- weed_value;
+            } else if (auction_item = 'cocaine') {
+                max_price <- cocaine_value;
+            } else if (auction_item = 'lsd') {
+                max_price <- lsd_value;
+            }
+            
+            if (auction_price <= max_price) {
+                write '(Time ' + time + '):' + name + ' accepts price ' + auction_price + ' for ' + auction_item + ' (max: ' + max_price + ')';
+                do propose message: cfpMsg contents: [auction_item, auction_price];
+            } else {
+                write '(Time ' + time + '):' + name + ' refuses price ' + auction_price + ' for ' + auction_item + ' (max: ' + max_price + ')';
+                do refuse message: cfpMsg contents: ['Price too high'];
+            }
         }
     }
     
-    // receive the current auction item and price
-    reflex receiveCalls when: !empty(cfps){
-    	loop cfpMsg over: cfps{
-    		 write '(Time ' + time + '):' + name + ' receive a cfp message from '+ agent(cfpMsg.sender).name + " with content: "+ cfpMsg;
-    	}
+    // Handle accept/reject from auctioneer
+    reflex handleAuctionResult when: !empty(accept_proposals) {
+        loop acceptMsg over: accept_proposals {
+            list contents_list <- list(acceptMsg.contents);
+            string item <- string(contents_list[0]);
+            float price <- float(contents_list[1]);
+            write '(Time ' + time + '):' + name + ' WON auction for ' + item + ' at price ' + price;
+        }
+    }
+    
+    reflex handleRejection when: !empty(reject_proposals) {
+        loop rejectMsg over: reject_proposals {
+            list contents_list <- list(rejectMsg.contents);
+            write '(Time ' + time + '):' + name + ' was rejected: ' + string(contents_list[0]);
+        }
     }
     
     
