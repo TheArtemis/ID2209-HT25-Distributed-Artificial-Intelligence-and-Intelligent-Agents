@@ -1,0 +1,165 @@
+\documentclass[a4paper,12pt]{article}
+
+% --- PACKAGES ---
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+% --- PAGE SETUP ---
+\geometry{margin=2.5cm}
+\setlength{\parskip}{0.7em}
+\setlength{\parindent}{0pt}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{DAIIA Assignment Report}
+\lhead{Deflorian, Fragale, Skarbalius}
+\cfoot{\thepage}
+
+% --- SECTION FORMATTING ---
+\titleformat{\section}{\large\bfseries\color{blue}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\bfseries}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}[runin]{\bfseries}{\thesubsubsection}{0.5em}{}[.]
+
+% --- TITLE ---
+\title{\textbf{DAIIA Assignment Report}\\[0.5em]
+\large Course: [Distributed Artificial Intelligence and AI Agents] \\[0.3em]
+Assignment: Homework 2}
+\author{Lorenzo Deflorian, Riccardo Fragale, Juozas Skarbalius \\[0.3em]
+KTH Royal Institute of Technology \\[0.3em]
+}
+\date{\today}
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+
+% --- SECTION 1 ---
+\section{Running Instructions}
+Import the ZIP file given on GAMA and go to the folder assignment2/models. You will find a file
+called FestivalAuction.gaml where our model for the homework is implemented.
+Then, from the interface of GAMA, click on the play button and you will see a simulation.
+Use the tools provided by the GAMA simulation interface to adjust the speed, read the outputs
+and verify on screen that everything is working correctly.
+Note that changing the parameters \textit{numCenter,numShop and numGuests} will change the number of 
+agents that will appear on the screen and be part of the simulation. These parameters are still related to 
+the implementation of the first homework but since we are introducing auctions
+in the previous model, they might be still relevant for simulation purposes.
+
+% --- SECTION 2 ---
+\section{General Overview}
+\subsection{New Agents}
+In addition to the previous model of the Festival we needed to add new agents that are repsonsible for 
+running auctions on several different products. 
+As far as the basic implementation and the first challenge we have an agent called \textbf{Auctioneer}
+that is responsible for the so-called Dutch auctions.
+It appears on the map in a random location and it is a blue square of dimension 5.
+For the purpose of the second challenge we implemented two new agents, called \textbf{EnglishAuctioneer} and \textbf{VickreyAuctioneer} that
+are responsible for English and Vickrey auctions. 
+Since for challenge 2 we would need to compare the profitability of each type of auction for auctioneers and bidders (guests)
+we decided that each auctioneer sell the same products as the others.
+In particular, products on auctions are alcohol, sugar and ashtonishings (they in a bit recall the environment of a techno music festival).
+
+\subsection{Assumption}
+In our festival we would have only three auctioneers and, at least for the case of the Dutch Auctioneer,
+it is also able to showcase multiple products at the same time.
+As a general rule, all interactions between auctioneers and bidders will follow FIPA protocol, instead of pure ask commands.
+The auctioneers will appear on display at the beginning of the simulation, but they will start
+the auction procedure after a certain randomic time defined as \textit{rnd(15,1500)}.
+Each product will be sold just once by each auctioneer.
+
+
+\subsection{Goals}
+The four main goals for this homework are the following:
+\begin{itemize}
+    \item More experience with agents in GAMA
+    \item Introduction to message passing and FIPA protocol
+    \item Experience working with agent negotiation
+    \item Simulating and practicing in an auction
+\end{itemize}
+
+
+% --- SECTION 3 ---
+\section{Basic implementation}
+
+
+
+\subsection*{3.1 Explanation}
+As said before in the general overview we were aske to implement a new agent, called \textbf{Auctioneer} that is responsible 
+for holding Dutch auctions of certain products inside the festival.
+Just as a brief remainder, a Dutch auction starts with an offer by the auctioneer (in our case a randomic value) with much higher price than the expected market value.
+If no one wants to buy for the set price, the auctioneer reduces the price at selected interval.
+He is completely free to decide how much the price is reduced in every round.
+If the price gets reduced below a minimum threshold, the auction is cancelled and the product is not sold.
+
+\subsection*{3.2 Code}
+Include relevant code snippets below:
+
+\begin{verbatim}
+# Example code snippet
+def example():
+    print("Hello, DAIIA!")
+\end{verbatim}
+
+
+
+\subsection*{3.3 Demonstration}
+Provide two use cases for this section.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Input:} Describe the input.
+  \item \textbf{Screenshot:} Include program execution/output.
+  \item \textbf{Interpretation:} Briefly explain the result.
+\end{enumerate}
+
+% --- SECTION 4 ---
+\section{Challenge 1: Multiple Auctions in the Festival}
+
+\subsection*{4.1 Explanation}
+In this first challenge we were asked to allow multiple auctions at the same time. In our case 
+we decided to allow a multiple auctioneer to setup multiple auctions at the same time of different products.
+We would also show that guests are interested into different products and so they would bid offers only for what 
+they are really interested. This was also clear in our basic implementation 
+but since it is required specifically for this challenge we are highlighting it again.
+
+\subsection*{4.2 Code}
+Show relevant code snippets and screenshots.
+
+\subsection*{4.3 Demonstration}
+Provide 4 complete use cases:
+\begin{enumerate}[leftmargin=*]
+  \item Input description.
+  \item Screenshot of program execution/output.
+  \item Short explanation of results.
+\end{enumerate}
+
+
+% --- SECTION 5---
+\section{Challenge 2: Different auction settings}
+
+\subsection*{4.1 Explanation}
+For the purpose of this second challenge we were aske to implement at least two more type of auctions.
+We decided to implement English auctions and Vickrey auctions.
+
+
+\subsection*{4.2 Code}
+Show relevant code snippets and screenshots.
+
+\subsection*{4.3 Demonstration and comparison of prices}
+Provide a couple of use cases and show that certain auctions might be more or less 
+profitable for auctioneers and guests.
+
+% --- SECTION 6 ---
+\section{Final Remarks}
+In conclusion, this assignment provided us a second oppurtunity to learn the basics of GAMA simulation modelling. 
+Moreover, we were also to "dirty" our hands or harder tasks such as communicsating using FIPA protocol
+and establishing auctions. This homework was definitely more interesting and challenging
+and thus we are very happy of having been able to correctly deliver it.
+
+\end{document}

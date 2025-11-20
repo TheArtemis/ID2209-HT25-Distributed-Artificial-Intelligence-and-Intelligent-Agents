@@ -13,6 +13,7 @@ global {
     int numCenter <- 1;
     int numShop <- 4;
     int numGuests <- 10;
+    int numAuctioneers <- 2;
     
     int maxHunger <- 1000;
     int maxThirst <- 1000;
@@ -25,6 +26,10 @@ global {
     float movingSpeed <- 0.75;
     float movingSpeedUnderAttack <- 1.50;
       
+    // Display toggles
+    bool show_distance <- false;
+    bool show_memory <- false;
+    bool display_favourites <- true;
     
     point infoCenterLocalization <- point(50,50);
     
@@ -80,9 +85,10 @@ global {
         	}
         	
         	
-        	create Auctioneer number:1;
-        	create EnglishAuctioneer number:1;
-        	create VickreyAuctioneer number:1;
+        	create EnglishAuctioneer number:numAuctioneers returns: englishAuctioneers;
+        	create VickreyAuctioneer number:numAuctioneers returns: vickreyAuctioneers;
+        	create Auctioneer number: numAuctioneers returns: auctioneers;       	
+        	
         }
 }
 
@@ -683,7 +689,8 @@ species EnglishAuctioneer skills: [fipa] {
 
 species Auctioneer skills: [fipa]{
 
-    int auctioneer_id <- rnd(1, 100000);
+    int auctioneer_id <- rnd(1, 1000000);
+    rgb auctioneer_color <- #lightblue;
 
     float min_inc_coeff <- 1.1;
     float max_inc_coeff <- 1.5;
@@ -707,9 +714,17 @@ species Auctioneer skills: [fipa]{
     list<int> auction_iteration <- [0, 0, 0];
     list<string> auction_id <- [nil, nil, nil];
     float price_decrease_factor <- 0.9;
+
+    int start_time <- rnd(15,150);
     
     // Store proposals for each item to avoid mailbox consumption issues
     map<string, list<message>> pending_proposals <- map(["alcohol"::[], "sugar"::[], "astonishings"::[]]);
+    
+    // Visual indicators for wins and aborts
+    list<string> won_items <- [nil, nil, nil];
+    list<int> won_timers <- [0, 0, 0];
+    list<string> aborted_items <- [nil, nil, nil];
+    list<int> aborted_timers <- [0, 0, 0];
 
     /* 
     
@@ -718,6 +733,7 @@ species Auctioneer skills: [fipa]{
     - running: the auction is running
     - completed: the auction is completed
     - aborted: the auction is aborted   
+    - idle: the auction is waiting to restart
 
     Index mapping:
     0 = alcohol
@@ -727,7 +743,7 @@ species Auctioneer skills: [fipa]{
      */
 
     // Start alcohol auction
-    reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= 15) {
+    reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= start_time) {
         auction_id[0] <- string(auctioneer_id) + "-dutch-alcohol-" + string(auction_iteration[0]);
         current_auction_price[0] <- auctioned_alcohol_price;
         auction_state[0] <- "running";
@@ -737,8 +753,8 @@ species Auctioneer skills: [fipa]{
         write "Auction ID: " + auction_id[0];
     }
     
-    // Start sugar auction
-    reflex start_sugar_auction when: (auction_state[1] = "init" and time >= 15) {
+    // Start sugar auction        
+    reflex start_sugar_auction when: (auction_state[1] = "init" and time >= start_time) {
         auction_id[1] <- string(auctioneer_id) + "-dutch-sugar-" + string(auction_iteration[1]);
         current_auction_price[1] <- auctioned_sugar_price;
         auction_state[1] <- "running";
@@ -749,7 +765,7 @@ species Auctioneer skills: [fipa]{
     }
     
     // Start astonishings auction
-    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= 15) {
+    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= start_time) {
         auction_id[2] <- string(auctioneer_id) + "-dutch-astonishings-" + string(auction_iteration[2]);
         current_auction_price[2] <- auctioned_astonishings_price;
         auction_state[2] <- "running";
@@ -757,6 +773,18 @@ species Auctioneer skills: [fipa]{
         write "Starting auction for astonishings";
         write "Initial price: " + current_auction_price[2];
         write "Auction ID: " + auction_id[2];
+    }
+
+    // Restart idle auctions with probability
+    reflex restart_idle_auctions {
+        loop i from: 0 to: 2 {
+            if (auction_state[i] = "idle") {
+                if (flip(0.1)) { // 10% probability to restart per cycle
+                    auction_state[i] <- "init";
+                    write "Restarting auction " + i + " (transition from idle to init)";
+                }
+            }
+        }
     }
     
     // Central proposal collection - runs ONCE per cycle to avoid mailbox consumption
@@ -872,45 +900,109 @@ species Auctioneer skills: [fipa]{
 
     reflex completeAuction_alcohol when: (auction_state[0] = "completed") {
         write '(Time ' + time + '):' + name + ' completed the alcohol auction.';
-        auction_state[0] <- "init";
+        won_items[0] <- "alcohol";
+        won_timers[0] <- 15;
+        auction_state[0] <- "idle";
         auction_iteration[0] <- auction_iteration[0] + 1;
     }
     
     reflex completeAuction_sugar when: (auction_state[1] = "completed") {
         write '(Time ' + time + '):' + name + ' completed the sugar auction.';
-        auction_state[1] <- "init";
+        won_items[1] <- "sugar";
+        won_timers[1] <- 15;
+        auction_state[1] <- "idle";
         auction_iteration[1] <- auction_iteration[1] + 1;
     }
     
     reflex completeAuction_astonishings when: (auction_state[2] = "completed") {
         write '(Time ' + time + '):' + name + ' completed the astonishings auction.';
-        auction_state[2] <- "init";
+        won_items[2] <- "astonishings";
+        won_timers[2] <- 15;
+        auction_state[2] <- "idle";
         auction_iteration[2] <- auction_iteration[2] + 1;
     }
 
     reflex abortAuction_alcohol when: (auction_state[0] = "abort") {
         write '(Time ' + time + '):' + name + ' aborted the alcohol auction.';
-        auction_state[0] <- "init";
+        aborted_items[0] <- "alcohol";
+        aborted_timers[0] <- 15;
+        auction_state[0] <- "idle";
         auction_iteration[0] <- auction_iteration[0] + 1;
     }
     
     reflex abortAuction_sugar when: (auction_state[1] = "abort") {
         write '(Time ' + time + '):' + name + ' aborted the sugar auction.';
-        auction_state[1] <- "init";
+        aborted_items[1] <- "sugar";
+        aborted_timers[1] <- 15;
+        auction_state[1] <- "idle";
         auction_iteration[1] <- auction_iteration[1] + 1;
     }
     
     reflex abortAuction_astonishings when: (auction_state[2] = "abort") {
         write '(Time ' + time + '):' + name + ' aborted the astonishings auction.';
-        auction_state[2] <- "init";
+        aborted_items[2] <- "astonishings";
+        aborted_timers[2] <- 15;
+        auction_state[2] <- "idle";
         auction_iteration[2] <- auction_iteration[2] + 1;
+    }
+    
+    // Update timers for win and abort displays
+    reflex update_auction_status_timers {
+        loop i from: 0 to: 2 {
+            if (won_timers[i] > 0) {
+                won_timers[i] <- won_timers[i] - 1;
+                if (won_timers[i] = 0) {
+                    won_items[i] <- nil;
+                }
+            }
+            if (aborted_timers[i] > 0) {
+                aborted_timers[i] <- aborted_timers[i] - 1;
+                if (aborted_timers[i] = 0) {
+                    aborted_items[i] <- nil;
+                }
+            }
+        }
     }
 
 
 	
 	aspect base{
-		draw square(5) color: #blue;
+		draw square(5) color: auctioneer_color;
 		draw "auctioneer" at: location color: #black;
+		
+		// Display current auctions and prices
+		list<string> item_names <- ["alcohol", "sugar", "astonishings"];
+		list<rgb> item_colors <- [#red, #blue, #purple];
+		float y_offset <- -8.0;
+		
+		loop i from: 0 to: 2 {
+			if (auction_state[i] = "running") {
+				string item_name <- item_names[i];
+				float price <- current_auction_price[i];
+				rgb item_color <- item_colors[i];
+				string auction_text <- item_name + ": " + with_precision(price, 1);
+				draw auction_text at: location + {0, y_offset} color: item_color font: font("Arial", 10, #bold);
+				y_offset <- y_offset - 2.5;
+			}
+			
+			// Display won auctions
+			if (won_items[i] != nil and won_timers[i] > 0) {
+				string item_name <- item_names[i];
+				rgb item_color <- item_colors[i];
+				string win_text <- item_name + " SOLD!";
+				draw win_text at: location + {0, y_offset} color: #green font: font("Arial", 11, #bold);
+				y_offset <- y_offset - 2.5;
+			}
+			
+			// Display aborted auctions
+			if (aborted_items[i] != nil and aborted_timers[i] > 0) {
+				string item_name <- item_names[i];
+				rgb item_color <- item_colors[i];
+				string abort_text <- item_name + " ABORTED";
+				draw abort_text at: location + {0, y_offset} color: #orange font: font("Arial", 11, #bold);
+				y_offset <- y_offset - 2.5;
+			}
+		}
 	}
 }
 
@@ -1015,6 +1107,10 @@ species Guest skills:[moving, fipa]{
     map<string, float>  last_seen_price      <- map(["alcohol"::0.0, "sugar"::0.0, "astonishings"::0.0]);
 	map<string, string> last_seen_auction_id <- map(["alcohol"::"",   "sugar"::"",   "astonishings"::""]);
     bool interested <- false;
+    
+    // Visual indicator for auction wins
+    string won_auction_item <- nil;
+    int won_auction_timer <- 0;
 
     /* 
         current_auction_state:
@@ -1154,6 +1250,11 @@ species Guest skills:[moving, fipa]{
             string item <- string(contents_list[0]);
             float price <- float(contents_list[1]);
             write '(Time ' + time + '):' + name + ' WON auction for ' + item + ' at price ' + price;
+            current_auction_state <- "no_auction";
+            current_auction_item <- nil;
+            // Set visual indicator
+            won_auction_item <- item;
+            won_auction_timer <- 20; // Show for 20 cycles
         }
     }
     
@@ -1162,6 +1263,8 @@ species Guest skills:[moving, fipa]{
         loop rejectMsg over: reject_proposals {
             list contents_list <- list(rejectMsg.contents);
             write '(Time ' + time + '):' + name + ' was rejected: ' + string(contents_list[0]);
+            current_auction_state <- "no_auction";
+            current_auction_item <- nil;
         }
     }
     
@@ -1204,12 +1307,40 @@ species Guest skills:[moving, fipa]{
         }
         
         // Display distance travelled
-        draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        // draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        if (show_distance) {
+            draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        }
+        
+        // Display favourites (interest items)
+        if (display_favourites and length(interest_items) > 0) {
+            string favourites_text <- "likes: " + string(interest_items);
+            draw favourites_text at: location + {0, -6} color: #blue font: font("Arial", 9, #plain);
+        }
+        
+        // Display auction win message
+        if (won_auction_item != nil and won_auction_timer > 0) {
+            draw "WON: " + won_auction_item + "!" at: location + {0, 2} color: #orange font: font("Arial", 12, #bold);
+        }
     }
     
     reflex update_needs {
+    	// Don't update needs if guest is participating in an auction
+    	if (current_auction_state = "busy") {
+    	    return;
+    	}
     	hunger <- min(maxHunger, hunger + rnd(0, 1));
         thirsty <- min(maxThirst, thirsty + rnd(0, 1));
+    }
+    
+    // Decrement timer for auction win display
+    reflex update_auction_win_timer {
+        if (won_auction_timer > 0) {
+            won_auction_timer <- won_auction_timer - 1;
+            if (won_auction_timer = 0) {
+                won_auction_item <- nil;
+            }
+        }
     }
 
     action go_infocenter {
@@ -1248,7 +1379,7 @@ species Guest skills:[moving, fipa]{
         and targetShop = nil
         and (location distance_to infoCenter.location) < 1.0 {
 
-        write "Reached info center; waiting for a shop to be assigned";
+        //write "Reached info center; waiting for a shop to be assigned";
 
         // Check if guest was attacked and needs to report
         if (beingAttacked and attackerRef != nil) {
@@ -1503,10 +1634,23 @@ species SmartGuest parent: Guest{
         }
         
         // Display distance travelled
-        draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        // draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        if (show_distance) {
+            draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        }
         
         // Display memory size
-        draw "mem: " + length(visitedPlaces) at: location + {0, -5.5} color: #purple font: font("Arial", 9, #plain);
+        // draw "mem: " + length(visitedPlaces) at: location + {0, -5.5} color: #purple font: font("Arial", 9, #plain);
+        if (show_memory) {
+            draw "mem: " + length(visitedPlaces) at: location + {0, -5.5} color: #purple font: font("Arial", 9, #plain);
+        }
+        
+        // Display favourites (interest items)
+        if (display_favourites and length(interest_items) > 0) {
+            string favourites_text <- "likes: " + string(interest_items);
+            float y_offset <- show_memory ? -7.5 : -6.0;
+            draw favourites_text at: location + {0, y_offset} color: #blue font: font("Arial", 9, #plain);
+        }
     }
 	
 }
