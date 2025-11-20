@@ -45,6 +45,16 @@ global {
     float sugar_price <- 750.0;
     float magic_crystals_price <- 10000.0;    
     
+    // Seller revenue per auction type
+	float revenue_dutch   <- 0.0;
+	float revenue_english <- 0.0;
+	float revenue_vickrey <- 0.0;
+			
+	// Buyer surplus per auction type
+	float surplus_dutch   <- 0.0;
+	float surplus_english <- 0.0;
+	float surplus_vickrey <- 0.0;
+    
 
     // Initialize the agents
         init {
@@ -333,7 +343,8 @@ species VickreyAuctioneer skills: [fipa] {
                   + ' paying price ' + final_price;
 
             // Accept winner at second price
-            do accept_proposal message: winnerMsg contents: [item, final_price];
+            do accept_proposal message: winnerMsg contents: [item, final_price, "vickrey"];
+            revenue_vickrey <- revenue_vickrey + final_price;
         } else {
             write '(Time ' + time + '):' + name + ' VICKREY auction winner no longer exists for ' + item;
             auction_state[idx] <- "abort";
@@ -696,7 +707,8 @@ species EnglishAuctioneer skills: [fipa] {
 
             message winnerMsg <- last_winner_message[idx];
             if (winnerMsg != nil) {
-                do accept_proposal message: winnerMsg contents: [item, highest_bid[idx]];
+                do accept_proposal message: winnerMsg contents: [item, highest_bid[idx], "english"];
+                revenue_english <- revenue_english + highest_bid[idx];
             }
 
             pending_proposals[item] <- [];
@@ -1070,7 +1082,8 @@ species Auctioneer skills: [fipa]{
         if (winner != nil) {
             write '(Time ' + time + '):' + name + ' selected winner: ' + winner.name;
             // accept the winner's proposal
-            do accept_proposal message: winnerMsg contents: [item, current_auction_price[idx]];
+            do accept_proposal message: winnerMsg contents: [item, current_auction_price[idx], "dutch"];
+            revenue_dutch <- revenue_dutch + current_auction_price[idx];
         } else {
             write '(Time ' + time + '):' + name + ' winner sender no longer exists for ' + item;
             // Remove this proposal and try the next one if available
@@ -1081,7 +1094,8 @@ species Auctioneer skills: [fipa]{
                 winner <- agent(winnerMsg.sender);
                 if (winner != nil) {
                     write '(Time ' + time + '):' + name + ' selected alternative winner: ' + winner.name;
-                    do accept_proposal message: winnerMsg contents: [item, current_auction_price[idx]];
+                    do accept_proposal message: winnerMsg contents: [item, current_auction_price[idx], "dutch"];
+                    revenue_dutch <- revenue_dutch + current_auction_price[idx];
                 } else {
                     // No valid proposals, abort
                     auction_state[idx] <- "abort";
@@ -1482,13 +1496,39 @@ species Guest skills:[moving, fipa]{
             list contents_list <- list(acceptMsg.contents);
             string item <- string(contents_list[0]);
             float price <- float(contents_list[1]);
+            
+           	string auction_type <- string(contents_list[2]);
+           	
+           	// Compute private value for this item
+	        float value <- 0.0;
+	        if (item = "alcohol") {
+	            value <- alcohol_value;
+	        } else if (item = "sugar") {
+	            value <- sugar_value;
+	        } else if (item = "magic_crystals") {
+	            value <- magic_crystals_value;
+	        }
+            
+            float surplus <- value - price;
+        	if (surplus < 0.0) { surplus <- 0.0; }
+            
+            // Accumulate in global buyer surplus per auction type
+	        if (auction_type = "dutch") {
+	            surplus_dutch <- surplus_dutch + surplus;
+	        } else if (auction_type = "english") {
+	            surplus_english <- surplus_english + surplus;
+	        } else if (auction_type = "vickrey") {
+	            surplus_vickrey <- surplus_vickrey + surplus;
+	        }
+            
             write '(Time ' + time + '):' + name + ' WON auction for ' + item + ' at price ' + price;
             current_auction_state <- "no_auction";
             current_auction_item <- nil;
             // Set visual indicator
             won_auction_item <- item;
             won_auction_timer <- 20; // Show for 20 cycles
-        }
+        
+    	}
     }
     
     // Handle rejection from auctioneer
@@ -2136,11 +2176,12 @@ species SecurityGuard skills:[moving]{
 }
 
 
-experiment MyExperiment type:gui{    
-    output
-    {
-        display myDisplay
-        {
+experiment MyExperiment type: gui {
+    
+    output {
+        
+        // MAIN VISUAL DISPLAY
+        display myDisplay {
             species InformationCenter aspect: base;
             species SecurityGuard aspect: base;
             species Guest aspect: base;
@@ -2151,9 +2192,26 @@ experiment MyExperiment type:gui{
             species EnglishAuctioneer aspect: base;
             species VickreyAuctioneer aspect: base;
         }
+        
+        display chart1 {
+        	chart "seller_revenue_chart" type: pie {
+	            data "Dutch" value: revenue_dutch;
+	            data "English" value: revenue_english;
+	            data "Vickrey" value: revenue_vickrey;
+        	}
+        }
+        
+        display chart2 {
+        	chart "buyer_surplus_chart" type: pie {
+	            data "Dutch" value: surplus_dutch;
+	            data "English" value: surplus_english;
+	            data "Vickrey" value: surplus_vickrey;
+	        }
+        }
 
+      	
     }
-
 }
+
 
 
