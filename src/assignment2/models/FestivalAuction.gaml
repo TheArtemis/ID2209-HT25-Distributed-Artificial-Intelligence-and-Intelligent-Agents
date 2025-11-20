@@ -13,6 +13,7 @@ global {
     int numCenter <- 1;
     int numShop <- 4;
     int numGuests <- 10;
+    int numAuctioneers <- 2;
     
     int maxHunger <- 1000;
     int maxThirst <- 1000;
@@ -84,13 +85,15 @@ global {
         	}
         	
         	
-        	create Auctioneer number:1;
+        	create Auctioneer number: numAuctioneers returns: auctioneers;       	
+        	
         }
 }
 
 species Auctioneer skills: [fipa]{
 
     int auctioneer_id <- rnd(1, 1000000);
+    rgb auctioneer_color <- #lightblue;
 
     float min_inc_coeff <- 1.1;
     float max_inc_coeff <- 1.5;
@@ -119,6 +122,12 @@ species Auctioneer skills: [fipa]{
     
     // Store proposals for each item to avoid mailbox consumption issues
     map<string, list<message>> pending_proposals <- map(["alcohol"::[], "sugar"::[], "astonishings"::[]]);
+    
+    // Visual indicators for wins and aborts
+    list<string> won_items <- [nil, nil, nil];
+    list<int> won_timers <- [0, 0, 0];
+    list<string> aborted_items <- [nil, nil, nil];
+    list<int> aborted_timers <- [0, 0, 0];
 
     /* 
     
@@ -291,45 +300,109 @@ species Auctioneer skills: [fipa]{
 
     reflex completeAuction_alcohol when: (auction_state[0] = "completed") {
         write '(Time ' + time + '):' + name + ' completed the alcohol auction.';
+        won_items[0] <- "alcohol";
+        won_timers[0] <- 15;
         auction_state[0] <- "idle";
         auction_iteration[0] <- auction_iteration[0] + 1;
     }
     
     reflex completeAuction_sugar when: (auction_state[1] = "completed") {
         write '(Time ' + time + '):' + name + ' completed the sugar auction.';
+        won_items[1] <- "sugar";
+        won_timers[1] <- 15;
         auction_state[1] <- "idle";
         auction_iteration[1] <- auction_iteration[1] + 1;
     }
     
     reflex completeAuction_astonishings when: (auction_state[2] = "completed") {
         write '(Time ' + time + '):' + name + ' completed the astonishings auction.';
+        won_items[2] <- "astonishings";
+        won_timers[2] <- 15;
         auction_state[2] <- "idle";
         auction_iteration[2] <- auction_iteration[2] + 1;
     }
 
     reflex abortAuction_alcohol when: (auction_state[0] = "abort") {
         write '(Time ' + time + '):' + name + ' aborted the alcohol auction.';
+        aborted_items[0] <- "alcohol";
+        aborted_timers[0] <- 15;
         auction_state[0] <- "idle";
         auction_iteration[0] <- auction_iteration[0] + 1;
     }
     
     reflex abortAuction_sugar when: (auction_state[1] = "abort") {
         write '(Time ' + time + '):' + name + ' aborted the sugar auction.';
+        aborted_items[1] <- "sugar";
+        aborted_timers[1] <- 15;
         auction_state[1] <- "idle";
         auction_iteration[1] <- auction_iteration[1] + 1;
     }
     
     reflex abortAuction_astonishings when: (auction_state[2] = "abort") {
         write '(Time ' + time + '):' + name + ' aborted the astonishings auction.';
+        aborted_items[2] <- "astonishings";
+        aborted_timers[2] <- 15;
         auction_state[2] <- "idle";
         auction_iteration[2] <- auction_iteration[2] + 1;
+    }
+    
+    // Update timers for win and abort displays
+    reflex update_auction_status_timers {
+        loop i from: 0 to: 2 {
+            if (won_timers[i] > 0) {
+                won_timers[i] <- won_timers[i] - 1;
+                if (won_timers[i] = 0) {
+                    won_items[i] <- nil;
+                }
+            }
+            if (aborted_timers[i] > 0) {
+                aborted_timers[i] <- aborted_timers[i] - 1;
+                if (aborted_timers[i] = 0) {
+                    aborted_items[i] <- nil;
+                }
+            }
+        }
     }
 
 
 	
 	aspect base{
-		draw square(5) color: #blue;
+		draw square(5) color: auctioneer_color;
 		draw "auctioneer" at: location color: #black;
+		
+		// Display current auctions and prices
+		list<string> item_names <- ["alcohol", "sugar", "astonishings"];
+		list<rgb> item_colors <- [#red, #blue, #purple];
+		float y_offset <- -8.0;
+		
+		loop i from: 0 to: 2 {
+			if (auction_state[i] = "running") {
+				string item_name <- item_names[i];
+				float price <- current_auction_price[i];
+				rgb item_color <- item_colors[i];
+				string auction_text <- item_name + ": " + with_precision(price, 1);
+				draw auction_text at: location + {0, y_offset} color: item_color font: font("Arial", 10, #bold);
+				y_offset <- y_offset - 2.5;
+			}
+			
+			// Display won auctions
+			if (won_items[i] != nil and won_timers[i] > 0) {
+				string item_name <- item_names[i];
+				rgb item_color <- item_colors[i];
+				string win_text <- item_name + " SOLD!";
+				draw win_text at: location + {0, y_offset} color: #green font: font("Arial", 11, #bold);
+				y_offset <- y_offset - 2.5;
+			}
+			
+			// Display aborted auctions
+			if (aborted_items[i] != nil and aborted_timers[i] > 0) {
+				string item_name <- item_names[i];
+				rgb item_color <- item_colors[i];
+				string abort_text <- item_name + " ABORTED";
+				draw abort_text at: location + {0, y_offset} color: #orange font: font("Arial", 11, #bold);
+				y_offset <- y_offset - 2.5;
+			}
+		}
 	}
 }
 
