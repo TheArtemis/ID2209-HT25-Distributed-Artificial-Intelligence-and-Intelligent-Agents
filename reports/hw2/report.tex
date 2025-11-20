@@ -51,27 +51,29 @@ Note that changing the parameters \textit{numCenter,numShop and numGuests} will 
 agents that will appear on the screen and be part of the simulation. These parameters are still related to 
 the implementation of the first homework but since we are introducing auctions
 in the previous model, they might be still relevant for simulation purposes.
+We also have the new parameter \textit{numAuctioneers} that identifies the number of Dutch, English and
+Vickrey Auctioneers that appear in the map.
 
 % --- SECTION 2 ---
 \section{General Overview}
 \subsection{New Agents}
 In addition to the previous model of the Festival we needed to add new agents that are repsonsible for 
 running auctions on several different products. 
+For simulation purposes and to ease the debug procedure we have removed as much as possible all the logs and 
+the screen appearing of things related to the first homework.
 As far as the basic implementation and the first challenge we have an agent called \textbf{Auctioneer}
 that is responsible for the so-called Dutch auctions.
 It appears on the map in a random location and it is a blue square of dimension 5.
 For the purpose of the second challenge we implemented two new agents, called \textbf{EnglishAuctioneer} and \textbf{VickreyAuctioneer} that
 are responsible for English and Vickrey auctions. 
-Since for challenge 2 we would need to compare the profitability of each type of auction for auctioneers and bidders (guests)
-we decided that each auctioneer sell the same products as the others.
-In particular, products on auctions are alcohol, sugar and ashtonishings (they in a bit recall the environment of a techno music festival).
+All auctioneers sell the same products to guests; alcohol, sugar and ashtonishings (they in a bit recall the environment of a techno music festival).
 
 \subsection{Assumption}
 In our festival we would have only three auctioneers and, at least for the case of the Dutch Auctioneer,
 it is also able to showcase multiple products at the same time.
 As a general rule, all interactions between auctioneers and bidders will follow FIPA protocol, instead of pure ask commands.
 The auctioneers will appear on display at the beginning of the simulation, but they will start
-the auction procedure after a certain randomic time defined as \textit{rnd(15,1500)}.
+the auction procedure after a certain randomic time defined as \textit{rnd(15,150)}.
 Each product will be sold just once by each auctioneer.
 
 
@@ -99,24 +101,144 @@ He is completely free to decide how much the price is reduced in every round.
 If the price gets reduced below a minimum threshold, the auction is cancelled and the product is not sold.
 
 \subsection*{3.2 Code}
-Include relevant code snippets below:
+First of all, following the guidelines of a Dutch auction we set up the market prices of the items (they will be valid also for challenge 1 and 2).
+\begin{verbatim}
+    float alcohol_price <- 1000.0;
+    float sugar_price <- 750.0;
+    float astonishings_price <- 10000.0;  
+\end{verbatim}
+
+Then, considering the premises of the general overview the auctioneer must start from a higher price and must not 
+sell the price lower than a baseline. In our case the initial price is randomized and is set between 110\% and 150\% of
+the market value of the item. He is also responsible of deciding of how much to reduce the price of things
+between rounds.
 
 \begin{verbatim}
-# Example code snippet
-def example():
-    print("Hello, DAIIA!")
+    float min_inc_coeff <- 1.1;
+    float max_inc_coeff <- 1.5;
+    float baseline_min_price_coeff <- 0.5;
+
+    // randomize the initial prices
+    float auctioned_alcohol_price <- 
+        rnd(alcohol_price * min_inc_coeff, 
+            alcohol_price * max_inc_coeff);
+    float auctioned_sugar_price <- 
+        rnd(sugar_price * min_inc_coeff, 
+            sugar_price * max_inc_coeff);
+    float auctioned_astonishings_price <- 
+        rnd(astonishings_price * min_inc_coeff, 
+            astonishings_price * max_inc_coeff);  
+
+    // this will be the price that the auctioneer 
+    // will not accept to sell below
+    float baseline_alcohol_price <- 
+        alcohol_price * baseline_min_price_coeff;
+    float baseline_sugar_price <- 
+        sugar_price * baseline_min_price_coeff;
+    float baseline_astonishings_price <- 
+        astonishings_price * baseline_min_price_coeff;  
+    float price_decrease_factor <- 0.9;
+\end{verbatim}
+
+Each auction will have an ID displayed on the screen and a state (either \textit{init}, \textit{running}, \textit{idle}).
+After a product is sold, or the auction is aborted the state will be moved to idle and
+with a 10\%probability the auctioneer will decide whether to restart the selling of that product in a certain moment.
+This logic will be valid also for the types of auctions of challenge 2.
+
+Regarding the FIPA protocol, I'll show you below the interactions that are hsppening between an auctioneer
+and the guests that are bidding.
+Since the two categories of agents must exchange messages in order we setup a loop where
+auctioneers send CFP during even cycles and guests receive and processes proposals in odd cycle.
+To "measure" even and odd we used the time defined by GAMA simulation platform.
+\begin{verbatim}
+    reflex alcohol_auction_iteration when: (auction_state[0] = "running") {
+    if (even(time)) {
+        do auction_iteration_even(0, "alcohol", baseline_alcohol_price);
+    } else {
+        do auction_iteration_odd(0, "alcohol");
+    }
+}
+\end{verbatim}
+This reflex is called alcohol-auction as it is separated from the other auctions
+due to needs of challenge 1.
+When the auctioneer starts an auction it sends a proposal to allGuests with the following auction:
+\begin{verbatim}
+    action sendProposalToGuests(int idx, string item, float price) {
+    write '(Time ' + time + '):' + name + ' sent a CFP for ' + item + ' at price ' + price;
+    string id <- auction_id[idx];
+    do start_conversation to: list(Guest) protocol: 'fipa-contract-net'
+        performative: 'cfp'
+        contents: [item, price, "dutch", id];
+}
+\end{verbatim}
+As it can be seen we are using FIPA protocol. 
+The guest is receiving a CFP and processes it thanks to this method 
+\begin{verbatim}
+    reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold and thirsty < thirstThreshold 
+                       and onTheWayToShop = false and targetShop = nil and beingAttacked = false 
+\end{verbatim}
+The logic inside is is that if the price\_auction is below the maximum price it accepts immediately with "PROPOSE"
+as it can be seen in the following snippet.
+\begin{verbatim}
+    // In Dutch, accept if price is below valuation
+        if (auction_type = "dutch") {
+            current_auction_state <- "busy";
+            current_auction_item <- auction_item;
+            write '(Time ' + time + '):' + name
+                  + ' accepts DUTCH price ' + auction_price
+                  + ' for ' + auction_item + ' (max: ' + max_price + ')';
+            do propose message: cfpMsg contents: [auction_item, auction_price];
+        }
+\end{verbatim}
+
+The auctioneer then processes the proposals and if there are one (or many) of them he selects the first one arriving.
+If there are no proposals it sends again a CFP with a reduced price (also check if the new price is below the acceptance baseline).
+\begin{verbatim}
+    action auction_iteration_odd(int idx, string item) {
+    do receiveProposals(idx, item);
+    
+    // Lower price for next iteration
+    current_auction_price[idx] <- current_auction_price[idx] * price_decrease_factor;
+}
+[....]
+if (current_auction_price[idx] < baseline_price) {
+        auction_state[idx] <- "abort";
+        return;
+    }
+    
+    do sendProposalToGuests(idx, item, current_auction_price[idx]);
+\end{verbatim}
+
+Just as a final remark, when an auction is completed or aborted its state is moved to "idle" 
+and the auction will restart with 10\% probability as said before.
+
+\begin{verbatim}
+    // Restart idle auctions with probability
+    reflex restart_idle_auctions {
+        loop i from: 0 to: 2 {
+            if (auction_state[i] = "idle") {
+                if (flip(0.1)) { // 10% probability to restart per cycle
+                    auction_state[i] <- "init";
+                    write "Restarting auction " + i + " (transition from idle to init)";
+                }
+            }
+        }
+    }
 \end{verbatim}
 
 
 
 \subsection*{3.3 Demonstration}
-Provide two use cases for this section.
+I will provide two use cases for this basic implementation:
+\begin{itemize}
+    \item A user wins an auction for alcohol
+    \item An auctioneer starts the auction for sugar
+\end{itemize}
 
-\begin{enumerate}[leftmargin=*]
-  \item \textbf{Input:} Describe the input.
-  \item \textbf{Screenshot:} Include program execution/output.
-  \item \textbf{Interpretation:} Briefly explain the result.
-\end{enumerate}
+\subsubsection*{User wins alcohol auction}
+
+
+\subsubsection*{Auctioneer starts auction for sugar}
 
 % --- SECTION 4 ---
 \section{Challenge 1: Multiple Auctions in the Festival}
@@ -125,19 +247,99 @@ Provide two use cases for this section.
 In this first challenge we were asked to allow multiple auctions at the same time. In our case 
 we decided to allow a multiple auctioneer to setup multiple auctions at the same time of different products.
 We would also show that guests are interested into different products and so they would bid offers only for what 
-they are really interested. This was also clear in our basic implementation 
-but since it is required specifically for this challenge we are highlighting it again.
-
+they are really interested. 
 \subsection*{4.2 Code}
-Show relevant code snippets and screenshots.
+The Dutch auctioneer 
+can three independent auctions simultaneously (alcohol, sugar, astonishings) 
+using vectorized state management and separate reflexes per item.
+All auction state is stored in lists indexed by item (0=alcohol, 1=sugar, 2=astonishings). This is done because
+each item can be in a different state at the same time.
+Instead of a generic loop, each auction has its own reflex.
+\begin{verbatim}
+    reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= start_time) 
+    reflex start_sugar_auction when: 
+        (auction_state[1] = "init" and time >= start_time)
+\end{verbatim}
+Since GAML's reflex scheduler fires all matching reflexes in the same cycle, only
+three separate reflexes allow all auctions to start independently whenever conditions match.
+We also opted for a \textit{Centralised proposal collection} so that 
+proposals are collected once per cycle into a persistent map.
+
+\begin{verbatim}
+    map<string, list<message>> pending_proposals <- map(
+    ["alcohol"::[], "sugar"::[], "astonishings"::[]]);
+
+reflex collect_proposals when: !empty(proposes) {
+    loop proposeMsg over: proposes {
+        list contents_list <- list(proposeMsg.contents);
+        string item <- string(contents_list[0]);
+        
+        if (item = "alcohol") {
+            add proposeMsg to: pending_proposals["alcohol"];
+        } else if (item = "sugar") {
+            add proposeMsg to: pending_proposals["sugar"];
+        } else if (item = "astonishings") {
+            add proposeMsg to: pending_proposals["astonishings"];
+        }
+    }
+}
+\end{verbatim}
+This is done because FIPA mailbox is consumed immediately; storing proposals by item prevents errors when processing multiple auctions.
+On elast thing is that actions taken an \textit{idx} parameter to work on the correct item.
+
+Now we need to explain how guests can decide whether to take part in an auction.
+They participate in auctions only for items needed. 
+Interest is determined by item preferences and verified before sending proposals. 
+The auctioneer never receives proposals for unwanted items.
+Each guest has a list of items they care about:
+\begin{verbatim}
+    list<string> interest_items <- ["alcohol", "sugar", "astonishings"];
+\end{verbatim}
+This is initialized randomly during guest creation.
+When a guest receives a CFP, it first checks interest (inside the reflex called
+\textit{receiveCFP}) before deciding to propose:
+\begin{verbatim}
+    bool is_interested <- interest_items contains auction_item;
+        if (!is_interested) {
+            write '(Time ' + time + '):' + name +
+                ' is not interested in ' + auction_item;
+            do refuse message: cfpMsg contents: 
+                ['Not interested in this item'];
+            continue;  // Skip to next CFP
+        }
+\end{verbatim}
+Only after confirming interest, the check whether the auction price is acceptable.
+The auctioneer only receives proposals for items guests are interested as shown below.
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.4\textwidth]{collect_proposals.png}
+  \caption{Collect proposals reflex}
+  \label{fig:collect_proposals}
+\end{figure}
+
+\begin{verbatim}
+    
+\end{verbatim}
 
 \subsection*{4.3 Demonstration}
-Provide 4 complete use cases:
-\begin{enumerate}[leftmargin=*]
-  \item Input description.
-  \item Screenshot of program execution/output.
-  \item Short explanation of results.
-\end{enumerate}
+I will provide the following four use cases
+\begin{itemize}
+    \item Two auctions starting at the same time
+    \item Two auctions running at the same time
+    \item A user decides not to take place in an auction for a certain item since it is not interested
+    \item An auction is completed while another one is running
+\end{itemize}
+
+\subsubsection*{Two auctions starting at the same time}
+
+
+\subsubsection*{Two auctions running at the same time}
+
+
+\subsubsection*{User doesn't take place in an auction}
+
+
+\subsubsection*{Auction completed while another one is running}
 
 
 % --- SECTION 5---
@@ -146,6 +348,14 @@ Provide 4 complete use cases:
 \subsection*{4.1 Explanation}
 For the purpose of this second challenge we were aske to implement at least two more type of auctions.
 We decided to implement English auctions and Vickrey auctions.
+
+An English auction is an open ascending-bid auction where bidders continuosly raise prices;
+the auction continues until no higher bids are made and the winner is thus identified.
+It encourages competitive bidding and transparent price discovery.
+
+A Vickrey auction is a sealed-bid auction where bidders submit private bids and the higher bidder wins the auction.
+However, they pay the second-highest bid, not their own.
+This format incentivizes truthful bidding and reduces strategic manipulation.
 
 
 \subsection*{4.2 Code}

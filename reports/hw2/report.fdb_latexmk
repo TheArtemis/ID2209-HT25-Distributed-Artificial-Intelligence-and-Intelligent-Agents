@@ -1,6 +1,6 @@
 # Fdb version 4
-["pdflatex"] 1763635051.84296 "/Users/itsrich/Documents/VSCode/ID2209-HT25-Distributed-Artificial-Intelligence-and-Intelligent-Agents/reports/hw2/report.tex" "report.pdf" "report" 1763635052.18894 0
-  "/Users/itsrich/Documents/VSCode/ID2209-HT25-Distributed-Artificial-Intelligence-and-Intelligent-Agents/reports/hw2/report.tex" 1763635051.66567 6782 8588650cd46b36a2f5c66f26fd222751 ""
+["pdflatex"] 1763652768.86659 "/Users/itsrich/Documents/VSCode/ID2209-HT25-Distributed-Artificial-Intelligence-and-Intelligent-Agents/reports/hw2/report.tex" "report.pdf" "report" 1763652769.31002 0
+  "/Users/itsrich/Documents/VSCode/ID2209-HT25-Distributed-Artificial-Intelligence-and-Intelligent-Agents/reports/hw2/report.tex" 1763652768.27773 16284 509450b04a8f260d170556fd7746ea34 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/jknappen/ec/tcrm1200.tfm" 1136768653 1536 74b7293ec3713bb7fdca8dd1bd1f469c ""
@@ -75,10 +75,11 @@
   "/usr/local/texlive/2025/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1761305225 5467155 19efa205003f9ecad95fbbaa6ff24da1 ""
   "/usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt" 1761305178 3345738 78684196d07700bd2fd8562a1c47fdca ""
   "/usr/local/texlive/2025/texmf.cnf" 1741450484 577 418a7058ec8e006d8704f60ecd22c938 ""
-  "report.aux" 1763635052.15986 1244 2cd9b0b9d5c7272763d8bd6f9af00ab2 "pdflatex"
-  "report.out" 1763635052.16035 1369 b583fb87db2132007837e4af0a49c3f5 "pdflatex"
-  "report.tex" 1763635051.66567 6782 8588650cd46b36a2f5c66f26fd222751 ""
-  "report.toc" 1763635052.16049 713 fc60e04631fa7731220a2b0dbbc97626 "pdflatex"
+  "collect_proposals.png" 1763652313.55439 197295 30910e2c0526bd1c546acf26e3edc3b6 ""
+  "report.aux" 1763652769.27425 1458 c41a3657b51d5fa3c4874eeca99fa012 "pdflatex"
+  "report.out" 1763652769.27475 1369 b583fb87db2132007837e4af0a49c3f5 "pdflatex"
+  "report.tex" 1763652768.27773 16284 509450b04a8f260d170556fd7746ea34 ""
+  "report.toc" 1763652769.27489 713 93ca489faa0b7b2952e12dfcf5ab706d "pdflatex"
   (generated)
   "report.aux"
   "report.log"
