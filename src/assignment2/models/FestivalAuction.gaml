@@ -10,10 +10,12 @@ model FestivalAuction
 
 
 global {
+    //geometry shape <- rectangle(200#m,200#m);
+
     int numCenter <- 1;
     int numShop <- 4;
     int numGuests <- 10;
-    int numAuctioneers <- 2;
+    int numAuctioneers <- 1;
     
     int maxHunger <- 1000;
     int maxThirst <- 1000;
@@ -30,6 +32,10 @@ global {
     bool show_distance <- false;
     bool show_memory <- false;
     bool display_favourites <- true;
+    bool show_movement <- false;
+    
+    // Guest behavior
+    float probability_go_to_auctioneer <- 0.05; // 5% chance per cycle when wandering
     
     point infoCenterLocalization <- point(50,50);
     
@@ -1185,7 +1191,7 @@ species InformationCenter{
     SecurityGuard guard;
 
     aspect base{
-        draw square(5) color: #black;
+        draw square(5) color: #pink;
         draw "info center" at: location color: #black;
         
         if (notifiedAboutAttack) {
@@ -1228,6 +1234,15 @@ species InformationCenter{
     		do orderToEliminate(attacker);
     	}
     }
+    
+    // Clear the notification when all BadApples are eliminated
+    reflex clearNotification when: notifiedAboutAttack = true {
+    	list<BadApple> remainingBadApples <- list(BadApple);
+    	// Clear notification when all BadApples are eliminated
+    	if (length(remainingBadApples) = 0) {
+    	    notifiedAboutAttack <- false;
+    	}
+    }
 
 }
 
@@ -1268,6 +1283,11 @@ species Guest skills:[moving, fipa]{
 
     Shop targetShop;	
     Shop memory <- nil;
+    
+    // Auctioneer visiting
+    agent targetAuctioneer <- nil;
+    bool goingToAuctioneer <- false;
+    point targetAuctioneerPosition <- nil; // Position around the auctioneer to avoid clustering
 
     string current_auction_id <- nil;  
     string current_auction_state <- "no_auction";
@@ -1300,8 +1320,8 @@ species Guest skills:[moving, fipa]{
     float sugar_value <- rnd(sugar_price * min_value_factor, sugar_price * max_value_factor);
     float ashtonishings_value <- rnd(astonishings_price * min_value_factor, astonishings_price * max_value_factor);
 
-    // Receive CFP messages from auctioneer - only participate when in wander state
-    reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false {
+    // Receive CFP messages from auctioneer - participate when in wander state or at an auctioneer
+    reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false and (goingToAuctioneer = false or (targetAuctioneer != nil and (location distance_to targetAuctioneer.location) < 6.0) or currentAction = "at auctioneer") {
         loop cfpMsg over: cfps {
             list contents_list <- list(cfpMsg.contents);
             string auction_item <- string(contents_list[0]);
@@ -1454,7 +1474,7 @@ species Guest skills:[moving, fipa]{
         draw "guest" at: location color: #black;
         
         // Display current action above the guest
-        if (currentAction != "") {
+        if (show_movement and currentAction != "") {
             draw currentAction at: location + {0, 2} color: #orange font: font("Arial", 10, #bold);
         }
         
@@ -1535,16 +1555,68 @@ species Guest skills:[moving, fipa]{
     
     reflex manage_needs {
         if ((hunger >= hungerThreshold or thirsty >= thirstThreshold or beingAttacked = true) and onTheWayToShop = false and targetShop = nil) {
+            // Cancel going to auctioneer if needs arise
+            if (goingToAuctioneer) {
+                goingToAuctioneer <- false;
+                targetAuctioneer <- nil;
+                targetAuctioneerPosition <- nil;
+            }
             currentAction <- "-> Info Center";
             do go_infocenter;
         } else if (hunger < hungerThreshold and thirsty < thirstThreshold) {
-        	currentAction <- "";
+        	if (currentAction = "at auctioneer") {
+        	    // Keep the action if at auctioneer
+        	} else {
+        	    currentAction <- "";
+        	}
         }
     }
     
-    reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false {
+    reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false and goingToAuctioneer = false {
+        // With a certain probability, decide to go to an auctioneer
+        if (flip(probability_go_to_auctioneer)) {
+            // Get all auctioneers (all types)
+            list<agent> all_auctioneers <- list(Auctioneer) + list(EnglishAuctioneer) + list(VickreyAuctioneer);
+            if (length(all_auctioneers) > 0) {
+                targetAuctioneer <- one_of(all_auctioneers);
+                // Calculate a random position around the auctioneer (circle with radius 3-5 units)
+                float angle_degrees <- rnd(0, 360);
+                float angle_radians <- angle_degrees * (3.14159 / 180.0);
+                float distance <- rnd(3.0, 5.0);
+                targetAuctioneerPosition <- targetAuctioneer.location + {distance * cos(angle_radians), distance * sin(angle_radians)};
+                goingToAuctioneer <- true;
+                currentAction <- "-> Auctioneer";
+                return;
+            }
+        }
         do wander speed: movingSpeed;
         distanceTravelled <- distanceTravelled + movingSpeed;
+    }
+    
+    // Move towards the target auctioneer
+    reflex move_to_auctioneer when: goingToAuctioneer = true and targetAuctioneer != nil and targetAuctioneerPosition != nil {
+        do goto target: targetAuctioneerPosition speed: movingSpeed;
+        distanceTravelled <- distanceTravelled + movingSpeed;
+    }
+    
+    // Check if reached the auctioneer
+    reflex reached_auctioneer when: goingToAuctioneer = true and targetAuctioneer != nil and targetAuctioneerPosition != nil and (location distance_to targetAuctioneerPosition) < 1.0 {
+        goingToAuctioneer <- false;
+        currentAction <- "at auctioneer";
+        // Stay near the auctioneer to participate in auctions
+    }
+    
+    // Leave auctioneer area after some time or if needs arise
+    reflex leave_auctioneer when: goingToAuctioneer = false and targetAuctioneer != nil and currentAction = "at auctioneer" {
+        if (hunger >= hungerThreshold or thirsty >= thirstThreshold) {
+            targetAuctioneer <- nil;
+            targetAuctioneerPosition <- nil;
+            currentAction <- "";
+        } else if (flip(0.1)) { // 10% chance per cycle to leave
+            targetAuctioneer <- nil;
+            targetAuctioneerPosition <- nil;
+            currentAction <- "";
+        }
     }
     
     int prev_hunger <- hunger;
@@ -1654,7 +1726,13 @@ species SmartGuest parent: Guest{
 	list <Shop> visitedPlaces;
 	
 	reflex manage_needs{        
-        if ((hunger >= hungerThreshold or thirsty >= thirstThreshold) and onTheWayToShop = false and targetShop = nil) {
+        if ((hunger >= hungerThreshold or thirsty >= thirstThreshold or beingAttacked = true) and onTheWayToShop = false and targetShop = nil) {
+            // Cancel going to auctioneer if needs arise
+            if (goingToAuctioneer) {
+                goingToAuctioneer <- false;
+                targetAuctioneer <- nil;
+                targetAuctioneerPosition <- nil;
+            }
             // No visited places go to info center
             if (length(visitedPlaces)) <= 0 {
             	currentAction <- "-> Info Center";
@@ -1669,7 +1747,9 @@ species SmartGuest parent: Guest{
             	return;
             }
             
+            // Try to find a matching shop in memory
             list shuffledPlaces <- shuffle(visitedPlaces);
+            bool foundMatch <- false;
             loop i from: 0 to: length(shuffledPlaces) - 1{  
             	Shop candidateShop <- shuffledPlaces[i];          	
             	if (hunger >= hungerThreshold) {   
@@ -1677,6 +1757,7 @@ species SmartGuest parent: Guest{
             			targetShop <- candidateShop;
             			onTheWayToShop <- true;
             			currentAction <- "-> Known " + candidateShop.trait + " shop"; 
+            			foundMatch <- true;
             			return;         		 
             		}        		
             		 
@@ -1687,12 +1768,20 @@ species SmartGuest parent: Guest{
             			targetShop <- candidateShop;
             			onTheWayToShop <- true;
             			currentAction <- "-> Known " + candidateShop.trait + " shop"; 
+            			foundMatch <- true;
             			return;         		 
             		}        		
             		 
             	}            	
             	
-            }  
+            }
+            
+            // If no matching shop found in memory, go to info center
+            if (!foundMatch) {
+            	currentAction <- "-> Info Center";
+            	do go_infocenter;
+            	return;
+            }
             
         } else if (hunger < hungerThreshold and thirsty < thirstThreshold) {
         	currentAction <- "";
@@ -1703,6 +1792,7 @@ species SmartGuest parent: Guest{
         infoCenter != nil
         and onTheWayToShop = false
         and targetShop = nil
+        and goingToAuctioneer = false
         and (location distance_to infoCenter.location) < 1.0 {
 
         write "Smart Guest reached info center; waiting for a shop to be assigned";
@@ -1786,7 +1876,7 @@ species SmartGuest parent: Guest{
         draw "Smart guest" at: location color: #black;
         
         // Display current action above the guest
-        if (currentAction != "") {
+        if (show_movement and currentAction != "") {
             draw currentAction at: location + {0, 2} color: #orange font: font("Arial", 10, #bold);
         }
         
@@ -1976,10 +2066,22 @@ species SecurityGuard skills:[moving]{
     action orderToEliminate(Guest badGuest) {
     	//write("Order to eliminate guest: " + badGuest + " received");
     	add badGuest to: badActors;
-    	Guest closestBadActor <- badActors closest_to self;
-    	//write("Executing kill order for: " + badGuest);
-    	latestBadActor <- closestBadActor;
-    	do goto target: closestBadActor.location speed: 1.2;
+    	// Update the closest bad actor
+    	if (length(badActors) > 0) {
+    	    Guest closestBadActor <- badActors closest_to self;
+    	    latestBadActor <- closestBadActor;
+    	}
+    }
+    
+    // Continuously move towards the latest bad actor
+    reflex chaseBadActor when: latestBadActor != nil and (location distance_to latestBadActor.location) >= 1.0 {
+    	// Update to closest bad actor in case there are multiple
+    	if (length(badActors) > 0) {
+    	    Guest closestBadActor <- badActors closest_to self;
+    	    latestBadActor <- closestBadActor;
+    	}
+    	// Move towards the target
+    	do goto target: latestBadActor.location speed: 1.2;
     }
     
     reflex killNearbyBadActors when: latestBadActor != nil and (location distance_to latestBadActor.location) < 1.0  {
@@ -1987,12 +2089,19 @@ species SecurityGuard skills:[moving]{
             write "A BadApple has been caught!";
             do die;
         }
+        // Remove from badActors list
+        remove latestBadActor from: badActors;
         latestBadActor <- nil;
+        
+        // If there are more bad actors, target the next closest one
+        if (length(badActors) > 0) {
+            latestBadActor <- badActors closest_to self;
+        }
     }
 }
 
 
-experiment MyExperiment type:gui{
+experiment MyExperiment type:gui{    
     output
     {
         display myDisplay
