@@ -80,7 +80,7 @@ global {
         	}
         	
         	
-//        	create Auctioneer number:1;
+        	create Auctioneer number:1;
         	create EnglishAuctioneer number:1;
         }
 }
@@ -139,19 +139,19 @@ species EnglishAuctioneer skills: [fipa] {
 
     // ------------ START AUCTIONS ------------
 
-//    // Start alcohol auction
-//    reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= 15) {
-//        auction_id[0]            <- string(auctioneer_id) + "-english-alcohol-" + string(auction_iteration[0]);
-//        current_auction_price[0] <- auctioned_alcohol_price;
-//        highest_bid[0]           <- 0.0;
-//        highest_bidder[0]        <- nil;
-//        last_winner_message[0]   <- nil;
-//        auction_state[0]         <- "running";
-//        
-//        write "Starting ENGLISH auction for alcohol";
-//        write "Initial ask price: " + current_auction_price[0];
-//        write "Auction ID: " + auction_id[0];
-//    }
+    // Start alcohol auction
+    reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= 15) {
+        auction_id[0]            <- string(auctioneer_id) + "-english-alcohol-" + string(auction_iteration[0]);
+        current_auction_price[0] <- auctioned_alcohol_price;
+        highest_bid[0]           <- 0.0;
+        highest_bidder[0]        <- nil;
+        last_winner_message[0]   <- nil;
+        auction_state[0]         <- "running";
+        
+        write "Starting ENGLISH auction for alcohol";
+        write "Initial ask price: " + current_auction_price[0];
+        write "Auction ID: " + auction_id[0];
+    }
     
     // Start sugar auction
     reflex start_sugar_auction when: (auction_state[1] = "init" and time >= 15) {
@@ -167,19 +167,19 @@ species EnglishAuctioneer skills: [fipa] {
         write "Auction ID: " + auction_id[1];
     }
     
-    // Start astonishings auction
-//    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= 15) {
-//        auction_id[2]            <- string(auctioneer_id) + "-english-astonishings-" + string(auction_iteration[2]);
-//        current_auction_price[2] <- auctioned_astonishings_price;
-//        highest_bid[2]           <- 0.0;
-//        highest_bidder[2]        <- nil;
-//        last_winner_message[2]   <- nil;
-//        auction_state[2]         <- "running";
-//        
-//        write "Starting ENGLISH auction for astonishings";
-//        write "Initial ask price: " + current_auction_price[2];
-//        write "Auction ID: " + auction_id[2];
-//    }
+//     Start astonishings auction
+    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= 15) {
+        auction_id[2]            <- string(auctioneer_id) + "-english-astonishings-" + string(auction_iteration[2]);
+        current_auction_price[2] <- auctioned_astonishings_price;
+        highest_bid[2]           <- 0.0;
+        highest_bidder[2]        <- nil;
+        last_winner_message[2]   <- nil;
+        auction_state[2]         <- "running";
+        
+        write "Starting ENGLISH auction for astonishings";
+        write "Initial ask price: " + current_auction_price[2];
+        write "Auction ID: " + auction_id[2];
+    }
     
     // ------------ CENTRAL PROPOSAL COLLECTION ------------
 
@@ -765,10 +765,13 @@ species Guest skills:[moving, fipa]{
 	            last_seen_price[auction_item]      <- 0.0;
 	        }
 	
-	        // --- ignore truly old CFPs for the *same* auction & item ---
-	        if (auction_price <= last_seen_price[auction_item]) {
-	            continue;
-	        }
+	        if (auction_type = "english") {
+			    // ascending prices → ignore same-or-lower
+			    if (auction_price <= last_seen_price[auction_item]) {
+			        continue;
+			    }
+			}
+			
 	        last_seen_price[auction_item] <- auction_price;
             
             write '(Time ' + time + '):' + name + ' received CFP for ' + auction_item + ' at price ' + auction_price;
@@ -784,13 +787,13 @@ species Guest skills:[moving, fipa]{
             
             // Check if price is acceptable
             float max_price;
-            if (auction_item = 'alchol') {
-                max_price <- alcohol_value;
-            } else if (auction_item ='sugar') {
-                max_price <- sugar_value;
-            } else if (auction_item = 'ashtonishings') {
-                max_price <- ashtonishings_value;
-            }
+            if (auction_item = 'alcohol') {
+			    max_price <- alcohol_value;
+			} else if (auction_item = 'sugar') {
+			    max_price <- sugar_value;
+			} else if (auction_item = 'astonishings') {
+			    max_price <- ashtonishings_value;
+			}
             
             // If the current price is already above the valuation, drop out
 	        if (auction_price > max_price) {
