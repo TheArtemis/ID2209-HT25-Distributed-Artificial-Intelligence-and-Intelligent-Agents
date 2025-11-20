@@ -238,16 +238,16 @@ species EnglishAuctioneer skills: [fipa] {
 
     // EVEN: broadcast current ask price (no baseline check needed for ascending)
     action auction_iteration_even(int idx, string item, float baseline_price) {
-        write "ENGLISH auction iteration for " + item;
-        write "Current ask price: " + current_auction_price[idx];
-        do sendProposalToGuests(item, current_auction_price[idx]);
-    }
+	    write "ENGLISH auction iteration for " + item;
+	    write "Current ask price: " + current_auction_price[idx];
+	    do sendProposalToGuests(idx, item, current_auction_price[idx]);
+	}
 
-    action sendProposalToGuests(string item, float price) {
-        write '(Time ' + time + '):' + name + ' sent an ENGLISH CFP for ' + item + ' at ask price ' + price;
-        // If your Guest differentiates auction types via contents[2], keep "english" here:
-        do start_conversation to: list(Guest) protocol: 'fipa-contract-net' performative: 'cfp' contents: [item, price, "english"];    
-    }   
+    action sendProposalToGuests(int idx, string item, float price) {
+    	write '(Time ' + time + '):' + name + ' sent an ENGLISH CFP for ' + item + ' at ask price ' + price;
+    	string id <- auction_id[idx];
+    	do start_conversation to: list(Guest) protocol: 'fipa-contract-net' performative: 'cfp' contents: [item, price, "english", id];
+	}
 
     action receiveProposals(int idx, string item) {
         // Get proposals for this specific item from our pending map
@@ -539,13 +539,16 @@ species Auctioneer skills: [fipa]{
         // on even rounds we send the proposal
         write "Auction iteration for " + item;
         write "Current price: " + current_auction_price[idx];
-        do sendProposalToGuests(item, current_auction_price[idx]);
+        do sendProposalToGuests(idx, item, current_auction_price[idx]);
     }
 
-    action sendProposalToGuests(string item, float price) {
-        write '(Time ' + time + '):' + name + ' sent a CFP for ' + item + ' at price ' + price;
-        do start_conversation to: list(Guest) protocol: 'fipa-contract-net' performative: 'cfp' contents: [item, price];    
-    }   
+    action sendProposalToGuests(int idx, string item, float price) {
+	    write '(Time ' + time + '):' + name + ' sent a CFP for ' + item + ' at price ' + price;
+	    string id <- auction_id[idx];
+	    do start_conversation to: list(Guest) protocol: 'fipa-contract-net'
+	        performative: 'cfp'
+	        contents: [item, price, "dutch", id];
+	} 
 
     action receiveProposals(int idx, string item) {
         // Get proposals for this specific item from our pending map
@@ -724,6 +727,8 @@ species Guest skills:[moving, fipa]{
     string current_auction_item <- nil;
     float english_auction_price_increase_factor <- 1.02;
     list<string> skipped_auctions <- [];
+    map<string, float>  last_seen_price      <- map(["alcohol"::0.0, "sugar"::0.0, "astonishings"::0.0]);
+	map<string, string> last_seen_auction_id <- map(["alcohol"::"",   "sugar"::"",   "astonishings"::""]);
     bool interested <- false;
 
     /* 
@@ -751,6 +756,20 @@ species Guest skills:[moving, fipa]{
             string auction_item <- string(contents_list[0]);
             float auction_price <- float(contents_list[1]);
             string auction_type <- string(contents_list[2]);
+            
+            string auction_id    <- (length(contents_list) > 3) ? string(contents_list[3]) : "";
+
+	        // --- detect new auction (different auction_id) and reset state ---
+	        if (auction_id != "" and auction_id != last_seen_auction_id[auction_item]) {
+	            last_seen_auction_id[auction_item] <- auction_id;
+	            last_seen_price[auction_item]      <- 0.0;
+	        }
+	
+	        // --- ignore truly old CFPs for the *same* auction & item ---
+	        if (auction_price <= last_seen_price[auction_item]) {
+	            continue;
+	        }
+	        last_seen_price[auction_item] <- auction_price;
             
             write '(Time ' + time + '):' + name + ' received CFP for ' + auction_item + ' at price ' + auction_price;
             
