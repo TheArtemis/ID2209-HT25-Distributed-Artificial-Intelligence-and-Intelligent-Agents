@@ -111,7 +111,7 @@ species Auctioneer skills: [fipa]{
     list<string> auction_id <- [nil, nil, nil];
     float price_decrease_factor <- 0.9;
 
-    int start_time <- rnd(15,1500);
+    int start_time <- rnd(15,150);
     
     // Store proposals for each item to avoid mailbox consumption issues
     map<string, list<message>> pending_proposals <- map(["alcohol"::[], "sugar"::[], "astonishings"::[]]);
@@ -123,6 +123,7 @@ species Auctioneer skills: [fipa]{
     - running: the auction is running
     - completed: the auction is completed
     - aborted: the auction is aborted   
+    - idle: the auction is waiting to restart
 
     Index mapping:
     0 = alcohol
@@ -162,6 +163,18 @@ species Auctioneer skills: [fipa]{
         write "Starting auction for astonishings";
         write "Initial price: " + current_auction_price[2];
         write "Auction ID: " + auction_id[2];
+    }
+
+    // Restart idle auctions with probability
+    reflex restart_idle_auctions {
+        loop i from: 0 to: 2 {
+            if (auction_state[i] = "idle") {
+                if (flip(0.1)) { // 10% probability to restart per cycle
+                    auction_state[i] <- "init";
+                    write "Restarting auction " + i + " (transition from idle to init)";
+                }
+            }
+        }
     }
     
     // Central proposal collection - runs ONCE per cycle to avoid mailbox consumption
@@ -234,7 +247,7 @@ species Auctioneer skills: [fipa]{
 
     action sendProposalToGuests(string item, float price) {
         write '(Time ' + time + '):' + name + ' sent a CFP for ' + item + ' at price ' + price;
-        do start_conversation to: list(Guest) protocol: 'fipa-contract-net' performative: 'cfp' contents: [item, price];    
+        do start_conversation to: list(Guest) + list(SmartGuest) protocol: 'fipa-contract-net' performative: 'cfp' contents: [item, price];    
     }   
 
     action receiveProposals(int idx, string item) {
@@ -274,37 +287,37 @@ species Auctioneer skills: [fipa]{
 
     reflex completeAuction_alcohol when: (auction_state[0] = "completed") {
         write '(Time ' + time + '):' + name + ' completed the alcohol auction.';
-        auction_state[0] <- "init";
+        auction_state[0] <- "idle";
         auction_iteration[0] <- auction_iteration[0] + 1;
     }
     
     reflex completeAuction_sugar when: (auction_state[1] = "completed") {
         write '(Time ' + time + '):' + name + ' completed the sugar auction.';
-        auction_state[1] <- "init";
+        auction_state[1] <- "idle";
         auction_iteration[1] <- auction_iteration[1] + 1;
     }
     
     reflex completeAuction_astonishings when: (auction_state[2] = "completed") {
         write '(Time ' + time + '):' + name + ' completed the astonishings auction.';
-        auction_state[2] <- "init";
+        auction_state[2] <- "idle";
         auction_iteration[2] <- auction_iteration[2] + 1;
     }
 
     reflex abortAuction_alcohol when: (auction_state[0] = "abort") {
         write '(Time ' + time + '):' + name + ' aborted the alcohol auction.';
-        auction_state[0] <- "init";
+        auction_state[0] <- "idle";
         auction_iteration[0] <- auction_iteration[0] + 1;
     }
     
     reflex abortAuction_sugar when: (auction_state[1] = "abort") {
         write '(Time ' + time + '):' + name + ' aborted the sugar auction.';
-        auction_state[1] <- "init";
+        auction_state[1] <- "idle";
         auction_iteration[1] <- auction_iteration[1] + 1;
     }
     
     reflex abortAuction_astonishings when: (auction_state[2] = "abort") {
         write '(Time ' + time + '):' + name + ' aborted the astonishings auction.';
-        auction_state[2] <- "init";
+        auction_state[2] <- "idle";
         auction_iteration[2] <- auction_iteration[2] + 1;
     }
 
@@ -572,7 +585,7 @@ species Guest skills:[moving, fipa]{
         and targetShop = nil
         and (location distance_to infoCenter.location) < 1.0 {
 
-        write "Reached info center; waiting for a shop to be assigned";
+        //write "Reached info center; waiting for a shop to be assigned";
 
         // Check if guest was attacked and needs to report
         if (beingAttacked and attackerRef != nil) {
