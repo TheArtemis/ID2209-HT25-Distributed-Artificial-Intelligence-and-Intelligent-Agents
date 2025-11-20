@@ -53,6 +53,8 @@ the implementation of the first homework but since we are introducing auctions
 in the previous model, they might be still relevant for simulation purposes.
 We also have the new parameter \textit{numAuctioneers} that identifies the number of Dutch, English and
 Vickrey Auctioneers that appear in the map.
+On the screen you will also see two charts regarding surplus and revenue charts of all auction types.
+This part will be explained better inside section Challenge number 2.
 
 % --- SECTION 2 ---
 \section{General Overview}
@@ -236,10 +238,26 @@ I will provide two use cases for this basic implementation:
     \item An auctioneer starts the auction for sugar
 \end{itemize}
 
-\subsubsection*{User wins alcohol auction}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/user_wins_alcohol.png}
+    \caption{Guest wins alcohol Dutch auction}
+    \label{fig:alcohol_dutch}
+\end{figure}
+
+As it can be seen from the photo above, there has been an auction for alcohol which was won by Guest1
+with price 1016.44. Two proposals were sent for that price.
 
 
-\subsubsection*{Auctioneer starts auction for sugar}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/sugar_started.png}
+    \caption{An auctioneer starts a Dutch auction for sugar}
+    \label{fig:sugar_start}
+\end{figure}
+
+In figure \ref{fig:sugar_start} you will see a Dutch auction starting for sugar.
+
 
 % --- SECTION 4 ---
 \section{Challenge 1: Multiple Auctions in the Festival}
