@@ -42,8 +42,8 @@ global {
     // Auction stuff
     list<string> all_items <- ["alcohol", "sugar", "magic_crystals"];
     float alcohol_price <- 1000.0;
-    float sugar_price <- 1000.0;
-    float magic_crystals_price <- 1000.0;    
+    float sugar_price <- 750.0;
+    float magic_crystals_price <- 10000.0;    
     
 
     // Initialize the agents

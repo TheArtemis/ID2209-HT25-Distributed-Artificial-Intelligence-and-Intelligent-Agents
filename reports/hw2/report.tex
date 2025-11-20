@@ -66,7 +66,7 @@ that is responsible for the so-called Dutch auctions.
 It appears on the map in a random location and it is a blue square of dimension 5.
 For the purpose of the second challenge we implemented two new agents, called \textbf{EnglishAuctioneer} and \textbf{VickreyAuctioneer} that
 are responsible for English and Vickrey auctions. 
-All auctioneers sell the same products to guests; alcohol, sugar and ashtonishings (they in a bit recall the environment of a techno music festival).
+All auctioneers sell the same products to guests; alcohol, sugar and magic crystals (they in a bit recall the environment of a techno music festival).
 
 \subsection{Assumption}
 In our festival we would have only three auctioneers and, at least for the case of the Dutch Auctioneer,
@@ -219,7 +219,8 @@ and the auction will restart with 10\% probability as said before.
             if (auction_state[i] = "idle") {
                 if (flip(0.1)) { // 10% probability to restart per cycle
                     auction_state[i] <- "init";
-                    write "Restarting auction " + i + " (transition from idle to init)";
+                    write "Restarting auction " + i + " 
+                    (transition from idle to init)";
                 }
             }
         }
@@ -312,7 +313,7 @@ Only after confirming interest, the check whether the auction price is acceptabl
 The auctioneer only receives proposals for items guests are interested as shown below.
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.4\textwidth]{collect_proposals.png}
+  \includegraphics[width=0.4\textwidth]{imgs/collect_proposals.png}
   \caption{Collect proposals reflex}
   \label{fig:collect_proposals}
 \end{figure}
