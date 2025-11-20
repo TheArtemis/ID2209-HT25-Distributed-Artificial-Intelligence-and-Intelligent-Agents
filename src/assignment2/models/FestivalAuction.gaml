@@ -1682,6 +1682,8 @@ experiment MyExperiment type:gui{
             species SmartGuest aspect: base;
             species BadApple aspect: base;
             species Auctioneer aspect: base;
+            species EnglishAuctioneer aspect: base;
+            species VickreyAuctioneer aspect: base;
         }
 
     }
