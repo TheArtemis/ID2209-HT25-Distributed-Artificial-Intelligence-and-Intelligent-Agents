@@ -713,7 +713,7 @@ species EnglishAuctioneer skills: [fipa] {
         }
 
         if (winnerMsg != nil) {
-            Guest winner <- agent(winnerMsg.sender);
+            Guest winner <- Guest(agent(winnerMsg.sender));
 
             highest_bid[idx]       <- local_highest;
             highest_bidder[idx]    <- winner;
@@ -1580,7 +1580,7 @@ species Guest skills:[moving, fipa]{
             if (length(all_auctioneers) > 0) {
                 targetAuctioneer <- one_of(all_auctioneers);
                 // Calculate a random position around the auctioneer (circle with radius 3-5 units)
-                float angle_degrees <- rnd(0, 360);
+                int angle_degrees <- rnd(0, 360);
                 float angle_radians <- angle_degrees * (3.14159 / 180.0);
                 float distance <- rnd(3.0, 5.0);
                 targetAuctioneerPosition <- targetAuctioneer.location + {distance * cos(angle_radians), distance * sin(angle_radians)};
