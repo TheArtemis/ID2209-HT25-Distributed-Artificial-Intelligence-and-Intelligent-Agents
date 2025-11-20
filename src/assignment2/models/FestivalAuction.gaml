@@ -25,6 +25,10 @@ global {
     float movingSpeed <- 0.75;
     float movingSpeedUnderAttack <- 1.50;
       
+    // Display toggles
+    bool show_distance <- false;
+    bool show_memory <- false;
+    bool display_favourites <- true;
     
     point infoCenterLocalization <- point(50,50);
     
@@ -427,6 +431,10 @@ species Guest skills:[moving, fipa]{
     string current_auction_item <- nil;
     list<string> skipped_auctions <- [];
     bool interested <- false;
+    
+    // Visual indicator for auction wins
+    string won_auction_item <- nil;
+    int won_auction_timer <- 0;
 
     /* 
         current_auction_state:
@@ -476,6 +484,8 @@ species Guest skills:[moving, fipa]{
             
             if (auction_price <= max_price) {
                 write '(Time ' + time + '):' + name + ' accepts price ' + auction_price + ' for ' + auction_item + ' (max: ' + max_price + ')';
+                current_auction_state <- "busy";
+                current_auction_item <- auction_item;
                 do propose message: cfpMsg contents: [auction_item, auction_price];
             } else {
                 write '(Time ' + time + '):' + name + ' refuses price ' + auction_price + ' for ' + auction_item + ' (max: ' + max_price + ')';
@@ -491,6 +501,11 @@ species Guest skills:[moving, fipa]{
             string item <- string(contents_list[0]);
             float price <- float(contents_list[1]);
             write '(Time ' + time + '):' + name + ' WON auction for ' + item + ' at price ' + price;
+            current_auction_state <- "no_auction";
+            current_auction_item <- nil;
+            // Set visual indicator
+            won_auction_item <- item;
+            won_auction_timer <- 20; // Show for 20 cycles
         }
     }
     
@@ -499,6 +514,8 @@ species Guest skills:[moving, fipa]{
         loop rejectMsg over: reject_proposals {
             list contents_list <- list(rejectMsg.contents);
             write '(Time ' + time + '):' + name + ' was rejected: ' + string(contents_list[0]);
+            current_auction_state <- "no_auction";
+            current_auction_item <- nil;
         }
     }
     
@@ -541,12 +558,40 @@ species Guest skills:[moving, fipa]{
         }
         
         // Display distance travelled
-        draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        // draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        if (show_distance) {
+            draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        }
+        
+        // Display favourites (interest items)
+        if (display_favourites and length(interest_items) > 0) {
+            string favourites_text <- "likes: " + string(interest_items);
+            draw favourites_text at: location + {0, -6} color: #blue font: font("Arial", 9, #plain);
+        }
+        
+        // Display auction win message
+        if (won_auction_item != nil and won_auction_timer > 0) {
+            draw "WON: " + won_auction_item + "!" at: location + {0, 2} color: #orange font: font("Arial", 12, #bold);
+        }
     }
     
     reflex update_needs {
+    	// Don't update needs if guest is participating in an auction
+    	if (current_auction_state = "busy") {
+    	    return;
+    	}
     	hunger <- min(maxHunger, hunger + rnd(0, 1));
         thirsty <- min(maxThirst, thirsty + rnd(0, 1));
+    }
+    
+    // Decrement timer for auction win display
+    reflex update_auction_win_timer {
+        if (won_auction_timer > 0) {
+            won_auction_timer <- won_auction_timer - 1;
+            if (won_auction_timer = 0) {
+                won_auction_item <- nil;
+            }
+        }
     }
 
     action go_infocenter {
@@ -840,10 +885,23 @@ species SmartGuest parent: Guest{
         }
         
         // Display distance travelled
-        draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        // draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        if (show_distance) {
+            draw "dist: " + with_precision(distanceTravelled, 1) at: location + {0, -4} color: #darkgreen font: font("Arial", 9, #plain);
+        }
         
         // Display memory size
-        draw "mem: " + length(visitedPlaces) at: location + {0, -5.5} color: #purple font: font("Arial", 9, #plain);
+        // draw "mem: " + length(visitedPlaces) at: location + {0, -5.5} color: #purple font: font("Arial", 9, #plain);
+        if (show_memory) {
+            draw "mem: " + length(visitedPlaces) at: location + {0, -5.5} color: #purple font: font("Arial", 9, #plain);
+        }
+        
+        // Display favourites (interest items)
+        if (display_favourites and length(interest_items) > 0) {
+            string favourites_text <- "likes: " + string(interest_items);
+            float y_offset <- show_memory ? -7.5 : -6.0;
+            draw favourites_text at: location + {0, y_offset} color: #blue font: font("Arial", 9, #plain);
+        }
     }
 	
 }
