@@ -1184,6 +1184,8 @@ species Guest skills:[moving, fipa]{
 	            do refuse message: cfpMsg contents: ['Price above private value'];
 	            continue;
 	        }
+	        
+	        
 	
 	         // ---- ENGLISH AUCTION ----
 	        if (auction_type = "english") {
@@ -1199,6 +1201,8 @@ species Guest skills:[moving, fipa]{
 	                      + ' <= current ' + auction_price + ')';
 	                do refuse message: cfpMsg contents: ['No higher bid'];
 	            } else {
+	            	current_auction_state <- "busy";
+                	current_auction_item <- auction_item;
 	                write '(Time ' + time + '):' + name
 	                      + ' places ENGLISH bid ' + bid_price + ' for '
 	                      + auction_item + ' (max: ' + max_price + ')';
@@ -1209,6 +1213,8 @@ species Guest skills:[moving, fipa]{
 	        // ---- DUTCH AUCTION ----
 	        else if (auction_type = "dutch") {
 	            // In Dutch, you accept the current price if it’s below your value
+	            current_auction_state <- "busy";
+                current_auction_item <- auction_item;
 	            write '(Time ' + time + '):' + name
 	                  + ' accepts DUTCH price ' + auction_price
 	                  + ' for ' + auction_item + ' (max: ' + max_price + ')';
@@ -1227,6 +1233,8 @@ species Guest skills:[moving, fipa]{
 	                      + ' <= reserve ' + reserve_price;
 	                do refuse message: cfpMsg contents: ['Value below reserve'];
 	            } else {
+	            	current_auction_state <- "busy";
+                	current_auction_item <- auction_item;
 	                // Truthful sealed bid: bid your private value
 	                write '(Time ' + time + '):' + name
 	                      + ' places VICKREY bid ' + max_price
