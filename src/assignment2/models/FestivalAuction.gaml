@@ -40,10 +40,10 @@ global {
     point infoCenterLocalization <- point(50,50);
     
     // Auction stuff
-    list<string> all_items <- ["alcohol", "sugar", "astonishings"];
+    list<string> all_items <- ["alcohol", "sugar", "magic_crystals"];
     float alcohol_price <- 1000.0;
     float sugar_price <- 1000.0;
-    float astonishings_price <- 1000.0;    
+    float magic_crystals_price <- 1000.0;    
     
 
     // Initialize the agents
@@ -110,9 +110,9 @@ species VickreyAuctioneer skills: [fipa] {
 
     float reserve_alcohol_price      <- alcohol_price      * reserve_min_price_coeff;
     float reserve_sugar_price        <- sugar_price        * reserve_min_price_coeff;
-    float reserve_astonishings_price <- astonishings_price * reserve_min_price_coeff;
+    float reserve_magic_crystals_price <- magic_crystals_price * reserve_min_price_coeff;
 
-    // State per item: alcohol=0, sugar=1, astonishings=2
+    // State per item: alcohol=0, sugar=1, magic_crystals=2
     list<string> auction_state  <- ["init","init","init"]; // init, running, completed, aborted
     list<int>    auction_round  <- [0,0,0];                // 0 = no CFP sent yet, 1 = CFP sent
     list<int>    auction_iteration <- [0,0,0];
@@ -127,7 +127,7 @@ species VickreyAuctioneer skills: [fipa] {
 
     // Store proposals per item
     map<string, list<message>> pending_proposals <- map(
-        ["alcohol"::[], "sugar"::[], "astonishings"::[]]
+        ["alcohol"::[], "sugar"::[], "magic_crystals"::[]]
     );
 
     // ------------ START AUCTIONS ------------
@@ -152,13 +152,13 @@ species VickreyAuctioneer skills: [fipa] {
         write "Auction ID: " + auction_id[1];
     }
 
-    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= start_time) {
-        auction_id[2]    <- string(auctioneer_id) + "-vickrey-astonishings-" + string(auction_iteration[2]);
+    reflex start_magic_crystals_auction when: (auction_state[2] = "init" and time >= start_time) {
+        auction_id[2]    <- string(auctioneer_id) + "-vickrey-magic_crystals-" + string(auction_iteration[2]);
         auction_state[2] <- "running";
         auction_round[2] <- 0;
 
-        write "Starting VICKREY auction for astonishings";
-        write "Reserve price: " + reserve_astonishings_price;
+        write "Starting VICKREY auction for magic_crystals";
+        write "Reserve price: " + reserve_magic_crystals_price;
         write "Auction ID: " + auction_id[2];
     }
     
@@ -185,8 +185,8 @@ species VickreyAuctioneer skills: [fipa] {
                 add proposeMsg to: pending_proposals["alcohol"];
             } else if (item = "sugar") {
                 add proposeMsg to: pending_proposals["sugar"];
-            } else if (item = "astonishings") {
-                add proposeMsg to: pending_proposals["astonishings"];
+            } else if (item = "magic_crystals") {
+                add proposeMsg to: pending_proposals["magic_crystals"];
             }
         }
     }
@@ -213,11 +213,11 @@ species VickreyAuctioneer skills: [fipa] {
         }
     }
 
-    reflex astonishings_auction_iteration when: (auction_state[2] = "running") {
+    reflex magic_crystals_auction_iteration when: (auction_state[2] = "running") {
         if (even(time)) {
-            do auction_iteration_even(2, "astonishings");
+            do auction_iteration_even(2, "magic_crystals");
         } else {
-            do auction_iteration_odd(2, "astonishings");
+            do auction_iteration_odd(2, "magic_crystals");
         }
     }
 
@@ -232,8 +232,8 @@ species VickreyAuctioneer skills: [fipa] {
             reserve_price <- reserve_alcohol_price;
         } else if (item = "sugar") {
             reserve_price <- reserve_sugar_price;
-        } else if (item = "astonishings") {
-            reserve_price <- reserve_astonishings_price;
+        } else if (item = "magic_crystals") {
+            reserve_price <- reserve_magic_crystals_price;
         }
 
         write "VICKREY auction iteration for " + item;
@@ -273,8 +273,8 @@ species VickreyAuctioneer skills: [fipa] {
             reserve_price <- reserve_alcohol_price;
         } else if (item = "sugar") {
             reserve_price <- reserve_sugar_price;
-        } else if (item = "astonishings") {
-            reserve_price <- reserve_astonishings_price;
+        } else if (item = "magic_crystals") {
+            reserve_price <- reserve_magic_crystals_price;
         }
 
         // No bids at all
@@ -364,9 +364,9 @@ species VickreyAuctioneer skills: [fipa] {
 	    auction_round[1]   <- 0;   // <-- was [0], must be [1]
 	}
 	
-	reflex completeAuction_astonishings when: (auction_state[2] = "completed") {
-	    write '(Time ' + time + '):' + name + ' completed the VICKREY astonishings auction.';
-	    won_items[2] <- "astonishings";
+	reflex completeAuction_magic_crystals when: (auction_state[2] = "completed") {
+	    write '(Time ' + time + '):' + name + ' completed the VICKREY magic_crystals auction.';
+	    won_items[2] <- "magic_crystals";
 	    won_timers[2] <- 15;
 	    auction_state[2] <- "idle";
 	    auction_iteration[2] <- auction_iteration[2] + 1;
@@ -391,9 +391,9 @@ species VickreyAuctioneer skills: [fipa] {
 	    auction_round[1]   <- 0;   // <-- was [0], must be [1]
 	}
 	
-	reflex abortAuction_astonishings when: (auction_state[2] = "aborted") {
-	    write '(Time ' + time + '):' + name + ' aborted the VICKREY astonishings auction.';
-	    aborted_items[2] <- "astonishings";
+	reflex abortAuction_magic_crystals when: (auction_state[2] = "aborted") {
+	    write '(Time ' + time + '):' + name + ' aborted the VICKREY magic_crystals auction.';
+	    aborted_items[2] <- "magic_crystals";
 	    aborted_timers[2] <- 15;
 	    auction_state[2] <- "idle";
 	    auction_iteration[2] <- auction_iteration[2] + 1;
@@ -423,7 +423,7 @@ species VickreyAuctioneer skills: [fipa] {
 	    draw "Vickrey auctioneer" at: location color: #black;
 			
 	    // Names & colors per item
-	    list<string> item_names  <- ["alcohol", "sugar", "astonishings"];
+	    list<string> item_names  <- ["alcohol", "sugar", "magic_crystals"];
 	    list<rgb>    item_colors <- [#red, #blue, #purple];
 			
 	    // 1) Running auctions BELOW the auctioneer
@@ -480,14 +480,14 @@ species EnglishAuctioneer skills: [fipa] {
     // randomize the initial ASK prices (starting point of ascending auction)
     float auctioned_alcohol_price      <- rnd(alcohol_price      * min_inc_coeff, alcohol_price      * max_inc_coeff);
     float auctioned_sugar_price        <- rnd(sugar_price        * min_inc_coeff, sugar_price        * max_inc_coeff);
-    float auctioned_astonishings_price <- rnd(astonishings_price * min_inc_coeff, astonishings_price * max_inc_coeff);  
+    float auctioned_magic_crystals_price <- rnd(magic_crystals_price * min_inc_coeff, magic_crystals_price * max_inc_coeff);  
 
     // reserve prices (won't sell below these)
     float baseline_alcohol_price      <- alcohol_price      * baseline_min_price_coeff;
     float baseline_sugar_price        <- sugar_price        * baseline_min_price_coeff;
-    float baseline_astonishings_price <- astonishings_price * baseline_min_price_coeff;    
+    float baseline_magic_crystals_price <- magic_crystals_price * baseline_min_price_coeff;    
 
-    // Separate state for each auction (alcohol=0, sugar=1, astonishings=2)
+    // Separate state for each auction (alcohol=0, sugar=1, magic_crystals=2)
     list<string> auction_state        <- ["init","init","init"];
     list<float>  current_auction_price <- [0.0, 0.0, 0.0];
     list<int>    auction_iteration     <- [0, 0, 0];
@@ -502,7 +502,7 @@ species EnglishAuctioneer skills: [fipa] {
     float price_increase_factor <- 1.00;
 
     // Store proposals for each item to avoid mailbox consumption issues
-    map<string, list<message>> pending_proposals <- map(["alcohol"::[], "sugar"::[], "astonishings"::[]]);
+    map<string, list<message>> pending_proposals <- map(["alcohol"::[], "sugar"::[], "magic_crystals"::[]]);
     
     // Visual indicators for wins and aborts
     list<string> won_items <- [nil, nil, nil];
@@ -521,7 +521,7 @@ species EnglishAuctioneer skills: [fipa] {
     Index mapping:
     0 = alcohol
     1 = sugar
-    2 = astonishings
+    2 = magic_crystals
 
      */
 
@@ -555,16 +555,16 @@ species EnglishAuctioneer skills: [fipa] {
         write "Auction ID: " + auction_id[1];
     }
     
-//     Start astonishings auction
-    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= start_time) {
-        auction_id[2]            <- string(auctioneer_id) + "-english-astonishings-" + string(auction_iteration[2]);
-        current_auction_price[2] <- auctioned_astonishings_price;
+//     Start magic_crystals auction
+    reflex start_magic_crystals_auction when: (auction_state[2] = "init" and time >= start_time) {
+        auction_id[2]            <- string(auctioneer_id) + "-english-magic_crystals-" + string(auction_iteration[2]);
+        current_auction_price[2] <- auctioned_magic_crystals_price;
         highest_bid[2]           <- 0.0;
         highest_bidder[2]        <- nil;
         last_winner_message[2]   <- nil;
         auction_state[2]         <- "running";
         
-        write "Starting ENGLISH auction for astonishings";
+        write "Starting ENGLISH auction for magic_crystals";
         write "Initial ask price: " + current_auction_price[2];
         write "Auction ID: " + auction_id[2];
     }
@@ -582,8 +582,8 @@ species EnglishAuctioneer skills: [fipa] {
                 add proposeMsg to: pending_proposals["alcohol"];
             } else if (item = "sugar") {
                 add proposeMsg to: pending_proposals["sugar"];
-            } else if (item = "astonishings") {
-                add proposeMsg to: pending_proposals["astonishings"];
+            } else if (item = "magic_crystals") {
+                add proposeMsg to: pending_proposals["magic_crystals"];
             }
         }
     }
@@ -620,12 +620,12 @@ species EnglishAuctioneer skills: [fipa] {
         }
     }
     
-    // Astonishings auction iteration
-    reflex astonishings_auction_iteration when: (auction_state[2] = "running") {
+    // Magic crystals auction iteration
+    reflex magic_crystals_auction_iteration when: (auction_state[2] = "running") {
         if (even(time)) {
-            do auction_iteration_even(2, "astonishings", baseline_astonishings_price);
+            do auction_iteration_even(2, "magic_crystals", baseline_magic_crystals_price);
         } else {
-            do auction_iteration_odd(2, "astonishings");
+            do auction_iteration_odd(2, "magic_crystals");
         }
     }
     
@@ -661,8 +661,8 @@ species EnglishAuctioneer skills: [fipa] {
             baseline_price <- baseline_alcohol_price;
         } else if (item = "sugar") {
             baseline_price <- baseline_sugar_price;
-        } else if (item = "astonishings") {
-            baseline_price <- baseline_astonishings_price;
+        } else if (item = "magic_crystals") {
+            baseline_price <- baseline_magic_crystals_price;
         }
 
         // CASE 1: no bids this round
@@ -757,9 +757,9 @@ species EnglishAuctioneer skills: [fipa] {
         last_winner_message[1] <- nil;
     }
     
-    reflex completeAuction_astonishings when: (auction_state[2] = "completed") {
-        write '(Time ' + time + '):' + name + ' completed the ENGLISH astonishings auction.';
-        won_items[2] <- "astonishings";
+    reflex completeAuction_magic_crystals when: (auction_state[2] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the ENGLISH magic_crystals auction.';
+        won_items[2] <- "magic_crystals";
         won_timers[2] <- 15;
         auction_state[2] <- "idle";
         auction_iteration[2] <- auction_iteration[2] + 1;
@@ -790,9 +790,9 @@ species EnglishAuctioneer skills: [fipa] {
         last_winner_message[1] <- nil;
     }
     
-    reflex abortAuction_astonishings when: (auction_state[2] = "aborted") {
-        write '(Time ' + time + '):' + name + ' aborted the ENGLISH astonishings auction.';
-        aborted_items[2] <- "astonishings";
+    reflex abortAuction_magic_crystals when: (auction_state[2] = "aborted") {
+        write '(Time ' + time + '):' + name + ' aborted the ENGLISH magic_crystals auction.';
+        aborted_items[2] <- "magic_crystals";
         aborted_timers[2] <- 15;
         auction_state[2] <- "idle";
         auction_iteration[2] <- auction_iteration[2] + 1;
@@ -823,7 +823,7 @@ species EnglishAuctioneer skills: [fipa] {
 	    draw square(5) color: auctioneer_color;
 	    draw "English auctioneer" at: location color: #black;
 				
-	    list<string> item_names  <- ["alcohol", "sugar", "astonishings"];
+	    list<string> item_names  <- ["alcohol", "sugar", "magic_crystals"];
 	    list<rgb>    item_colors <- [#red, #blue, #purple];
 				
 	    // 1) Running auctions BELOW the auctioneer (show current ask price)
@@ -877,14 +877,14 @@ species Auctioneer skills: [fipa]{
     // randomize the initial prices
     float auctioned_alcohol_price <- rnd(alcohol_price * min_inc_coeff, alcohol_price * max_inc_coeff);
     float auctioned_sugar_price <- rnd(sugar_price * min_inc_coeff, sugar_price * max_inc_coeff);
-    float auctioned_astonishings_price <- rnd(astonishings_price * min_inc_coeff, astonishings_price * max_inc_coeff);  
+    float auctioned_magic_crystals_price <- rnd(magic_crystals_price * min_inc_coeff, magic_crystals_price * max_inc_coeff);  
 
     // this will be the price that the auctioneer will not accept to sell below
     float baseline_alcohol_price <- alcohol_price * baseline_min_price_coeff;
     float baseline_sugar_price <- sugar_price * baseline_min_price_coeff;
-    float baseline_astonishings_price <- astonishings_price * baseline_min_price_coeff;    
+    float baseline_magic_crystals_price <- magic_crystals_price * baseline_min_price_coeff;    
 	
-    // Separate state for each auction (alcohol=0, sugar=1, astonishings=2)
+    // Separate state for each auction (alcohol=0, sugar=1, magic_crystals=2)
     list<string> auction_state <- ["init","init","init"];
     list<float> current_auction_price <- [0.0, 0.0, 0.0];
     list<int> auction_iteration <- [0, 0, 0];
@@ -894,7 +894,7 @@ species Auctioneer skills: [fipa]{
     int start_time <- rnd(15,150);
     
     // Store proposals for each item to avoid mailbox consumption issues
-    map<string, list<message>> pending_proposals <- map(["alcohol"::[], "sugar"::[], "astonishings"::[]]);
+    map<string, list<message>> pending_proposals <- map(["alcohol"::[], "sugar"::[], "magic_crystals"::[]]);
     
     // Visual indicators for wins and aborts
     list<string> won_items <- [nil, nil, nil];
@@ -914,7 +914,7 @@ species Auctioneer skills: [fipa]{
     Index mapping:
     0 = alcohol
     1 = sugar
-    2 = astonishings
+    2 = magic_crystals
 
      */
 
@@ -940,13 +940,13 @@ species Auctioneer skills: [fipa]{
         write "Auction ID: " + auction_id[1];
     }
     
-    // Start astonishings auction
-    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= start_time) {
-        auction_id[2] <- string(auctioneer_id) + "-dutch-astonishings-" + string(auction_iteration[2]);
-        current_auction_price[2] <- auctioned_astonishings_price;
+    // Start magic_crystals auction
+    reflex start_magic_crystals_auction when: (auction_state[2] = "init" and time >= start_time) {
+        auction_id[2] <- string(auctioneer_id) + "-dutch-magic_crystals-" + string(auction_iteration[2]);
+        current_auction_price[2] <- auctioned_magic_crystals_price;
         auction_state[2] <- "running";
         
-        write "Starting auction for astonishings";
+        write "Starting auction for magic_crystals";
         write "Initial price: " + current_auction_price[2];
         write "Auction ID: " + auction_id[2];
     }
@@ -974,8 +974,8 @@ species Auctioneer skills: [fipa]{
                 add proposeMsg to: pending_proposals["alcohol"];
             } else if (item = "sugar") {
                 add proposeMsg to: pending_proposals["sugar"];
-            } else if (item = "astonishings") {
-                add proposeMsg to: pending_proposals["astonishings"];
+            } else if (item = "magic_crystals") {
+                add proposeMsg to: pending_proposals["magic_crystals"];
             }
         }
     }
@@ -998,12 +998,12 @@ species Auctioneer skills: [fipa]{
         }
     }
     
-    // Astonishings auction iteration
-    reflex astonishings_auction_iteration when: (auction_state[2] = "running") {
+    // Magic crystals auction iteration
+    reflex magic_crystals_auction_iteration when: (auction_state[2] = "running") {
         if (even(time)) {
-            do auction_iteration_even(2, "astonishings", baseline_astonishings_price);
+            do auction_iteration_even(2, "magic_crystals", baseline_magic_crystals_price);
         } else {
-            do auction_iteration_odd(2, "astonishings");
+            do auction_iteration_odd(2, "magic_crystals");
         }
     }
     
@@ -1090,9 +1090,9 @@ species Auctioneer skills: [fipa]{
         auction_iteration[1] <- auction_iteration[1] + 1;
     }
     
-    reflex completeAuction_astonishings when: (auction_state[2] = "completed") {
-        write '(Time ' + time + '):' + name + ' completed the astonishings auction.';
-        won_items[2] <- "astonishings";
+    reflex completeAuction_magic_crystals when: (auction_state[2] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the magic_crystals auction.';
+        won_items[2] <- "magic_crystals";
         won_timers[2] <- 15;
         auction_state[2] <- "idle";
         auction_iteration[2] <- auction_iteration[2] + 1;
@@ -1114,9 +1114,9 @@ species Auctioneer skills: [fipa]{
         auction_iteration[1] <- auction_iteration[1] + 1;
     }
     
-    reflex abortAuction_astonishings when: (auction_state[2] = "abort") {
-        write '(Time ' + time + '):' + name + ' aborted the astonishings auction.';
-        aborted_items[2] <- "astonishings";
+    reflex abortAuction_magic_crystals when: (auction_state[2] = "abort") {
+        write '(Time ' + time + '):' + name + ' aborted the magic_crystals auction.';
+        aborted_items[2] <- "magic_crystals";
         aborted_timers[2] <- 15;
         auction_state[2] <- "idle";
         auction_iteration[2] <- auction_iteration[2] + 1;
@@ -1147,7 +1147,7 @@ species Auctioneer skills: [fipa]{
 		draw "auctioneer" at: location color: #black;
 		
 		// Display current auctions and prices
-		list<string> item_names <- ["alcohol", "sugar", "astonishings"];
+		list<string> item_names <- ["alcohol", "sugar", "magic_crystals"];
 		list<rgb> item_colors <- [#red, #blue, #purple];
 		float y_offset <- -8.0;
 		
@@ -1294,8 +1294,8 @@ species Guest skills:[moving, fipa]{
     string current_auction_item <- nil;
     float english_auction_price_increase_factor <- 1.02;
     list<string> skipped_auctions <- [];
-    map<string, float>  last_seen_price      <- map(["alcohol"::0.0, "sugar"::0.0, "astonishings"::0.0]);
-	map<string, string> last_seen_auction_id <- map(["alcohol"::"",   "sugar"::"",   "astonishings"::""]);
+    map<string, float>  last_seen_price      <- map(["alcohol"::0.0, "sugar"::0.0, "magic_crystals"::0.0]);
+	map<string, string> last_seen_auction_id <- map(["alcohol"::"",   "sugar"::"",   "magic_crystals"::""]);
     bool interested <- false;
     
     // Visual indicator for auction wins
@@ -1318,7 +1318,7 @@ species Guest skills:[moving, fipa]{
 
     float alcohol_value <- rnd(alcohol_price * min_value_factor, alcohol_price * max_value_factor);
     float sugar_value <- rnd(sugar_price * min_value_factor, sugar_price * max_value_factor);
-    float ashtonishings_value <- rnd(astonishings_price * min_value_factor, astonishings_price * max_value_factor);
+    float magic_crystals_value <- rnd(magic_crystals_price * min_value_factor, magic_crystals_price * max_value_factor);
 
     // Receive CFP messages from auctioneer - participate when in wander state or at an auctioneer
     reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false and (goingToAuctioneer = false or (targetAuctioneer != nil and (location distance_to targetAuctioneer.location) < 6.0) or currentAction = "at auctioneer") {
@@ -1362,8 +1362,8 @@ species Guest skills:[moving, fipa]{
 			    max_price <- alcohol_value;
 			} else if (auction_item = 'sugar') {
 			    max_price <- sugar_value;
-			} else if (auction_item = 'astonishings') {
-			    max_price <- ashtonishings_value;
+			} else if (auction_item = 'magic_crystals') {
+			    max_price <- magic_crystals_value;
 			}
             
             // If the current price is already above the valuation, drop out
