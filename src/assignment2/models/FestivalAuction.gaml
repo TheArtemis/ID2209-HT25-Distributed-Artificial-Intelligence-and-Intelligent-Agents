@@ -82,8 +82,293 @@ global {
         	
         	create Auctioneer number:1;
         	create EnglishAuctioneer number:1;
+        	create VickreyAuctioneer number:1;
         }
 }
+
+species VickreyAuctioneer skills: [fipa] {
+
+    int auctioneer_id <- rnd(200000, 400000);
+
+    list<string> items <- all_items;
+
+    // Reserve prices as a fraction of nominal value
+    float reserve_min_price_coeff <- 0.5;
+
+    float reserve_alcohol_price      <- alcohol_price      * reserve_min_price_coeff;
+    float reserve_sugar_price        <- sugar_price        * reserve_min_price_coeff;
+    float reserve_astonishings_price <- astonishings_price * reserve_min_price_coeff;
+
+    // State per item: alcohol=0, sugar=1, astonishings=2
+    list<string> auction_state  <- ["init","init","init"]; // init, running, completed, aborted
+    list<int>    auction_round  <- [0,0,0];                // 0 = no CFP sent yet, 1 = CFP sent
+    list<int>    auction_iteration <- [0,0,0];
+    list<string> auction_id     <- [nil,nil,nil];
+
+    // Store proposals per item
+    map<string, list<message>> pending_proposals <- map(
+        ["alcohol"::[], "sugar"::[], "astonishings"::[]]
+    );
+
+    // ------------ START AUCTIONS ------------
+
+    reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= 15) {
+        auction_id[0]    <- string(auctioneer_id) + "-vickrey-alcohol-" + string(auction_iteration[0]);
+        auction_state[0] <- "running";
+        auction_round[0] <- 0;
+
+        write "Starting VICKREY auction for alcohol";
+        write "Reserve price: " + reserve_alcohol_price;
+        write "Auction ID: " + auction_id[0];
+    }
+
+    reflex start_sugar_auction when: (auction_state[1] = "init" and time >= 15) {
+        auction_id[1]    <- string(auctioneer_id) + "-vickrey-sugar-" + string(auction_iteration[1]);
+        auction_state[1] <- "running";
+        auction_round[1] <- 0;
+
+        write "Starting VICKREY auction for sugar";
+        write "Reserve price: " + reserve_sugar_price;
+        write "Auction ID: " + auction_id[1];
+    }
+
+    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= 15) {
+        auction_id[2]    <- string(auctioneer_id) + "-vickrey-astonishings-" + string(auction_iteration[2]);
+        auction_state[2] <- "running";
+        auction_round[2] <- 0;
+
+        write "Starting VICKREY auction for astonishings";
+        write "Reserve price: " + reserve_astonishings_price;
+        write "Auction ID: " + auction_id[2];
+    }
+
+    // ------------ CENTRAL PROPOSAL COLLECTION ------------
+
+    reflex collect_proposals when: !empty(proposes) {
+        loop proposeMsg over: proposes {
+            list contents_list <- list(proposeMsg.contents);
+            string item <- string(contents_list[0]);
+
+            if (item = "alcohol") {
+                add proposeMsg to: pending_proposals["alcohol"];
+            } else if (item = "sugar") {
+                add proposeMsg to: pending_proposals["sugar"];
+            } else if (item = "astonishings") {
+                add proposeMsg to: pending_proposals["astonishings"];
+            }
+        }
+    }
+
+    // ------------ AUCTION ITERATIONS (one-shot) ------------
+
+    // We use the same even/odd pattern as other auctioneers:
+    //  - even(time): send a single CFP (if not sent yet)
+    //  - odd(time): resolve the auction and close it
+
+    reflex alcohol_auction_iteration when: (auction_state[0] = "running") {
+        if (even(time)) {
+            do auction_iteration_even(0, "alcohol");
+        } else {
+            do auction_iteration_odd(0, "alcohol");
+        }
+    }
+
+    reflex sugar_auction_iteration when: (auction_state[1] = "running") {
+        if (even(time)) {
+            do auction_iteration_even(1, "sugar");
+        } else {
+            do auction_iteration_odd(1, "sugar");
+        }
+    }
+
+    reflex astonishings_auction_iteration when: (auction_state[2] = "running") {
+        if (even(time)) {
+            do auction_iteration_even(2, "astonishings");
+        } else {
+            do auction_iteration_odd(2, "astonishings");
+        }
+    }
+
+    action auction_iteration_even(int idx, string item) {
+        // Send the CFP only once
+        if (auction_round[idx] > 0) {
+            return;
+        }
+
+        float reserve_price <- 0.0;
+        if (item = "alcohol") {
+            reserve_price <- reserve_alcohol_price;
+        } else if (item = "sugar") {
+            reserve_price <- reserve_sugar_price;
+        } else if (item = "astonishings") {
+            reserve_price <- reserve_astonishings_price;
+        }
+
+        write "VICKREY auction iteration for " + item;
+        write "Sending single CFP with reserve " + reserve_price;
+        do sendCFP(idx, item, reserve_price);
+        auction_round[idx] <- 1;
+    }
+
+    action sendCFP(int idx, string item, float reserve_price) {
+        write '(Time ' + time + '):' + name
+              + ' sent a VICKREY CFP for ' + item
+              + ' with reserve ' + reserve_price;
+        string id <- auction_id[idx];
+        do start_conversation to: list(Guest)
+            protocol: 'fipa-contract-net'
+            performative: 'cfp'
+            contents: [item, reserve_price, "vickrey", id];
+    }
+
+    action auction_iteration_odd(int idx, string item) {
+        // Only resolve if we actually sent a CFP
+        if (auction_round[idx] = 0) {
+            return;
+        }
+        do resolveAuction(idx, item);
+    }
+
+    action resolveAuction(int idx, string item) {
+        list<message> item_proposes <- pending_proposals[item];
+
+        write '(Time ' + time + '):' + name
+              + ' found ' + length(item_proposes)
+              + ' VICKREY proposals for ' + item;
+
+        float reserve_price <- 0.0;
+        if (item = "alcohol") {
+            reserve_price <- reserve_alcohol_price;
+        } else if (item = "sugar") {
+            reserve_price <- reserve_sugar_price;
+        } else if (item = "astonishings") {
+            reserve_price <- reserve_astonishings_price;
+        }
+
+        // No bids at all
+        if empty(item_proposes) {
+            write '(Time ' + time + '):' + name
+                  + ' VICKREY auction for ' + item
+                  + ' has no bidders, aborting.';
+            pending_proposals[item] <- [];
+            auction_state[idx] <- "aborted";
+            return;
+        }
+
+        // Find highest and second-highest bids
+        float highest <- -1.0;
+        float second  <- -1.0;
+        message winnerMsg <- nil;
+
+        loop proposeMsg over: item_proposes {
+            list cont <- list(proposeMsg.contents); // [item, bid]
+            float bid <- float(cont[1]);
+
+            if (bid > highest) {
+                second  <- highest;
+                highest <- bid;
+                winnerMsg <- proposeMsg;
+            } else if (bid > second) {
+                second <- bid;
+            }
+        }
+
+        // Check reserve
+        if (highest < reserve_price) {
+            write '(Time ' + time + '):' + name
+                  + ' VICKREY highest bid ' + highest
+                  + ' below reserve ' + reserve_price
+                  + ', aborting.';
+            pending_proposals[item] <- [];
+            auction_state[idx] <- "aborted";
+            return;
+        }
+
+        // Second-price payment
+        float final_price <- reserve_price;
+        if (second >= 0.0) {
+            final_price <- max(second, reserve_price);
+        }
+
+        Guest winner <- agent(winnerMsg.sender);
+
+        write '(Time ' + time + '):' + name
+              + ' VICKREY auction for ' + item
+              + ' won by ' + winner.name
+              + ' with bid ' + highest
+              + ' paying price ' + final_price;
+
+        // Accept winner at second price
+        do accept_proposal message: winnerMsg contents: [item, final_price];
+
+        // Reject all others
+        loop proposeMsg2 over: item_proposes {
+            if (proposeMsg2 != winnerMsg) {
+                do reject_proposal message: proposeMsg2
+                    contents: ['Lost Vickrey auction'];
+            }
+        }
+
+        pending_proposals[item] <- [];
+        auction_state[idx] <- "completed";
+    }
+
+    // ------------ CLEANUP ------------
+
+    reflex completeAuction_alcohol when: (auction_state[0] = "completed") {
+        write '(Time ' + time + '):' + name
+              + ' completed the VICKREY alcohol auction.';
+        auction_state[0]   <- "init";
+        auction_iteration[0] <- auction_iteration[0] + 1;
+        auction_round[0]   <- 0;
+    }
+
+    reflex completeAuction_sugar when: (auction_state[1] = "completed") {
+        write '(Time ' + time + '):' + name
+              + ' completed the VICKREY sugar auction.';
+        auction_state[1]   <- "init";
+        auction_iteration[1] <- auction_iteration[1] + 1;
+        auction_round[1]   <- 0;
+    }
+
+    reflex completeAuction_astonishings when: (auction_state[2] = "completed") {
+        write '(Time ' + time + '):' + name
+              + ' completed the VICKREY astonishings auction.';
+        auction_state[2]   <- "init";
+        auction_iteration[2] <- auction_iteration[2] + 1;
+        auction_round[2]   <- 0;
+    }
+
+    reflex abortAuction_alcohol when: (auction_state[0] = "aborted") {
+        write '(Time ' + time + '):' + name
+              + ' aborted the VICKREY alcohol auction.';
+        auction_state[0]   <- "init";
+        auction_iteration[0] <- auction_iteration[0] + 1;
+        auction_round[0]   <- 0;
+    }
+
+    reflex abortAuction_sugar when: (auction_state[1] = "aborted") {
+        write '(Time ' + time + '):' + name
+              + ' aborted the VICKREY sugar auction.';
+        auction_state[1]   <- "init";
+        auction_iteration[1] <- auction_iteration[1] + 1;
+        auction_round[1]   <- 0;
+    }
+
+    reflex abortAuction_astonishings when: (auction_state[2] = "aborted") {
+        write '(Time ' + time + '):' + name
+              + ' aborted the VICKREY astonishings auction.';
+        auction_state[2]   <- "init";
+        auction_iteration[2] <- auction_iteration[2] + 1;
+        auction_round[2]   <- 0;
+    }
+
+    aspect base {
+        draw square(6) color: #orange;
+        draw "vickrey auctioneer" at: location color: #black;
+    }
+}
+
 
 species EnglishAuctioneer skills: [fipa] {
 
@@ -804,7 +1089,7 @@ species Guest skills:[moving, fipa]{
 	            continue;
 	        }
 	
-	        // ---- ENGLISH AUCTION ----
+	         // ---- ENGLISH AUCTION ----
 	        if (auction_type = "english") {
 	
 	            // propose a slightly higher bid, capped at max_price
@@ -832,6 +1117,27 @@ species Guest skills:[moving, fipa]{
 	                  + ' accepts DUTCH price ' + auction_price
 	                  + ' for ' + auction_item + ' (max: ' + max_price + ')';
 	            do propose message: cfpMsg contents: [auction_item, auction_price];
+	        }
+	        
+	        // ---- VICKREY (second-price sealed-bid) ----
+	        else if (auction_type = "vickrey") {
+	            // Here auction_price is used as a reserve price.
+	            float reserve_price <- auction_price;
+	            
+	            if (max_price <= reserve_price) {
+	                // valuation does not clear reserve: drop out
+	                write '(Time ' + time + '):' + name
+	                      + ' DROPS OUT of VICKREY, value ' + max_price
+	                      + ' <= reserve ' + reserve_price;
+	                do refuse message: cfpMsg contents: ['Value below reserve'];
+	            } else {
+	                // Truthful sealed bid: bid your private value
+	                write '(Time ' + time + '):' + name
+	                      + ' places VICKREY bid ' + max_price
+	                      + ' for ' + auction_item
+	                      + ' (reserve: ' + reserve_price + ')';
+	                do propose message: cfpMsg contents: [auction_item, max_price];
+	            }
 	        }
 	
 	        else {
