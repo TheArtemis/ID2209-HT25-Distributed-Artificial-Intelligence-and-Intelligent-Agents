@@ -323,15 +323,21 @@ species VickreyAuctioneer skills: [fipa] {
         }
 
         Guest winner <- agent(winnerMsg.sender);
+        
+        // Check if winner still exists (might have died/been removed)
+        if (winner != nil) {
+            write '(Time ' + time + '):' + name
+                  + ' VICKREY auction for ' + item
+                  + ' won by ' + winner.name
+                  + ' with bid ' + highest
+                  + ' paying price ' + final_price;
 
-        write '(Time ' + time + '):' + name
-              + ' VICKREY auction for ' + item
-              + ' won by ' + winner.name
-              + ' with bid ' + highest
-              + ' paying price ' + final_price;
-
-        // Accept winner at second price
-        do accept_proposal message: winnerMsg contents: [item, final_price];
+            // Accept winner at second price
+            do accept_proposal message: winnerMsg contents: [item, final_price];
+        } else {
+            write '(Time ' + time + '):' + name + ' VICKREY auction winner no longer exists for ' + item;
+            auction_state[idx] <- "abort";
+        }
 
         // Reject all others
         loop proposeMsg2 over: item_proposes {
@@ -714,16 +720,21 @@ species EnglishAuctioneer skills: [fipa] {
 
         if (winnerMsg != nil) {
             Guest winner <- Guest(agent(winnerMsg.sender));
+            
+            // Check if winner still exists (might have died/been removed)
+            if (winner != nil) {
+                highest_bid[idx]       <- local_highest;
+                highest_bidder[idx]    <- winner;
+                last_winner_message[idx] <- winnerMsg;
 
-            highest_bid[idx]       <- local_highest;
-            highest_bidder[idx]    <- winner;
-            last_winner_message[idx] <- winnerMsg;
+                write '(Time ' + time + '):' + name + ' new highest ENGLISH bid for ' + item
+                      + ' is ' + local_highest + ' by ' + winner.name;
 
-            write '(Time ' + time + '):' + name + ' new highest ENGLISH bid for ' + item
-                  + ' is ' + local_highest + ' by ' + winner.name;
-
-            // Prepare next ask price for the next round
-            current_auction_price[idx] <- local_highest * price_increase_factor;
+                // Prepare next ask price for the next round
+                current_auction_price[idx] <- local_highest * price_increase_factor;
+            } else {
+                write '(Time ' + time + '):' + name + ' ENGLISH bid sender no longer exists for ' + item;
+            }
         } else {
             // no bid better than previous highest; we just move on
             write '(Time ' + time + '):' + name + ' ENGLISH bids did not beat current highest for ' + item;
@@ -1054,10 +1065,34 @@ species Auctioneer skills: [fipa]{
         Guest winner <- agent(winnerMsg.sender);
         
         write '(Time ' + time + '):' + name + ' received ' + length(item_proposes) + ' proposals for ' + item;
-        write '(Time ' + time + '):' + name + ' selected winner: ' + winner.name;
         
-        // accept the winner's proposal
-        do accept_proposal message: winnerMsg contents: [item, current_auction_price[idx]];
+        // Check if winner still exists (might have died/been removed)
+        if (winner != nil) {
+            write '(Time ' + time + '):' + name + ' selected winner: ' + winner.name;
+            // accept the winner's proposal
+            do accept_proposal message: winnerMsg contents: [item, current_auction_price[idx]];
+        } else {
+            write '(Time ' + time + '):' + name + ' winner sender no longer exists for ' + item;
+            // Remove this proposal and try the next one if available
+            remove winnerMsg from: item_proposes;
+            if (length(item_proposes) > 0) {
+                // Try next proposal
+                winnerMsg <- item_proposes[0];
+                winner <- agent(winnerMsg.sender);
+                if (winner != nil) {
+                    write '(Time ' + time + '):' + name + ' selected alternative winner: ' + winner.name;
+                    do accept_proposal message: winnerMsg contents: [item, current_auction_price[idx]];
+                } else {
+                    // No valid proposals, abort
+                    auction_state[idx] <- "abort";
+                    return;
+                }
+            } else {
+                // No more proposals, abort
+                auction_state[idx] <- "abort";
+                return;
+            }
+        }
         
         // reject all other proposals for this item (if there are any)
         if length(item_proposes) > 1 {
