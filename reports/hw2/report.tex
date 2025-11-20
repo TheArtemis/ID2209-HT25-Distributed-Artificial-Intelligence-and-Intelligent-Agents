@@ -349,22 +349,42 @@ I will provide the following four use cases
     \item An auction is completed while another one is running
 \end{itemize}
 
-\subsubsection*{Two auctions starting at the same time}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.4\textwidth]{imgs/three_same_time.png}
+  \caption{Three auctions starting at the same time}
+  \label{fig:three_same_time}
+\end{figure}
+
+As it can be seen from figure \ref{fig:three_same_time} we have three Dutch auctions for different products that are 
+happening at the same time. They are also running together.
 
 
-\subsubsection*{Two auctions running at the same time}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.5\textwidth]{imgs/not_interested.png}
+  \caption{A guest is not interested into a product}
+  \label{fig:not_interested}
+\end{figure}
 
+Figure \ref{fig:not_interested} shows that Guest7 is not interested into alcohol (at time 40.0).
 
-\subsubsection*{User doesn't take place in an auction}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.7\textwidth]{imgs/completed_while_running.png}
+  \caption{Two auctions are completed while the other two are running}
+  \label{fig:completed_while_running}
+\end{figure}
 
+In figure \ref{fig:completed_while_running} we can see that the auctioneer
+had found offers for magic crystals and sugar while the auction for alcohol is still going on.
 
-\subsubsection*{Auction completed while another one is running}
 
 
 % --- SECTION 5---
 \section{Challenge 2: Different auction settings}
 
-\subsection*{4.1 Explanation}
+\subsection*{5.1 Explanation}
 For the purpose of this second challenge we were aske to implement at least two more type of auctions.
 We decided to implement English auctions and Vickrey auctions.
 
@@ -377,7 +397,7 @@ However, they pay the second-highest bid, not their own.
 This format incentivizes truthful bidding and reduces strategic manipulation.
 
 
-\subsection*{4.2 Code}
+\subsection*{5.2 Code}
 To implement the two new auction types we created two new agents, called \textbf{EnglishAuctioneer} and \textbf{VickreyAuctioneer}.
 Both agents share similar structure and logic to the Dutch auctioneer but with differences in auction mechanics.
 In code snippet provided in \ref{fig:vickrey_winner_selection}, we can see how the Vickrey auction is concluded. 
@@ -405,7 +425,7 @@ With English auctions, the auctioneer starts with a low initial price and bidder
     \label{fig:english_highest_bid}
 \end{figure}
 
-\subsection*{4.3 Demonstration and comparison of prices}
+\subsection*{5.3 Demonstration and comparison of prices}
 While it is hard to demonstrate the full auction process in a static report, we can provide some screenshots of the auctions in action.
 \subsubsection*{English Auction in action}
 Figure \ref{fig:english_auction_in_action} demonstrates an English auction in progress, where bidders are actively raising their bids for the item on sale.
