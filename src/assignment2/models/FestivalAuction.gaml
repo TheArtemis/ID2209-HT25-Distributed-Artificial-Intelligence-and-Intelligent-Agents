@@ -110,6 +110,8 @@ species Auctioneer skills: [fipa]{
     list<int> auction_iteration <- [0, 0, 0];
     list<string> auction_id <- [nil, nil, nil];
     float price_decrease_factor <- 0.9;
+
+    int start_time <- rnd(15,1500);
     
     // Store proposals for each item to avoid mailbox consumption issues
     map<string, list<message>> pending_proposals <- map(["alcohol"::[], "sugar"::[], "astonishings"::[]]);
@@ -130,7 +132,7 @@ species Auctioneer skills: [fipa]{
      */
 
     // Start alcohol auction
-    reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= 15) {
+    reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= start_time) {
         auction_id[0] <- string(auctioneer_id) + "-alcohol-" + string(auction_iteration[0]);
         current_auction_price[0] <- auctioned_alcohol_price;
         auction_state[0] <- "running";
@@ -141,7 +143,7 @@ species Auctioneer skills: [fipa]{
     }
     
     // Start sugar auction
-    reflex start_sugar_auction when: (auction_state[1] = "init" and time >= 15) {
+    reflex start_sugar_auction when: (auction_state[1] = "init" and time >= start_time) {
         auction_id[1] <- string(auctioneer_id) + "-sugar-" + string(auction_iteration[1]);
         current_auction_price[1] <- auctioned_sugar_price;
         auction_state[1] <- "running";
@@ -152,7 +154,7 @@ species Auctioneer skills: [fipa]{
     }
     
     // Start astonishings auction
-    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= 15) {
+    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= start_time) {
         auction_id[2] <- string(auctioneer_id) + "-astonishings-" + string(auction_iteration[2]);
         current_auction_price[2] <- auctioned_astonishings_price;
         auction_state[2] <- "running";
