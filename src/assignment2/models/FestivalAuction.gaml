@@ -80,13 +80,325 @@ global {
         	}
         	
         	
-        	create Auctioneer number:1;
+//        	create Auctioneer number:1;
+        	create EnglishAuctioneer number:1;
         }
 }
 
+species EnglishAuctioneer skills: [fipa] {
+
+    int auctioneer_id <- rnd(100001, 900000);
+
+    // Coeffs for starting prices relative to nominal price
+    float min_inc_coeff <- 0.5;   // start at least 50% of nominal
+    float max_inc_coeff <- 0.9;   // at most 90% of nominal
+    float baseline_min_price_coeff <- 0.5; // reserve price = 50% of nominal
+
+    list<string> items <- all_items;
+
+    // randomize the initial ASK prices (starting point of ascending auction)
+    float auctioned_alcohol_price      <- rnd(alcohol_price      * min_inc_coeff, alcohol_price      * max_inc_coeff);
+    float auctioned_sugar_price        <- rnd(sugar_price        * min_inc_coeff, sugar_price        * max_inc_coeff);
+    float auctioned_astonishings_price <- rnd(astonishings_price * min_inc_coeff, astonishings_price * max_inc_coeff);  
+
+    // reserve prices (won't sell below these)
+    float baseline_alcohol_price      <- alcohol_price      * baseline_min_price_coeff;
+    float baseline_sugar_price        <- sugar_price        * baseline_min_price_coeff;
+    float baseline_astonishings_price <- astonishings_price * baseline_min_price_coeff;    
+
+    // Separate state for each auction (alcohol=0, sugar=1, astonishings=2)
+    list<string> auction_state        <- ["init","init","init"];
+    list<float>  current_auction_price <- [0.0, 0.0, 0.0];
+    list<int>    auction_iteration     <- [0, 0, 0];
+    list<string> auction_id            <- [nil, nil, nil];
+
+    // English-specific: track current highest bid per item
+    list<float>  highest_bid         <- [0.0, 0.0, 0.0];
+    list<Guest>  highest_bidder      <- [nil, nil, nil];
+    list<message> last_winner_message <- [nil, nil, nil];
+
+    float price_increase_factor <- 1.00; // +5% each round from latest highest bid
+
+    // Store proposals for each item to avoid mailbox consumption issues
+    map<string, list<message>> pending_proposals <- map(["alcohol"::[], "sugar"::[], "astonishings"::[]]);
+
+    /* 
+    
+    auction_state:
+    - init:      the auction is not started
+    - running:   the auction is running
+    - completed: the auction is completed
+    - aborted:   the auction is aborted   
+
+    Index mapping:
+    0 = alcohol
+    1 = sugar
+    2 = astonishings
+
+     */
+
+    // ------------ START AUCTIONS ------------
+
+//    // Start alcohol auction
+//    reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= 15) {
+//        auction_id[0]            <- string(auctioneer_id) + "-english-alcohol-" + string(auction_iteration[0]);
+//        current_auction_price[0] <- auctioned_alcohol_price;
+//        highest_bid[0]           <- 0.0;
+//        highest_bidder[0]        <- nil;
+//        last_winner_message[0]   <- nil;
+//        auction_state[0]         <- "running";
+//        
+//        write "Starting ENGLISH auction for alcohol";
+//        write "Initial ask price: " + current_auction_price[0];
+//        write "Auction ID: " + auction_id[0];
+//    }
+    
+    // Start sugar auction
+    reflex start_sugar_auction when: (auction_state[1] = "init" and time >= 15) {
+        auction_id[1]            <- string(auctioneer_id) + "-english-sugar-" + string(auction_iteration[1]);
+        current_auction_price[1] <- auctioned_sugar_price;
+        highest_bid[1]           <- 0.0;
+        highest_bidder[1]        <- nil;
+        last_winner_message[1]   <- nil;
+        auction_state[1]         <- "running";
+        
+        write "Starting ENGLISH auction for sugar";
+        write "Initial ask price: " + current_auction_price[1];
+        write "Auction ID: " + auction_id[1];
+    }
+    
+    // Start astonishings auction
+//    reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= 15) {
+//        auction_id[2]            <- string(auctioneer_id) + "-english-astonishings-" + string(auction_iteration[2]);
+//        current_auction_price[2] <- auctioned_astonishings_price;
+//        highest_bid[2]           <- 0.0;
+//        highest_bidder[2]        <- nil;
+//        last_winner_message[2]   <- nil;
+//        auction_state[2]         <- "running";
+//        
+//        write "Starting ENGLISH auction for astonishings";
+//        write "Initial ask price: " + current_auction_price[2];
+//        write "Auction ID: " + auction_id[2];
+//    }
+    
+    // ------------ CENTRAL PROPOSAL COLLECTION ------------
+
+    // Collect proposals in a buffer so we only consume mailbox once per step
+    reflex collect_proposals when: !empty(proposes) {
+        loop proposeMsg over: proposes {
+            list contents_list <- list(proposeMsg.contents);
+            string item <- string(contents_list[0]);
+
+            // Add to the appropriate item's proposal list
+            if (item = "alcohol") {
+                add proposeMsg to: pending_proposals["alcohol"];
+            } else if (item = "sugar") {
+                add proposeMsg to: pending_proposals["sugar"];
+            } else if (item = "astonishings") {
+                add proposeMsg to: pending_proposals["astonishings"];
+            }
+        }
+    }
+
+    // ------------ AUCTION ITERATIONS ------------
+
+    // Alcohol auction iteration
+    reflex alcohol_auction_iteration when: (auction_state[0] = "running") {
+        if (even(time)) {
+            do auction_iteration_even(0, "alcohol", baseline_alcohol_price);
+        } else {
+            do auction_iteration_odd(0, "alcohol");
+        }
+    }
+    
+    // Sugar auction iteration
+    reflex sugar_auction_iteration when: (auction_state[1] = "running") {
+        if (even(time)) {
+            do auction_iteration_even(1, "sugar", baseline_sugar_price);
+        } else {
+            do auction_iteration_odd(1, "sugar");
+        }
+    }
+    
+    // Astonishings auction iteration
+    reflex astonishings_auction_iteration when: (auction_state[2] = "running") {
+        if (even(time)) {
+            do auction_iteration_even(2, "astonishings", baseline_astonishings_price);
+        } else {
+            do auction_iteration_odd(2, "astonishings");
+        }
+    }
+    
+    
+    // ODD: process bids & update highest bid / possibly close auction
+    action auction_iteration_odd(int idx, string item) {
+        do receiveProposals(idx, item);
+        // price update is done inside receiveProposals if there were bids
+    }
+
+    // EVEN: broadcast current ask price (no baseline check needed for ascending)
+    action auction_iteration_even(int idx, string item, float baseline_price) {
+        write "ENGLISH auction iteration for " + item;
+        write "Current ask price: " + current_auction_price[idx];
+        do sendProposalToGuests(item, current_auction_price[idx]);
+    }
+
+    action sendProposalToGuests(string item, float price) {
+        write '(Time ' + time + '):' + name + ' sent an ENGLISH CFP for ' + item + ' at ask price ' + price;
+        // If your Guest differentiates auction types via contents[2], keep "english" here:
+        do start_conversation to: list(Guest) protocol: 'fipa-contract-net' performative: 'cfp' contents: [item, price, "english"];    
+    }   
+
+    action receiveProposals(int idx, string item) {
+        // Get proposals for this specific item from our pending map
+        list<message> item_proposes <- pending_proposals[item];
+        
+        write '(Time ' + time + '):' + name + ' found ' + length(item_proposes) + ' ENGLISH proposals for ' + item;
+
+        // Select baseline (reserve) for this item
+        float baseline_price <- 0.0;
+        if (item = "alcohol") {
+            baseline_price <- baseline_alcohol_price;
+        } else if (item = "sugar") {
+            baseline_price <- baseline_sugar_price;
+        } else if (item = "astonishings") {
+            baseline_price <- baseline_astonishings_price;
+        }
+
+        // CASE 1: no bids this round
+        if empty(item_proposes) {
+
+            if (highest_bidder[idx] = nil) {
+                // no one ever bid -> abort
+                write '(Time ' + time + '):' + name + ' ENGLISH auction for ' + item + ' has no bidders, aborting.';
+                pending_proposals[item] <- [];
+                auction_state[idx] <- "aborted";
+                return;
+            }
+
+            // we have a previous highest bidder -> check reserve
+            if (highest_bid[idx] < baseline_price) {
+                write '(Time ' + time + '):' + name + ' highest bid ' + highest_bid[idx]
+                      + ' for ' + item + ' does NOT meet reserve ' + baseline_price + ', aborting.';
+                pending_proposals[item] <- [];
+                auction_state[idx] <- "aborted";
+                return;
+            }
+
+            // finalize auction in favor of highest_bidder at highest_bid
+            write '(Time ' + time + '):' + name + ' closes ENGLISH auction for ' + item + ' won by ' + highest_bidder[idx] + ' at ' + highest_bid[idx];
+
+            message winnerMsg <- last_winner_message[idx];
+            if (winnerMsg != nil) {
+                do accept_proposal message: winnerMsg contents: [item, highest_bid[idx]];
+            }
+
+            pending_proposals[item] <- [];
+            auction_state[idx] <- "completed";
+            return;
+        }
+
+        // CASE 2: at least one bid this round → update highest bidder
+        float local_highest <- highest_bid[idx];
+        message winnerMsg <- nil;
+
+        loop proposeMsg over: item_proposes {
+            list cont <- list(proposeMsg.contents);
+            // contents: [item, bid]
+            float bid <- float(cont[1]);
+            if (bid > local_highest) {
+                local_highest <- bid;
+                winnerMsg <- proposeMsg;
+            }
+        }
+
+        if (winnerMsg != nil) {
+            Guest winner <- agent(winnerMsg.sender);
+
+            highest_bid[idx]       <- local_highest;
+            highest_bidder[idx]    <- winner;
+            last_winner_message[idx] <- winnerMsg;
+
+            write '(Time ' + time + '):' + name + ' new highest ENGLISH bid for ' + item
+                  + ' is ' + local_highest + ' by ' + winner.name;
+
+            // Prepare next ask price for the next round
+            current_auction_price[idx] <- local_highest * price_increase_factor;
+        } else {
+            // no bid better than previous highest; we just move on
+            write '(Time ' + time + '):' + name + ' ENGLISH bids did not beat current highest for ' + item;
+        }
+
+        // Clear the pending proposals for this item (for the next round)
+        pending_proposals[item] <- [];
+    }
+
+    // ------------ CLEANUP REFLEXES ------------
+
+    reflex completeAuction_alcohol when: (auction_state[0] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the ENGLISH alcohol auction.';
+        auction_state[0] <- "init";
+        auction_iteration[0] <- auction_iteration[0] + 1;
+        highest_bid[0] <- 0.0;
+        highest_bidder[0] <- nil;
+        last_winner_message[0] <- nil;
+    }
+    
+    reflex completeAuction_sugar when: (auction_state[1] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the ENGLISH sugar auction.';
+        auction_state[1] <- "init";
+        auction_iteration[1] <- auction_iteration[1] + 1;
+        highest_bid[1] <- 0.0;
+        highest_bidder[1] <- nil;
+        last_winner_message[1] <- nil;
+    }
+    
+    reflex completeAuction_astonishings when: (auction_state[2] = "completed") {
+        write '(Time ' + time + '):' + name + ' completed the ENGLISH astonishings auction.';
+        auction_state[2] <- "init";
+        auction_iteration[2] <- auction_iteration[2] + 1;
+        highest_bid[2] <- 0.0;
+        highest_bidder[2] <- nil;
+        last_winner_message[2] <- nil;
+    }
+
+    reflex abortAuction_alcohol when: (auction_state[0] = "aborted") {
+        write '(Time ' + time + '):' + name + ' aborted the ENGLISH alcohol auction.';
+        auction_state[0] <- "init";
+        auction_iteration[0] <- auction_iteration[0] + 1;
+        highest_bid[0] <- 0.0;
+        highest_bidder[0] <- nil;
+        last_winner_message[0] <- nil;
+    }
+    
+    reflex abortAuction_sugar when: (auction_state[1] = "aborted") {
+        write '(Time ' + time + '):' + name + ' aborted the ENGLISH sugar auction.';
+        auction_state[1] <- "init";
+        auction_iteration[1] <- auction_iteration[1] + 1;
+        highest_bid[1] <- 0.0;
+        highest_bidder[1] <- nil;
+        last_winner_message[1] <- nil;
+    }
+    
+    reflex abortAuction_astonishings when: (auction_state[2] = "aborted") {
+        write '(Time ' + time + '):' + name + ' aborted the ENGLISH astonishings auction.';
+        auction_state[2] <- "init";
+        auction_iteration[2] <- auction_iteration[2] + 1;
+        highest_bid[2] <- 0.0;
+        highest_bidder[2] <- nil;
+        last_winner_message[2] <- nil;
+    }
+
+    aspect base {
+        draw square(8) color: #red;
+        draw "english auctioneer" at: location color: #black;
+    }
+}
+
+
 species Auctioneer skills: [fipa]{
 
-    int auctioneer_id <- rnd(1, 1000000);
+    int auctioneer_id <- rnd(1, 100000);
 
     float min_inc_coeff <- 1.1;
     float max_inc_coeff <- 1.5;
@@ -131,7 +443,7 @@ species Auctioneer skills: [fipa]{
 
     // Start alcohol auction
     reflex start_alcohol_auction when: (auction_state[0] = "init" and time >= 15) {
-        auction_id[0] <- string(auctioneer_id) + "-alcohol-" + string(auction_iteration[0]);
+        auction_id[0] <- string(auctioneer_id) + "-dutch-alcohol-" + string(auction_iteration[0]);
         current_auction_price[0] <- auctioned_alcohol_price;
         auction_state[0] <- "running";
         
@@ -142,7 +454,7 @@ species Auctioneer skills: [fipa]{
     
     // Start sugar auction
     reflex start_sugar_auction when: (auction_state[1] = "init" and time >= 15) {
-        auction_id[1] <- string(auctioneer_id) + "-sugar-" + string(auction_iteration[1]);
+        auction_id[1] <- string(auctioneer_id) + "-dutch-sugar-" + string(auction_iteration[1]);
         current_auction_price[1] <- auctioned_sugar_price;
         auction_state[1] <- "running";
         
@@ -153,7 +465,7 @@ species Auctioneer skills: [fipa]{
     
     // Start astonishings auction
     reflex start_astonishings_auction when: (auction_state[2] = "init" and time >= 15) {
-        auction_id[2] <- string(auctioneer_id) + "-astonishings-" + string(auction_iteration[2]);
+        auction_id[2] <- string(auctioneer_id) + "-dutch-astonishings-" + string(auction_iteration[2]);
         current_auction_price[2] <- auctioned_astonishings_price;
         auction_state[2] <- "running";
         
@@ -410,6 +722,7 @@ species Guest skills:[moving, fipa]{
     string current_auction_id <- nil;  
     string current_auction_state <- "no_auction";
     string current_auction_item <- nil;
+    float english_auction_price_increase_factor <- 1.02;
     list<string> skipped_auctions <- [];
     bool interested <- false;
 
@@ -437,6 +750,7 @@ species Guest skills:[moving, fipa]{
             list contents_list <- list(cfpMsg.contents);
             string auction_item <- string(contents_list[0]);
             float auction_price <- float(contents_list[1]);
+            string auction_type <- string(contents_list[2]);
             
             write '(Time ' + time + '):' + name + ' received CFP for ' + auction_item + ' at price ' + auction_price;
             
@@ -459,13 +773,49 @@ species Guest skills:[moving, fipa]{
                 max_price <- ashtonishings_value;
             }
             
-            if (auction_price <= max_price) {
-                write '(Time ' + time + '):' + name + ' accepts price ' + auction_price + ' for ' + auction_item + ' (max: ' + max_price + ')';
-                do propose message: cfpMsg contents: [auction_item, auction_price];
-            } else {
-                write '(Time ' + time + '):' + name + ' refuses price ' + auction_price + ' for ' + auction_item + ' (max: ' + max_price + ')';
-                do refuse message: cfpMsg contents: ['Price too high'];
-            }
+            // If the current price is already above the valuation, drop out
+	        if (auction_price > max_price) {
+	            write '(Time ' + time + '):' + name
+	                  + ' DROPS OUT, price ' + auction_price
+	                  + ' > max value ' + max_price;
+	            do refuse message: cfpMsg contents: ['Price above private value'];
+	            continue;
+	        }
+	
+	        // ---- ENGLISH AUCTION ----
+	        if (auction_type = "english") {
+	
+	            // propose a slightly higher bid, capped at max_price
+	            float desired_bid <- auction_price * english_auction_price_increase_factor; // 1.02
+	            float bid_price   <- min(desired_bid, max_price);
+	
+	            // must be strictly higher than current highest bid
+	            if (bid_price <= auction_price) {
+	                write '(Time ' + time + '):' + name
+	                      + ' does NOT raise (bid ' + bid_price
+	                      + ' <= current ' + auction_price + ')';
+	                do refuse message: cfpMsg contents: ['No higher bid'];
+	            } else {
+	                write '(Time ' + time + '):' + name
+	                      + ' places ENGLISH bid ' + bid_price + ' for '
+	                      + auction_item + ' (max: ' + max_price + ')';
+	                do propose message: cfpMsg contents: [auction_item, bid_price];
+	            }
+	        }
+	
+	        // ---- DUTCH AUCTION ----
+	        else if (auction_type = "dutch") {
+	            // In Dutch, you accept the current price if it’s below your value
+	            write '(Time ' + time + '):' + name
+	                  + ' accepts DUTCH price ' + auction_price
+	                  + ' for ' + auction_item + ' (max: ' + max_price + ')';
+	            do propose message: cfpMsg contents: [auction_item, auction_price];
+	        }
+	
+	        else {
+	            // Unknown auction type
+	            do refuse message: cfpMsg contents: ['Unknown auction type'];
+	        }
         }
     }
     
