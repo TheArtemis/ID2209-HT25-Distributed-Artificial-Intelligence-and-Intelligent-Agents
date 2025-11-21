@@ -12,6 +12,7 @@
 
 % --- PAGE SETUP ---
 \geometry{margin=2.5cm}
+\setlength{\headheight}{14.5pt}
 \setlength{\parskip}{0.7em}
 \setlength{\parindent}{0pt}
 \pagestyle{fancy}
@@ -323,9 +324,9 @@ We would also show that guests are interested into different products and so the
 they are really interested. 
 \subsection*{4.2 Code}
 The Dutch auctioneer 
-can three independent auctions simultaneously (alcohol, sugar, magic_crystals) 
+can three independent auctions simultaneously (alcohol, sugar, magic\_crystals) 
 using vectorized state management and separate reflexes per item.
-All auction state is stored in lists indexed by item (0=alcohol, 1=sugar, 2=magic_crystals). This is done because
+All auction state is stored in lists indexed by item (0=alcohol, 1=sugar, 2=magic\_crystals). This is done because
 each item can be in a different state at the same time.
 Instead of a generic loop, each auction has its own reflex.
 \begin{verbatim}
