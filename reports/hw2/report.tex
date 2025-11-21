@@ -107,7 +107,7 @@ First of all, following the guidelines of a Dutch auction we set up the market p
 \begin{verbatim}
     float alcohol_price <- 1000.0;
     float sugar_price <- 750.0;
-    float astonishings_price <- 10000.0;  
+    float magic_crystals_price <- 10000.0;  
 \end{verbatim}
 
 Then, considering the premises of the general overview the auctioneer must start from a higher price and must not 
@@ -127,9 +127,9 @@ between rounds.
     float auctioned_sugar_price <- 
         rnd(sugar_price * min_inc_coeff, 
             sugar_price * max_inc_coeff);
-    float auctioned_astonishings_price <- 
-        rnd(astonishings_price * min_inc_coeff, 
-            astonishings_price * max_inc_coeff);  
+    float auctioned_magic_crystals_price <- 
+        rnd(magic_crystals_price * min_inc_coeff, 
+            magic_crystals_price * max_inc_coeff);  
 
     // this will be the price that the auctioneer 
     // will not accept to sell below
@@ -137,8 +137,8 @@ between rounds.
         alcohol_price * baseline_min_price_coeff;
     float baseline_sugar_price <- 
         sugar_price * baseline_min_price_coeff;
-    float baseline_astonishings_price <- 
-        astonishings_price * baseline_min_price_coeff;  
+    float baseline_magic_crystals_price <- 
+        magic_crystals_price * baseline_min_price_coeff;  
     float price_decrease_factor <- 0.9;
 \end{verbatim}
 
@@ -174,10 +174,15 @@ When the auctioneer starts an auction it sends a proposal to allGuests with the 
 }
 \end{verbatim}
 As it can be seen we are using FIPA protocol. 
-The guest is receiving a CFP and processes it thanks to this method 
+The guest is receiving a CFP and processes it thanks to this method. Note that guests can only participate in auctions when they are within range of an auctioneer (within 6 units) or have reached the auctioneer location:
 \begin{verbatim}
-    reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold and thirsty < thirstThreshold 
-                       and onTheWayToShop = false and targetShop = nil and beingAttacked = false 
+    reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold 
+                       and thirsty < thirstThreshold 
+                       and onTheWayToShop = false and targetShop = nil 
+                       and beingAttacked = false 
+                       and ((targetAuctioneer != nil 
+                             and (location distance_to targetAuctioneer.location) < 6.0) 
+                            or currentAction = "at auctioneer")
 \end{verbatim}
 The logic inside is is that if the price\_auction is below the maximum price it accepts immediately with "PROPOSE"
 as it can be seen in the following snippet.
@@ -229,7 +234,56 @@ and the auction will restart with 10\% probability as said before.
     }
 \end{verbatim}
 
+\subsubsection*{Guests Visiting Auctioneers}
+Guests can only participate in auctions when they are within range of an auctioneer. While in a wandering state, guests can decide to physically visit auctioneers. This behavior is controlled by a global probability parameter that determines the likelihood of a guest choosing to visit an auctioneer each cycle. When a guest decides to visit an auctioneer, they select a random auctioneer from all available types (Dutch, English, or Vickrey) and move to a random position around that auctioneer to avoid clustering. Once at the auctioneer's location (within 6 units), guests can participate in auctions for items they are interested in.
 
+The range restriction is enforced in the \textit{receiveCFP} reflex, which only allows guests to process auction proposals when they are within 6 units of their target auctioneer or have already reached the auctioneer location:
+
+\begin{verbatim}
+    reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold 
+                       and thirsty < thirstThreshold 
+                       and onTheWayToShop = false and targetShop = nil 
+                       and beingAttacked = false 
+                       and ((targetAuctioneer != nil 
+                             and (location distance_to targetAuctioneer.location) < 6.0) 
+                            or currentAction = "at auctioneer") {
+        // Process CFP messages only when within range of an auctioneer
+        ...
+    }
+\end{verbatim}
+
+\begin{verbatim}
+    // Global probability for guests to visit auctioneers
+    float probability_go_to_auctioneer <- 0.05; // 5% chance per cycle
+
+    reflex wander when: hunger < hungerThreshold and thirsty < thirstThreshold 
+                       and onTheWayToShop = false and targetShop = nil 
+                       and beingAttacked = false and goingToAuctioneer = false {
+        // With a certain probability, decide to go to an auctioneer
+        if (flip(probability_go_to_auctioneer)) {
+            // Get all auctioneers (all types)
+            list<agent> all_auctioneers <- list(Auctioneer) 
+                                         + list(EnglishAuctioneer) 
+                                         + list(VickreyAuctioneer);
+            if (length(all_auctioneers) > 0) {
+                targetAuctioneer <- one_of(all_auctioneers);
+                // Calculate a random position around the auctioneer 
+                // (circle with radius 3-5 units)
+                int angle_degrees <- rnd(0, 360);
+                float angle_radians <- angle_degrees * (3.14159 / 180.0);
+                float distance <- rnd(3.0, 5.0);
+                targetAuctioneerPosition <- targetAuctioneer.location 
+                    + {distance * cos(angle_radians), 
+                       distance * sin(angle_radians)};
+                goingToAuctioneer <- true;
+                currentAction <- "-> Auctioneer";
+                return;
+            }
+        }
+        do wander speed: movingSpeed;
+        distanceTravelled <- distanceTravelled + movingSpeed;
+    }
+\end{verbatim}
 
 \subsection*{3.3 Demonstration}
 I will provide two use cases for this basic implementation:
@@ -269,9 +323,9 @@ We would also show that guests are interested into different products and so the
 they are really interested. 
 \subsection*{4.2 Code}
 The Dutch auctioneer 
-can three independent auctions simultaneously (alcohol, sugar, astonishings) 
+can three independent auctions simultaneously (alcohol, sugar, magic_crystals) 
 using vectorized state management and separate reflexes per item.
-All auction state is stored in lists indexed by item (0=alcohol, 1=sugar, 2=astonishings). This is done because
+All auction state is stored in lists indexed by item (0=alcohol, 1=sugar, 2=magic_crystals). This is done because
 each item can be in a different state at the same time.
 Instead of a generic loop, each auction has its own reflex.
 \begin{verbatim}
@@ -286,7 +340,7 @@ proposals are collected once per cycle into a persistent map.
 
 \begin{verbatim}
     map<string, list<message>> pending_proposals <- map(
-    ["alcohol"::[], "sugar"::[], "astonishings"::[]]);
+    ["alcohol"::[], "sugar"::[], "magic_crystals"::[]]);
 
 reflex collect_proposals when: !empty(proposes) {
     loop proposeMsg over: proposes {
@@ -297,8 +351,8 @@ reflex collect_proposals when: !empty(proposes) {
             add proposeMsg to: pending_proposals["alcohol"];
         } else if (item = "sugar") {
             add proposeMsg to: pending_proposals["sugar"];
-        } else if (item = "astonishings") {
-            add proposeMsg to: pending_proposals["astonishings"];
+        } else if (item = "magic_crystals") {
+            add proposeMsg to: pending_proposals["magic_crystals"];
         }
     }
 }
@@ -312,7 +366,7 @@ Interest is determined by item preferences and verified before sending proposals
 The auctioneer never receives proposals for unwanted items.
 Each guest has a list of items they care about:
 \begin{verbatim}
-    list<string> interest_items <- ["alcohol", "sugar", "astonishings"];
+    list<string> interest_items <- ["alcohol", "sugar", "magic_crystals"];
 \end{verbatim}
 This is initialized randomly during guest creation.
 When a guest receives a CFP, it first checks interest (inside the reflex called

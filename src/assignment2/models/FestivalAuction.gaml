@@ -1370,7 +1370,7 @@ species Guest skills:[moving, fipa]{
     float magic_crystals_value <- rnd(magic_crystals_price * min_value_factor, magic_crystals_price * max_value_factor);
 
     // Receive CFP messages from auctioneer - participate when in wander state or at an auctioneer
-    reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false and (goingToAuctioneer = false or (targetAuctioneer != nil and (location distance_to targetAuctioneer.location) < 6.0) or currentAction = "at auctioneer") {
+    reflex receiveCFP when: !empty(cfps) and hunger < hungerThreshold and thirsty < thirstThreshold and onTheWayToShop = false and targetShop = nil and beingAttacked = false and ((targetAuctioneer != nil and (location distance_to targetAuctioneer.location) < 6.0) or currentAction = "at auctioneer") {
         loop cfpMsg over: cfps {
             list contents_list <- list(cfpMsg.contents);
             string auction_item <- string(contents_list[0]);
