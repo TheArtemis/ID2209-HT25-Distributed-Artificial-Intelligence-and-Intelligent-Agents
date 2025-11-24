@@ -12,7 +12,7 @@ global {
     
     int neighbors <- 8;
     // This value is to be defined and corrected later
-    int queens <- 19;
+    int queens <- 9;
     
     init{
         create Queen number: queens;
@@ -26,10 +26,13 @@ global {
 }
 
 
-species Queen{
+species Queen skills:[fipa]{
 
     chessBoardCell myCell <- one_of (chessBoardCell);
     list<list<int>> occupancyGrid;
+    bool awaitingResponse <- false;
+    string messageContext <- "";
+    chessBoardCell requestedTargetCell <- nil;
 
     init {
         //Assign a free cell
@@ -207,38 +210,89 @@ species Queen{
 	    	}
 	    	else{
 	    		write "I cannot move from: " + self.myCell.grid_x + ", " + self.myCell.grid_y;
-	    		// Communicate with others for moving
+	    		// Communicate with others for moving using FIPA Contract Net
 	    		Queen sight <- findQueenInSightbyLocation(0);
-	    		if sight != nil{
-	    			chessBoardCell sightCell;
-	    			ask sight{
-	    				write "I am at : " + myself.myCell.grid_x + ", " + myself.myCell.grid_y + " Trying to move to: " + self.myCell.grid_x + ", " + self.myCell.grid_y;
-	    				sightCell <- self.myCell;
-	    			}
-	    			chessBoardCell target;
-	    			float distance <- 1000.0;
-	    			loop s over:sightCell.neighbours{
-	    				float dist <- myCell.location distance_to s.location;
-	    				if dist < distance and dist!=0 and s.queen = nil{
-	    					distance <- dist;
-	    					target <- s;
-	    				}
-	    			}
-	    			write "New Location is follows: " + target.grid_x + ", " + target.grid_y;
-	    			myCell.queen <- nil;
-	    			myCell <- target;
-	    			location <- target.location;
-	    			myCell.queen <- self;
+	    		if sight != nil and !awaitingResponse{
+	    			write "I am at : " + self.myCell.grid_x + ", " + self.myCell.grid_y + " Sending CFP to Queen at: " + sight.myCell.grid_x + ", " + sight.myCell.grid_y;
+	    			
+	    			// Send Call For Proposal (CFP) asking for the Queen's position
+	    			do start_conversation to: [sight] protocol: 'fipa-contract-net' performative: 'cfp' 
+	    				contents: ['request_position', string(self.myCell.grid_x), string(self.myCell.grid_y)];
+	    			
+	    			awaitingResponse <- true;
+	    			messageContext <- "position_request";
 	    		}
 	    	}
 	    }
 	}
     
     //REFLEXES
-    reflex amIsafe when: !isCalculating{
+    reflex amIsafe when: !isCalculating and !awaitingResponse{
     	isCalculating <- true;
     	do needToMove;
     	isCalculating <- false;
+    }
+    
+    // Handle CFP messages - respond with position information
+    reflex handleCFP when: !empty(cfps){
+    	message requestMessage <- cfps[0];
+    	write name + " received CFP from " + requestMessage.sender + " with contents: " + requestMessage.contents;
+    	
+    	// Respond with PROPOSE containing current position
+    	do propose message: requestMessage contents: ['position_info', string(myCell.grid_x), string(myCell.grid_y)];
+    }
+    
+    // Handle PROPOSE messages - process the response and move accordingly
+    reflex handlePropose when: !empty(proposes) and awaitingResponse and messageContext = "position_request"{
+    	message proposalMessage <- proposes[0];
+    	write name + " received PROPOSE from " + proposalMessage.sender;
+    	
+    	list contents <- proposalMessage.contents;
+    	if length(contents) >= 3 and contents[0] = 'position_info'{
+    		int sightCell_x <- int(contents[1]);
+    		int sightCell_y <- int(contents[2]);
+    		
+    		write "Received position: " + sightCell_x + ", " + sightCell_y;
+    		
+    		// Find the actual cell and its neighbors
+    		chessBoardCell sightCell <- nil;
+    		loop c over: allCells{
+    			if c.grid_x = sightCell_x and c.grid_y = sightCell_y{
+    				sightCell <- c;
+    				break;
+    			}
+    		}
+    		
+    		if sightCell != nil{
+    			chessBoardCell target <- nil;
+    			float distance <- 1000.0;
+    			loop s over: sightCell.neighbours{
+    				float dist <- myCell.location distance_to s.location;
+    				if dist < distance and dist != 0 and s.queen = nil{
+    					distance <- dist;
+    					target <- s;
+    				}
+    			}
+    			
+    			if target != nil{
+    				write "New Location is as follows: " + target.grid_x + ", " + target.grid_y;
+    				myCell.queen <- nil;
+    				myCell <- target;
+    				location <- target.location;
+    				myCell.queen <- self;
+    				
+    				// Send ACCEPT_PROPOSAL
+    				do accept_proposal message: proposalMessage contents: ['move_completed'];
+    			} else{
+    				// Send REJECT_PROPOSAL
+    				do reject_proposal message: proposalMessage contents: ['no_valid_target'];
+    			}
+    		}
+    	}
+    	
+    	// Reset state
+    	awaitingResponse <- false;
+    	messageContext <- "";
     }
     
 
