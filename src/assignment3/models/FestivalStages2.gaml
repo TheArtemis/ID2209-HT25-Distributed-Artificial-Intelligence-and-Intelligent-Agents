@@ -1,12 +1,12 @@
 /**
-* Name: FestivalStages
+* Name: FestivalStages2
 * Based on the internal empty template. 
 * Author: Lorenzo Deflorian, Riccardo Fragale, Juozas Skarbalius
 * Tags: 
 */
 
 
-model FestivalStages
+model FestivalStages2
 
 
 global {
