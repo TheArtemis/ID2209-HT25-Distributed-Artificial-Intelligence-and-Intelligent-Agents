@@ -79,7 +79,7 @@ up until a correct arrangement is found.
 
 
 \subsection*{Code}
-First of all, each Queen is positioned on the chessBoard almost randomcally
+First of all, each Queen is positioned on the chessBoard almost randomically
 using the following init procedure:
 \begin{verbatim}
     chessBoardCell myCell <- one_of (chessBoardCell);
@@ -113,6 +113,8 @@ The requester sends a FIPA CFP using start\_conversation to a visible queen foun
     contents: ['request_position', string(self.myCell.grid_x), 
     string(self.myCell.grid_y)];
 \end{verbatim}
+We are not actually messaging every time to the same predecessor but 
+communication is always peer-to-peer to a selected (and single) queen.
 
 The requester sets awaitingResponse <- true and stores 
 messageContext <- "position\_request" to guard message handling.
@@ -156,6 +158,47 @@ The result is clearer separation: messages carry intent, reflexes react to perfo
 We will show below a couple of situations proving that our implementation is 
 correct using N = 4. In our opinion it would definitely be better for a reader
 to run many simulations and verify that the N Queen problem is solved for that randomical beginning position.
+
+\subsubsection*{First simulation}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.35\textwidth]{imgs/first_sim_initial.png}
+    \caption{Initial position}
+    \label{fig:initial_1}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\textwidth]{imgs/first_sim_sequence.png}
+    \caption{Full sequence of movements}
+    \label{fig:sequence1}
+\end{figure}
+
+As it can be seen from the two screenshots above the fact that the queen cannot move from (0,1)
+starts a sequence of FIPA messages and movements. The selected queen for the first communication 
+is positioned at (0,0).
+The good position is found in the end (shown on display).
+
+
+\subsubsection*{Second simulation}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.50\textwidth]{imgs/second_sim_initial.png}
+    \caption{Initial position}
+    \label{fig:initial_1}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\textwidth]{imgs/second_sim_sequence.png}
+    \caption{Full sequence of movements}
+    \label{fig:sequence1}
+\end{figure}
+
+As it can be seen from the logs on the left queen was able to move but then it was stopped 
+so a sequence of messages an movements starts.
+
+
 
 
 

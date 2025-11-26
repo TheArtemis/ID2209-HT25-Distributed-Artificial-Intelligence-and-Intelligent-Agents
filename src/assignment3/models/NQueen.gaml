@@ -12,7 +12,7 @@ global {
     
     int neighbors <- 8;
     // This value is to be defined and corrected later
-    int queens <- 9;
+    int queens <- 4;
     
     init{
         create Queen number: queens;
