@@ -51,6 +51,8 @@ and verify on screen that everything is working correctly.
 There is a parameter in the global of the module, called queens, that can be modified and defines the number of 
 queens in the chess board. It is modifiable and should be used to verify that our code 
 works for all N between 4 and 19.
+Regarding task 1, in the same folder assignment3/models there is a .gaml file called FestivalStages.
+Also in this case open it and play the simulation.
 
 % --- SECTION 2 ---
 \section{Task1: NQueen}
@@ -158,33 +160,149 @@ to run many simulations and verify that the N Queen problem is solved for that r
 
 
 % --- SECTION 3 ---
-\section{Section Reports}
-Repeat the structure below for each part of the assignment.
+\section{Task 2: Positioning speakers at main stage}
+For the purpose of this task we decide to eliminate the features of the previous homeworks related to 
+the festival except for the InformationCenter and the skeleton of the normal guest.
+We were asked to put some stages into the festival which host an act for a different amount of time.
+The guest must know their position since the beginning of the simulation 
+and must decide to go and attend an event at a festival based on a utility function.
+Basically, the decision is based on the guest preference and the characteristic of each stage 
+related to some properties (e.g sound system ,light visuals etc).
+Guest communicate with stages through FIPA and after a "discussion" they must select 
+the stage with the highest utility.
 
-\subsection*{Section X: [Section Name]}
-\subsubsection*{3.1 Explanation}
+\subsection*{3.1 Explanation}
 Describe what this section requires and how you approached solving it.
 
-\subsubsection*{3.2 Code}
-Include relevant code snippets below:
-
+\subsection*{3.2 Code}
+During initialization the model creates one InformationCenter,
+three Stage agents and ten Guests. 
+Each guest receives a list of all stages (and also knows their position) as shown below
 \begin{verbatim}
-# Example code snippet
-def example():
-    print("Hello, DAIIA!")
+    ask guests {
+                set stages <- allStages;
+        	}   
+\end{verbatim}
+Each Stage has three key properties: 
+\begin{itemize}
+    \item lightShow (0–100)
+    \item speaker (0–100)
+    \item musicStyle (0–100)
+\end{itemize} 
+These are randomly generated and represent the stage's entertainment characteristics.
+Stages also have a starting time and a duration, both different for each stage
+and randomically generated.
+Each guest has individual preferences 
+(lightShowPreference, speakerPreference, musicStylePreference), 
+all randomly initialized in the interval 0 to 100. 
+Utility for a stage is computed as follows:
+\begin{verbatim}
+    action compute_utilities(list<int> stats, Stage sender) {
+    int lightShow <- stats[0];
+    int speaker <- stats[1];
+    int musicStyle <- stats[2];
+    int utility <- lightShowPreference * lightShow 
+    + speakerPreference * speaker + musicStylePreference * musicStyle;
+    utilities[sender] <- utility;
+    }
+\end{verbatim}
+Guests request stage statistics using FIPA Contract Net Protocol. 
+The guest sends a cfp (Call For Proposal) performative to all stages with contents ["stats"].
+\begin{verbatim}
+    reflex request_utilities when: hasRequestedUtilities = false {
+    write 'Requesting utilities from stages';
+    do start_conversation to: list(Stage) 
+    protocol: 'fipa-contract-net' performative: 'cfp' contents: ["stats"];
+    hasRequestedUtilities <- true;
+}
+\end{verbatim}
+When a stage receives a CFP with content "stats",
+it responds immediately with a propose performative containing its three attributes as a 
+list: [lightShow, speaker, musicStyle].
+\begin{verbatim}
+    reflex receiveCFP when: !empty(cfps) {
+    loop cfpMsg over: cfps {
+        list contents_list <- list(cfpMsg.contents);
+        if (contents_list[0] = "stats") {
+            do propose message: cfpMsg contents: 
+            [lightShow, speaker, musicStyle];
+        }
+    }
+}
 \end{verbatim}
 
-Optionally include screenshots with:
+All proposals are received in the receiveProposal reflex. 
+For each one this reflex calls compute\_utilities 
+to score the stage and stores the result in a utilities map.
+
+\begin{verbatim}
+    reflex receiveProposals when: hasReceivedUtilities = false and 
+    hasRequestedUtilities = true and !empty(proposes){
+    loop proposeMsg over: proposes {
+        list<int> contents_list <- list<int>(list(proposeMsg.contents));
+        do compute_utilities(contents_list, proposeMsg.sender);
+    }
+    hasReceivedUtilities <- true;
+    do select_stage;
+}
+\end{verbatim}
+
+After processing all proposals, 
+the guest invokes select\_stage, which iterates through 
+all stages and finds the one with the highest utility score stored in the utilities map.
+\begin{verbatim}
+    action select_stage {
+    int maxUtility <- 0;
+    Stage bestStage <- nil;
+    loop stage over: stages {
+        if (utilities != nil and utilities contains_key(stage)) {
+            int stageUtility <- utilities[stage];
+            if (stageUtility > maxUtility) {
+                maxUtility <- stageUtility;
+                bestStage <- stage;
+            }
+        }
+    }
+    selectedStage <- bestStage;
+}
+\end{verbatim}
+Once a stage is selected and the current time falls within [startFestivalTime, endFestivalTime], 
+the guest computes a random target location near the stage and moves toward it using the moving skill with movingSpeed = 0.75.
+Guests navigate to their selected stage, arrive at a random position nearby (within 6–12 units from the stage), 
+and then dance continuously
 
 
-\subsubsection*{3.3 Demonstration}
-Provide two use cases for this section.
 
-\begin{enumerate}[leftmargin=*]
-  \item \textbf{Input:} Describe the input.
-  \item \textbf{Screenshot:} Include program execution/output.
-  \item \textbf{Interpretation:} Briefly explain the result.
-\end{enumerate}
+\subsection*{3.3 Demonstration}
+I will show below screenshots for two cases; 
+\begin{itemize}
+    \item Guests request utilities to stages
+    \item Guest select the stage with higher utility
+\end{itemize}
+For the purpose of this demonstration I included only 4 guests 
+so that the number of logging messages is reduced.
+
+\subsubsection*{Guests request utilities to stages}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/request_utilities.png}
+    \caption{Guest request utilities}
+    \label{fig:request_utilities}
+\end{figure}
+
+A message is send to the stages.
+
+\subsubsection*{Guest select the one with maximum utility}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/calculate_best.png}
+    \caption{Guest select the stage with higher utility}
+    \label{fig:calculate_best}
+\end{figure}
+
+As it can be seen each guest is selecting the stage with the highest utility.
+
+
 
 % --- SECTION 4 ---
 \section{Challenge / Bonus Section (Optional)}
