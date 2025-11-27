@@ -9,14 +9,12 @@ model NQueen
 
 
 global {
-    
     int neighbors <- 8;
     // This value is to be defined and corrected later
     int queens <- 19;
     
     init{
         create Queen number: queens;
-        
         // Set up circular predecessor/successor chain after all queens are created
         loop i from: 0 to: length(Queen) - 1 {
             Queen current <- Queen[i];
@@ -38,9 +36,7 @@ global {
     
     list<chessBoardCell> allCells;
     list<Queen> allQueens;
-    
     bool isCalculating <- false;
-    
 }
 
 
@@ -52,9 +48,11 @@ species Queen skills:[fipa]{
     string messageContext <- "";
     chessBoardCell requestedTargetCell <- nil;
     
-	// Each queen knows only its predecessor and successor
+    // Each queen knows only its predecessor and successor
     Queen predecessor <- nil;
     Queen successor <- nil;
+    
+    rgb myColor <- #black;
 
     init {
         //Assign a free cell
@@ -64,94 +62,70 @@ species Queen skills:[fipa]{
                 break;
             }
         }
-
         location <- myCell.location;
         myCell.queen <- self;
-
-
         add self to: allQueens;
-
         do refreshOccupancyGrid;
     }
 
 
     action refreshOccupancyGrid{
-
         self.occupancyGrid <- [];
         loop m from:0 to:queens-1{
             list<int> mList;
-
             loop n from:0 to: queens-1{
                 add 0 to: mList;    
             }
             add mList to: occupancyGrid;
         }
-
     }
 
     action calculateOccupancyGrid{
         do refreshOccupancyGrid;
-
         //identify occupied cells
         loop cell over:allCells{
             if cell.queen != nil and cell.queen != self{
                 self.occupancyGrid[cell.grid_x][cell.grid_y] <- 1000;
             }
         }
-
-
         //evaluate free AllCells
         loop cell over:allCells{
             int m <- cell.grid_x;
             int n <- cell.grid_y;
-
              if self.occupancyGrid[int(m)][int(n)] = 1000{
                 loop i from: 1 to:queens{
-
                     //Up
                     int mi <- int(m) + i;
                     if mi < queens{
                         self.occupancyGrid[mi][n] <- self.occupancyGrid[mi][n] + 1;
                     }
-
-
                     //Down
                     int n_mi <- int(m) - i;
                     if n_mi > -1{
                         self.occupancyGrid[n_mi][n] <- self.occupancyGrid[n_mi][n] + 1;
                     }
-
-
                     // Right
                     int ni <- int(n) + i;
                     if ni < queens{
                         self.occupancyGrid[m][ni] <- self.occupancyGrid[m][ni] + 1;
                     }
-
-
                     //Left
                     int n_ni <- int(n) - i;
                     if n_ni > -1{
                         self.occupancyGrid[m][n_ni] <- self.occupancyGrid[m][n_ni] + 1;
                     }
-
                     //top right diagonal
                     if mi < queens and ni < queens{
                         self.occupancyGrid[mi][ni] <- self.occupancyGrid[mi][ni] + 1;
                     }
-
-
                     //bottom right diagonal
                     if n_mi > -1 and ni < queens{
                         self.occupancyGrid[n_mi][ni] <- self.occupancyGrid[n_mi][ni] + 1;
                     }
-
-
                     //top left diagonal
                     if mi < queens and n_ni > -1{
                         self.occupancyGrid[mi][n_ni] <- self.occupancyGrid[mi][n_ni] + 1;
                     }
-
                     //bottom left diagonal
                     if n_mi > -1 and n_ni > -1{
                         self.occupancyGrid[n_mi][n_ni] <- self.occupancyGrid[n_mi][n_ni] + 1;
@@ -211,6 +185,7 @@ species Queen skills:[fipa]{
     action needToMove{
     	do calculateOccupancyGrid();
 	    if self.occupancyGrid[myCell.grid_x][myCell.grid_y] != 0{
+            myColor <- #red;
 	    	list<point> possibleChecks <- availableallCells(0);
 	    	if length(possibleChecks) > 0 {
 	    		point possiblePoint <- possibleChecks[rnd(0,length(possibleChecks)-1)];
@@ -244,7 +219,9 @@ species Queen skills:[fipa]{
 	    			messageContext <- "chain_request";
 	    		}
 	    	}
-	    }
+	    } else {
+            myColor <- #green;
+        }
 	}
     
     reflex amIsafe when: !isCalculating and !awaitingResponse{
@@ -387,7 +364,7 @@ species Queen skills:[fipa]{
     
 
     aspect base {
-        draw square(1.0) color: #black;
+        draw square(2.0) color: myColor;
     }
 }
 
