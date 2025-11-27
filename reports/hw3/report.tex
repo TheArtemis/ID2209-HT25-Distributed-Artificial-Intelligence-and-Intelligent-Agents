@@ -76,6 +76,8 @@ There is a sort of recursive procedure in which if a queen has no available posi
 she must let her predecessor know and ask her to reposition her.
 If also the predecessor has no available positions left, she must message her predecessor and so on and so for 
 up until a correct arrangement is found.
+Queens in correct positions are depicted in green while queens that have not found the correct placement are depicted in red.
+
 
 
 \subsection*{Code}
@@ -101,56 +103,65 @@ using the following init procedure:
 \end{verbatim}
 The procedure starts by calculating the occupancyGrid and verifying whether there are conflicts with respect to the rules.
 When a conflict is found, queens need to move. 
-The core relocation logic lives in the needToMove action, which computes threats via calculateOccupancyGrid.
-If a queen has no immediately free safe cells, it initiates negotiation through FIPA instead of 
-directly modifying another agent's state through ask instructions.
+The core relocation logic lives in the needToMove action. If a queen is in a conflict (indicated by a red color) and has no immediately free safe cells, it initiates negotiation.
+Unlike the previous approach based on visibility, the queens are organized in a circular linked list. Each queen is assigned a specific \texttt{predecessor} and \texttt{successor} during initialization. When stuck, a queen sends a request specifically to its predecessor.
 
-The requester sends a FIPA CFP using start\_conversation to a visible queen found by findQueenInSightbyLocation.
 \begin{verbatim}
-    do start_conversation to: [sight] protocol: 'fipa-contract-net' 
-    performative: 'cfp' 
-	    				
-    contents: ['request_position', string(self.myCell.grid_x), 
-    string(self.myCell.grid_y)];
-\end{verbatim}
-We are not actually messaging every time to the same predecessor but 
-communication is always peer-to-peer to a selected (and single) queen.
-
-The requester sets awaitingResponse <- true and stores 
-messageContext <- "position\_request" to guard message handling.
-\begin{verbatim}
-    // Handle CFP messages - respond with position information
-    reflex handleCFP when: !empty(cfps){
-    	message requestMessage <- cfps[0];
-    	write name + " received CFP from " + 
-        requestMessage.sender + " with contents: " + requestMessage.contents;
-    	
-    	// Respond with PROPOSE containing current position
-    	do propose message: requestMessage contents: 
-        ['position_info', string(myCell.grid_x), string(myCell.grid_y)];
+    // Communicate via chain: ONLY ask predecessor
+    if predecessor != nil and !awaitingResponse{
+        do start_conversation to: [predecessor] 
+        protocol: 'fipa-contract-net' performative: 'cfp' 
+        contents: ['request_move', string(self.myCell.grid_x), 
+                   string(self.myCell.grid_y), name];
+        
+        awaitingResponse <- true;
+        messageContext <- "chain_request";
     }
 \end{verbatim}
-Incoming CFPs trigger reflex handleCFP for the receiver , which reads the CFP contents and replies with a PROPOSE containing its position.
-The proposer uses do propose message: requestMessage contents: ['position\_info', string(myCell.grid\_x), string(myCell.grid\_y)].
-The requester watches for proposes and the handlePropose reflex (guarded by awaitingResponse and messageContext) processes proposals.
+The requester includes its own name in the message so that if the request is forwarded down the chain, the eventual helper knows who to reply to.
+
+Incoming CFPs trigger the \texttt{handleCFP} reflex. The logic follows a "Chain of Responsibility" pattern:
+\begin{enumerate}
+    \item \textbf{If the receiver can move:} It moves to a free spot, effectively freeing its old cell. It then sends a \texttt{PROPOSE} message directly to the \texttt{originalRequester} (extracted from the message content) telling them the position is now available.
+    \item \textbf{If the receiver cannot move:} It acts as a middleman. It forwards the CFP to its own \texttt{predecessor}, preserving the \texttt{originalRequester}'s name. It then sends a \texttt{REFUSE} to the immediate sender to close that specific transaction.
+    \item \textbf{Chain Exhaustion:} If the request circles back to the original sender (Full Circle), the chain is exhausted, and the request is dropped to prevent infinite loops.
+\end{enumerate}
+
 \begin{verbatim}
-    reflex handlePropose when: !empty(proposes)
-     and awaitingResponse and messageContext = "position_request"
+    reflex handleCFP when: !empty(cfps){
+        if length(myOptions) > 0 {
+            // Move and notify original requester
+            do start_conversation to: [originalQueen] ...
+            performative: 'propose' 
+            contents: ['position_available', string(oldCell.grid_x), ...];
+        } else {
+            // Forward to predecessor
+            do start_conversation to: [predecessor] ... performative: 'cfp'
+                contents: ['request_move', ..., originalRequester];
+        }
+    }
 \end{verbatim}
-handlePropose parses ['position\_info', x, y], 
-looks up the corresponding chessBoardCell, and scans its neighbours for the nearest empty target.
-If a valid target is found the requester updates its local myCell and location, and sends ACCEPT\_PROPOSAL to confirm the move.
+
+The \texttt{handlePropose} reflex processes the resolution. When a queen in the chain finds a spot and moves, it sends a \texttt{'position\_available'} message to the queen that started the chain.
 \begin{verbatim}
-    do accept_proposal message: proposalMessage contents: ['move_completed'];
+    reflex handlePropose when: !empty(proposes) and awaitingResponse{
+        if contents[0] = 'position_available'{
+            // Move to the cell freed by the helper
+            myCell <- freedCell;
+            location <- freedCell.location;
+            do accept_proposal 
+            message: proposalMessage contents: ['move_completed'];
+        }
+    }
 \end{verbatim}
-If no valid target exists, the requester sends REJECT\_PROPOSAL so the proposer knows the negotiation failed.
-\begin{verbatim}
-    do reject_proposal message: proposalMessage contents: ['no_valid_target'];
-\end{verbatim}
-After processing proposals the requester resets awaitingResponse <- false and clears messageContext, preventing stale reflex activations.
-The amIsafe reflex is guarded with !awaitingResponse and !isCalculating to avoid concurrent negotiations or reentrancy.
-This message-driven pipeline replaces direct ask calls, ensuring all state changes happen locally in response to explicit FIPA messages.
-Key flags (awaitingResponse, messageContext) act as triggers so reflexes run only when a real message exchange occurred.
+This creates a robust system where a single request can ripple through the entire population of queens until one is found that can shift to accommodate the group, resolving deadlocks that occurred in the visibility-based approach.
+
+Finally, to provide visual feedback on the solution state, the queens update their color dynamically:
+\begin{itemize}
+    \item \textbf{Red:} The queen is currently in a conflict (occupancy grid value $>0$).
+    \item \textbf{Green:} The queen is in a safe position (occupancy grid value $==0$).
+\end{itemize}
+The simulation is considered solved when all queens turn green.
 The result is clearer separation: messages carry intent, reflexes react to performatives, and actions perform local state updates.
 
 
@@ -159,44 +170,46 @@ We will show below a couple of situations proving that our implementation is
 correct using N = 4. In our opinion it would definitely be better for a reader
 to run many simulations and verify that the N Queen problem is solved for that randomical beginning position.
 
-\subsubsection*{First simulation}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.35\textwidth]{imgs/first_sim_initial.png}
-    \caption{Initial position}
-    \label{fig:initial_1}
+    \includegraphics[width=0.6\textwidth]{imgs/starting_point.png}
+    \caption{Starting point}
+    \label{fig:starting_point}
 \end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.5\textwidth]{imgs/first_sim_sequence.png}
-    \caption{Full sequence of movements}
-    \label{fig:sequence1}
-\end{figure}
-
-As it can be seen from the two screenshots above the fact that the queen cannot move from (0,1)
-starts a sequence of FIPA messages and movements. The selected queen for the first communication 
-is positioned at (0,0).
-The good position is found in the end (shown on display).
-
-
-\subsubsection*{Second simulation}
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.50\textwidth]{imgs/second_sim_initial.png}
-    \caption{Initial position}
-    \label{fig:initial_1}
-\end{figure}
+As it can be seen from \ref{fig:starting_point} the queens are placed correctly on the map.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.5\textwidth]{imgs/second_sim_sequence.png}
-    \caption{Full sequence of movements}
-    \label{fig:sequence1}
+    \includegraphics[width=0.6\textwidth]{imgs/middle_point.png}
+    \caption{Queens are moving}
+    \label{fig:queens_moving}
 \end{figure}
 
-As it can be seen from the logs on the left queen was able to move but then it was stopped 
-so a sequence of messages an movements starts.
+\ref{fig:queens_moving} shows that queens are communicating and changing their position
+in order to find a correct placement. It is clear also that sometimes the request 
+is passed from predecessor to predecessor until someone can move.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/position_found.png}
+    \caption{Position found}
+    \label{fig:position_found}
+\end{figure}
+
+Finally, \ref{fig:position_found} shows that the position in found.
+
+We will also add a picture of what happens inside a run with N=19.
+Clearly the logs are more and the situation might be
+definitely more complex so more loops are needed to find the correct placement
+for all the queens in the chessboard.
+
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/19_queens.png}
+    \caption{19 queens moving on the chessboard}
+    \label{fig:nineteen}
+\end{figure}
 
 
 
@@ -333,7 +346,7 @@ so that the number of logging messages is reduced.
     \label{fig:request_utilities}
 \end{figure}
 
-A message is send to the stages.
+A message is send to the stages in \ref{fig:request_utilities} to request utilities values.
 
 \subsubsection*{Guest select the one with maximum utility}
 \begin{figure}[h]
@@ -343,32 +356,31 @@ A message is send to the stages.
     \label{fig:calculate_best}
 \end{figure}
 
-As it can be seen each guest is selecting the stage with the highest utility.
+As it can be seen in \ref{fig:calculate_best} each guest is selecting the stage with the highest utility.
 
 
 
 % --- SECTION 4 ---
-\section{Challenge / Bonus Section (Optional)}
-If you attempted bonus tasks, describe them here.
+\section{Challenge 1: global utility function}
 
-\subsection*{Challenge X: [Challenge Name]}
-\subsubsection*{4.1 Explanation}
+\subsection*{4.1 Explanation}
 Explain the challenge and your approach.
 
-\subsubsection*{4.2 Code}
+\subsection*{4.2 Code}
 Show relevant code snippets and screenshots.
 
-\subsubsection*{4.3 Demonstration}
+\subsection*{4.3 Demonstration}
 Provide 4 complete use cases:
-\begin{enumerate}[leftmargin=*]
-  \item Input description.
-  \item Screenshot of program execution/output.
-  \item Short explanation of results.
-\end{enumerate}
 
 % --- SECTION 5 ---
 \section{Final Remarks}
-Summarize what you learned, any limitations, and potential improvements.
-Optionally include any extra comments.
+In this homework we learnt a couple of things related to GAMA language and agents coordination.
+First of all, we were forced to create a "chain" of messages between agents that were bouncing back messages
+one to another (in the first task). Regarding the second task and its challenge it was not so easy 
+to find a way to have a leader and to have the agents working together 
+towards an objective following a utility function.
+We are really happy about our result and we are really looking forward
+to the final project which will certainly be more challenging.
+
 
 \end{document}
