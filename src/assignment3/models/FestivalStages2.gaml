@@ -36,7 +36,7 @@ global {
         ask guests {
             infoCenter <- center[0];
             set stages <- allStages;
-            allGuests <- guests;         // NEW: every guest knows all other guests
+            allGuests <- guests;
         }
     }
 
@@ -46,7 +46,6 @@ species InformationCenter skills:[fipa] {
 
     point location <- infoCenterLocalization;
 
-    // ---- leader data ----
     list<Guest> allGuests <- [];
     list<Stage> allStages <- [];
     map<Guest, Stage> currentAssignment <- nil;
@@ -55,7 +54,7 @@ species InformationCenter skills:[fipa] {
     float currentGlobalUtility <- 0.0;
     float bestGlobalUtility <- -1.0;
     int noImprovementSteps <- 0;
-    int maxNoImprovementSteps <- 25; // after 10 steps with no improvement -> stop
+    int maxNoImprovementSteps <- 25;
     bool allInitialChoicesReceived <- false;
     bool globalOptimumReached <- false;
     
@@ -65,15 +64,12 @@ species InformationCenter skills:[fipa] {
     aspect base{
         draw square(5) color: #pink;
         draw "info center" at: location color: #black;
-        // current global utility
         draw ("Global U: " + currentGlobalUtility) at: location + {0, -5} color: #blue;
-        // initial global utility (only once recorded)
         if (initialGlobalUtilityRecorded) {
             draw ("Initial U: " + initialGlobalUtility) at: location + {0, -10} color: #red;
         }
     }
 
-    // guests send: ["choice", selectedStage] once
 	reflex receive_initial_choices when: !empty(informs) and !globalOptimumReached and !allInitialChoicesReceived {
 	    loop msg over: informs {
 	        list contents_list <- list(msg.contents);
@@ -93,8 +89,6 @@ species InformationCenter skills:[fipa] {
 	}
 
     action recompute_crowds_and_global_utility {
-
-        // reset crowd counts
         currentCrowd <- nil;
         loop st over: allStages {
             currentCrowd[st] <- 0;
@@ -130,7 +124,6 @@ species InformationCenter skills:[fipa] {
 
                 float preferredRatio <- (g.crowdMassPreference as float) / 100.0;
 
-                // crowdU ∈ [0,1], maximum when crowdRatio == preferredRatio
                 float diff <- crowdRatio - preferredRatio;
                 if (diff < 0.0) {
                     diff <- -diff;
@@ -141,9 +134,7 @@ species InformationCenter skills:[fipa] {
                     crowdU <- 0.0;
                 }
 
-                // weight crowd vs base: 70% base, 30% crowd
                 float effective <- (0.7 * (baseU as float)) + (0.3 * crowdU * 1000000.0);
-
                 newGlobalUtility <- newGlobalUtility + effective;
             }
         }
@@ -183,8 +174,6 @@ species InformationCenter skills:[fipa] {
 		}
     }
 	
-	
-    // using true change in GLOBAL utility (not only individual gain)
     reflex propose_switches when: (cycle mod 30) = 0 and allInitialChoicesReceived and !globalOptimumReached {
 
         int totalGuests <- length(allGuests);
@@ -369,7 +358,6 @@ species InformationCenter skills:[fipa] {
                     performative: 'inform'
                     contents: ["switch_to", bestNewStage];
             } else {
-                // no move increases global utility: count one "no improvement" step
                 noImprovementSteps <- noImprovementSteps + 1;
                 if (noImprovementSteps >= maxNoImprovementSteps and !globalOptimumReached) {
                     globalOptimumReached <- true;
@@ -541,7 +529,6 @@ species Guest skills:[moving, fipa]{
         write name + ': Initial selected stage ' + selectedStage + ' with effective utility ' + maxEffectiveU;
         hasSelectedStage <- true;
         
-        // record initial choice & utility only once (based on this first effective choice)
         if (!initialChoiceRecorded) {
             initialChoiceRecorded <- true;
             initialStage <- bestStage;
@@ -586,7 +573,7 @@ species Guest skills:[moving, fipa]{
             
             // initialize our local estimate with at least ourselves
             if (localCrowdEstimate = nil) {
-                // GAMA will create the map when assigning the first key
+                // ignore
             }
             localCrowdEstimate[selectedStage] <- (localCrowdEstimate[selectedStage] + 1);
             hasSharedChoiceWithGuests <- true;
@@ -595,21 +582,19 @@ species Guest skills:[moving, fipa]{
     
     // 7) refine initial choice based on REAL crowd mass from guest messages
     reflex refine_initial_choice_with_crowd when: hasSharedChoiceWithGuests and !hasRefinedInitialChoice and cycle > 15 {
-        // Build default 0 counts if never set
         loop st over: stages {
             if (localCrowdEstimate = nil or !(localCrowdEstimate contains_key(st))) {
                 localCrowdEstimate[st] <- 0;
             }
         }
 
-        // ensure our own presence is counted at least once
         if (selectedStage != nil) {
             localCrowdEstimate[selectedStage] <- localCrowdEstimate[selectedStage] + 1;
         }
 
         int totalGuestsLocal <- length(allGuests);
         if (totalGuestsLocal <= 0) {
-            hasRefinedInitialChoice <- true; // nothing to refine
+            hasRefinedInitialChoice <- true;
         } else {
 
             float preferredRatio <- (crowdMassPreference as float) / 100.0;
@@ -640,14 +625,12 @@ species Guest skills:[moving, fipa]{
 
             if (bestStage != selectedStage and bestStage != nil) {
                 write name + ': Refined choice with crowd info: switching from ' + selectedStage + ' to ' + bestStage;
-                // reset movement so we re-target
                 isDancing <- false;
                 targetLocation <- nil;
                 wanderTarget <- nil;
                 wanderTimer <- 0;
                 selectedStage <- bestStage;
 
-                // inform leader of the updated initial choice
                 if (infoCenter != nil) {
                     do start_conversation
                         to: [infoCenter]
@@ -700,33 +683,27 @@ species Guest skills:[moving, fipa]{
             list contents_list <- list(msg.contents);
             string tag <- contents_list[0] as string;
 
-            // Ignore our own broadcasts to avoid double counting
             if (msg.sender = self) {
                 continue;
             }
 
-            // Leader says: we reached max global utility
             if (tag = "optimization_finished") {
                 optimizationFinished <- true;
                 write name + ": Optimization finished, enjoying the show!";
             }
 
-            // Leader suggests a switch to a different stage (global optimization)
             else if (tag = "switch_to" and !optimizationFinished) {
                 Stage proposedStage <- contents_list[1] as Stage;
 
                 write name + ": Leader suggests switching to " + proposedStage + ". ACCEPT.";
 
-                // stop current dancing / movement so we can re-target
                 isDancing <- false;
                 targetLocation <- nil;
                 wanderTarget <- nil;
                 wanderTimer <- 0;
 
-                // switch to the new stage
                 selectedStage <- proposedStage;
 
-                // Inform leader of new choice so it can update assignments
                 if (infoCenter != nil) {
                     do start_conversation
                         to: [infoCenter]
@@ -758,19 +735,11 @@ species Guest skills:[moving, fipa]{
 	        draw "Guest" at: location + {0, -1.5} color: #black;
 	    }
 	
-	    // icon/text showing crowd mass preference
 	    string prefText <- prefersLargeCrowd ?
 	        "Crowd pref: LARGE (" + crowdMassPreference + ")" :
 	        "Crowd pref: SMALL (" + crowdMassPreference + ")";
 	
 	    draw prefText at: location + {0, 2.5} color: #gray;
-	
-	    // optional emojis
-	    string emoji <- prefersLargeCrowd ? "👥" : "🧍";
-	    draw emoji at: location + {0, 4} color: #darkgray;
-	
-	
-	    // ===== EXISTING VISUALS =====
 	    if (selectedStage != nil) {
 	        draw ("Cur stage: " + selectedStage) at: location + {0, -3.5} color: #black;
 	    }
