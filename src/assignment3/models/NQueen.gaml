@@ -12,10 +12,28 @@ global {
     
     int neighbors <- 8;
     // This value is to be defined and corrected later
-    int queens <- 4;
+    int queens <- 19;
     
     init{
         create Queen number: queens;
+        
+        // Set up circular predecessor/successor chain after all queens are created
+        loop i from: 0 to: length(Queen) - 1 {
+            Queen current <- Queen[i];
+            // Predecessor: previous queen, or last queen if current is first (circular)
+            if i > 0 {
+                current.predecessor <- Queen[i - 1];
+            } else {
+                current.predecessor <- Queen[length(Queen) - 1]; // Queen0's predecessor is last queen
+            }
+            // Successor: next queen, or first queen if current is last (circular)
+            if i < length(Queen) - 1 {
+                current.successor <- Queen[i + 1];
+            } else {
+                current.successor <- Queen[0]; // Last queen's successor is Queen0
+            }
+        }
+        write "Circular chain established: " + length(Queen) + " queens linked.";
     }
     
     list<chessBoardCell> allCells;
@@ -33,6 +51,10 @@ species Queen skills:[fipa]{
     bool awaitingResponse <- false;
     string messageContext <- "";
     chessBoardCell requestedTargetCell <- nil;
+    
+	// Each queen knows only its predecessor and successor
+    Queen predecessor <- nil;
+    Queen successor <- nil;
 
     init {
         //Assign a free cell
@@ -210,87 +232,155 @@ species Queen skills:[fipa]{
 	    	}
 	    	else{
 	    		write "I cannot move from: " + self.myCell.grid_x + ", " + self.myCell.grid_y;
-	    		// Communicate with others for moving using FIPA Contract Net
-	    		Queen sight <- findQueenInSightbyLocation(0);
-	    		if sight != nil and !awaitingResponse{
-	    			write "I am at : " + self.myCell.grid_x + ", " + self.myCell.grid_y + " Sending CFP to Queen at: " + sight.myCell.grid_x + ", " + sight.myCell.grid_y;
+	    		// Communicate via chain: ONLY ask predecessor (circular chain)
+	    		if predecessor != nil and !awaitingResponse{
+	    			write name + " at (" + self.myCell.grid_x + ", " + self.myCell.grid_y + ") asking predecessor " + predecessor.name + " for help";
 	    			
-	    			// Send Call For Proposal (CFP) asking for the Queen's position
-	    			do start_conversation to: [sight] protocol: 'fipa-contract-net' performative: 'cfp' 
-	    				contents: ['request_position', string(self.myCell.grid_x), string(self.myCell.grid_y)];
+	    			// Send Call For Proposal (CFP) to predecessor
+	    			do start_conversation to: [predecessor] protocol: 'fipa-contract-net' performative: 'cfp' 
+	    				contents: ['request_move', string(self.myCell.grid_x), string(self.myCell.grid_y), name];
 	    			
 	    			awaitingResponse <- true;
-	    			messageContext <- "position_request";
+	    			messageContext <- "chain_request";
 	    		}
 	    	}
 	    }
 	}
     
-    //REFLEXES
     reflex amIsafe when: !isCalculating and !awaitingResponse{
     	isCalculating <- true;
     	do needToMove;
     	isCalculating <- false;
     }
-    
-    // Handle CFP messages - respond with position information
+
     reflex handleCFP when: !empty(cfps){
     	message requestMessage <- cfps[0];
-    	write name + " received CFP from " + requestMessage.sender + " with contents: " + requestMessage.contents;
-    	
-    	// Respond with PROPOSE containing current position
-    	do propose message: requestMessage contents: ['position_info', string(myCell.grid_x), string(myCell.grid_y)];
+    	list reqContents <- requestMessage.contents;
+    	write name + " received CFP from " + requestMessage.sender + " with contents: " + reqContents;
+    	if reqContents[0] = 'request_move' {
+    		do calculateOccupancyGrid();
+    		list<point> myOptions <- availableallCells(0);
+    		string originalRequester <- string(reqContents[3]);
+    		if length(myOptions) > 0 {
+    			point newPos <- myOptions[rnd(0, length(myOptions) - 1)];
+    			loop c over: allCells {
+    				if c.grid_x = newPos.x and c.grid_y = newPos.y and c.queen = nil {
+    					write name + " moving to (" + c.grid_x + ", " + c.grid_y + ") to help " + originalRequester;
+    					chessBoardCell oldCell <- myCell;
+    					myCell.queen <- nil;
+    					myCell <- c;
+    					location <- c.location;
+    					myCell.queen <- self;
+    					Queen originalQueen <- nil;
+    					loop q over: allQueens {
+    						if q.name = originalRequester {
+    							originalQueen <- q;
+    							break;
+    						}
+    					}
+    					if originalQueen != nil {
+    						write name + " sending position to original requester " + originalRequester;
+    						do start_conversation to: [originalQueen] protocol: 'fipa-contract-net' performative: 'propose'
+    							contents: ['position_available', string(oldCell.grid_x), string(oldCell.grid_y)];
+    					}
+    					do propose message: requestMessage contents: ['chain_resolved', string(oldCell.grid_x), string(oldCell.grid_y)];
+    					break;
+    				}
+    			}
+    		} else {
+    			if predecessor != nil and predecessor.name != originalRequester {
+    				write name + " cannot move, forwarding request to predecessor " + predecessor.name;
+    				do start_conversation to: [predecessor] protocol: 'fipa-contract-net' performative: 'cfp'
+    					contents: ['request_move', reqContents[1], reqContents[2], originalRequester];
+    				do refuse message: requestMessage contents: ['forwarding_to_predecessor'];
+    			} else {
+    				write name + ": chain exhausted (full circle or no predecessor available)";
+    				Queen originalQueen <- nil;
+					loop q over: allQueens {
+						if q.name = originalRequester {
+							originalQueen <- q;
+							break;
+						}
+					}
+					if originalQueen != nil {
+						do start_conversation to: [originalQueen] protocol: 'fipa-contract-net' performative: 'refuse'
+							contents: ['chain_exhausted'];
+					}
+    				do refuse message: requestMessage contents: ['chain_exhausted'];
+    			}
+    		}
+    	} else {
+    		do propose message: requestMessage contents: ['position_info', string(myCell.grid_x), string(myCell.grid_y)];
+    	}
     }
     
-    // Handle PROPOSE messages - process the response and move accordingly
-    reflex handlePropose when: !empty(proposes) and awaitingResponse and messageContext = "position_request"{
+    reflex handlePropose when: !empty(proposes) and awaitingResponse{
     	message proposalMessage <- proposes[0];
     	write name + " received PROPOSE from " + proposalMessage.sender;
-    	
     	list contents <- proposalMessage.contents;
-    	if length(contents) >= 3 and contents[0] = 'position_info'{
-    		int sightCell_x <- int(contents[1]);
-    		int sightCell_y <- int(contents[2]);
-    		
-    		write "Received position: " + sightCell_x + ", " + sightCell_y;
-    		
-    		// Find the actual cell and its neighbors
-    		chessBoardCell sightCell <- nil;
+    	if length(contents) >= 1 and contents[0] = 'chain_resolved'{
+    		awaitingResponse <- false;
+    		messageContext <- "";
+    		return;
+    	}
+    	if length(contents) >= 3 and contents[0] = 'position_available'{
+    		int availCell_x <- int(contents[1]);
+    		int availCell_y <- int(contents[2]);
+    		chessBoardCell freedCell <- nil;
     		loop c over: allCells{
-    			if c.grid_x = sightCell_x and c.grid_y = sightCell_y{
-    				sightCell <- c;
+    			if c.grid_x = availCell_x and c.grid_y = availCell_y{
+    				freedCell <- c;
     				break;
     			}
     		}
-    		
-    		if sightCell != nil{
-    			chessBoardCell target <- nil;
-    			float distance <- 1000.0;
-    			loop s over: sightCell.neighbours{
-    				float dist <- myCell.location distance_to s.location;
-    				if dist < distance and dist != 0 and s.queen = nil{
-    					distance <- dist;
-    					target <- s;
+    		if freedCell != nil and freedCell.queen = nil{
+    			myCell.queen <- nil;
+    			myCell <- freedCell;
+    			location <- freedCell.location;
+    			myCell.queen <- self;
+    			do accept_proposal message: proposalMessage contents: ['move_completed'];
+    		} else {
+    			if freedCell != nil {
+    				loop s over: freedCell.neighbours{
+    					if s.queen = nil{
+    						myCell.queen <- nil;
+    						myCell <- s;
+    						location <- s.location;
+    						myCell.queen <- self;
+    						do accept_proposal message: proposalMessage contents: ['move_completed'];
+    						break;
+    					}
     				}
-    			}
-    			
-    			if target != nil{
-    				write "New Location is as follows: " + target.grid_x + ", " + target.grid_y;
-    				myCell.queen <- nil;
-    				myCell <- target;
-    				location <- target.location;
-    				myCell.queen <- self;
-    				
-    				// Send ACCEPT_PROPOSAL
-    				do accept_proposal message: proposalMessage contents: ['move_completed'];
-    			} else{
-    				// Send REJECT_PROPOSAL
-    				do reject_proposal message: proposalMessage contents: ['no_valid_target'];
+    			} else {
+    				do reject_proposal message: proposalMessage contents: ['cell_not_found'];
     			}
     		}
     	}
-    	
-    	// Reset state
+    	awaitingResponse <- false;
+    	messageContext <- "";
+    }
+    
+    reflex handleRefuse when: !empty(refuses){
+    	message refuseMessage <- refuses[0];
+    	list contents <- refuseMessage.contents;
+    	write name + " received REFUSE from " + refuseMessage.sender + ": " + contents;
+    	if awaitingResponse {
+    		if messageContext = "forwarded_request" {
+    			awaitingResponse <- false;
+    			messageContext <- "";
+    		} else if messageContext = "chain_request" {
+    			if length(contents) > 0 and contents[0] = 'chain_exhausted' {
+    				awaitingResponse <- false;
+    				messageContext <- "";
+    			}
+    		}
+    	}
+    }
+
+    reflex handleReject when: !empty(reject_proposals) and awaitingResponse{
+    	message rejectMessage <- reject_proposals[0];
+    	list contents <- rejectMessage.contents;
+    	write name + " received REJECT from " + rejectMessage.sender + ": " + contents;
     	awaitingResponse <- false;
     	messageContext <- "";
     }
