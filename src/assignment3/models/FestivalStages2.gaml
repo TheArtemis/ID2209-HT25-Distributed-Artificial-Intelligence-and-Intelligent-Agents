@@ -55,7 +55,7 @@ species InformationCenter skills:[fipa] {
     float currentGlobalUtility <- 0.0;
     float bestGlobalUtility <- -1.0;
     int noImprovementSteps <- 0;
-    int maxNoImprovementSteps <- 10; // after 10 steps with no improvement -> stop
+    int maxNoImprovementSteps <- 25; // after 10 steps with no improvement -> stop
     bool allInitialChoicesReceived <- false;
     bool globalOptimumReached <- false;
     
@@ -108,7 +108,6 @@ species InformationCenter skills:[fipa] {
 	        }
 	    }
 	
-	    // NEW: propagate crowd counts to Stage agents so they can display them
 	    loop st over: allStages {
 	        st.currentCrowd <- currentCrowd[st];
 	    }
@@ -116,14 +115,12 @@ species InformationCenter skills:[fipa] {
 	    int totalGuests <- length(allGuests);
 	    float newGlobalUtility <- 0.0;
 
-         // compute global utility: base (light/sound/music) + crowd satisfaction
+        // compute global utility
         loop g over: allGuests {
             Stage st <- currentAssignment[g];
             if (st != nil and g.utilities != nil and g.utilities contains_key(st)) {
-                // base utility as already computed in the guest
                 int baseU <- g.utilities[st];
 
-                // ----- crowd satisfaction -----
                 int crowdOnStage <- currentCrowd[st];
 
                 float crowdRatio <- 0.0;
@@ -153,7 +150,6 @@ species InformationCenter skills:[fipa] {
 
         currentGlobalUtility <- newGlobalUtility;
         
-        // record the initial global utility right after all initial choices are received
         if (allInitialChoicesReceived and !initialGlobalUtilityRecorded) {
             initialGlobalUtilityRecorded <- true;
             initialGlobalUtility <- currentGlobalUtility;
@@ -177,11 +173,10 @@ species InformationCenter skills:[fipa] {
 		    globalOptimumReached <- true;
 		    write "***** MAX GLOBAL UTILITY APPROXIMATELY REACHED *****";
 		    write "Best global utility: " + bestGlobalUtility;
-		    // tell all guests they can enjoy the show (FIPA 'inform' in a 'no-protocol' conversation)
 		    loop g over: allGuests {
 		        do start_conversation
 		            to: [g]
-		            protocol: 'no-protocol'
+		            protocol: 'fipa-contract-net'
 		            performative: 'inform'
 		            contents: ["optimization_finished"];
 		    }
@@ -243,7 +238,7 @@ species InformationCenter skills:[fipa] {
                             int crowdNewA <- crowdOldA - 1;
                             int crowdNewB <- crowdOldB + 1;
 
-                            // ---------- Δ utility for g itself ----------
+                            // ---------- delta utility for g itself ----------
                             int baseG_B <- g.utilities[B];
 
                             float crowdRatioNewB_forG <- 0.0;
@@ -262,9 +257,9 @@ species InformationCenter skills:[fipa] {
 
                             float effG_B <- (0.7 * (baseG_B as float)) + (0.3 * crowdUG_B * 1000000.0);
 
-                            float deltaGlobal <- effG_B - effG_A; // start Δ with g's own change
+                            float deltaGlobal <- effG_B - effG_A;
 
-                            // ---------- Δ utility for other guests on A or B ----------
+                            // ---------- delta utility for other guests on A or B ----------
                             loop h over: allGuests {
 
                                 if (h != g and h.utilities != nil) {
@@ -370,7 +365,7 @@ species InformationCenter skills:[fipa] {
 
                 do start_conversation
                     to: [bestGuest]
-                    protocol: 'no-protocol'
+                    protocol: 'fipa-contract-net'
                     performative: 'inform'
                     contents: ["switch_to", bestNewStage];
             } else {
@@ -383,7 +378,7 @@ species InformationCenter skills:[fipa] {
                     loop g over: allGuests {
                         do start_conversation
                             to: [g]
-                            protocol: 'no-protocol'
+                            protocol: 'fipa-contract-net'
                             performative: 'inform'
                             contents: ["optimization_finished"];
                     }
@@ -391,10 +386,6 @@ species InformationCenter skills:[fipa] {
             }
         }
     }
-	
-	
-	
-	
     
     reflex receive_choice_updates when: (cycle mod 15) = 0 and !empty(informs) and allInitialChoicesReceived and !globalOptimumReached {
 	    loop msg over: informs {
@@ -417,7 +408,6 @@ species InformationCenter skills:[fipa] {
 
 species Stage skills: [fipa] {
 
-    // 0 is 0, 100 is 1.0
     int lightShow <- rnd(0, 100);
     int speaker <- rnd(0, 100);
     int musicStyle <- rnd(0, 100);
@@ -427,7 +417,6 @@ species Stage skills: [fipa] {
 
     int endFestivalTime <- startFestivalTime + duration;
 
-    // NEW: how many guests are currently assigned to this stage
     int currentCrowd <- 0;
 
     reflex receiveCFP when: !empty(cfps) {
@@ -447,8 +436,6 @@ species Stage skills: [fipa] {
     aspect base{
         draw circle(5) color: #purple;
         draw "stage" at: location color: #black;
-
-        // NEW: show crowd mass / crowd size on this stage
         draw ("crowd: " + currentCrowd) at: location + {0, -4} color: #blue;
     }    
 }
@@ -469,16 +456,13 @@ species Guest skills:[moving, fipa]{
     point wanderTarget <- nil;
     int wanderTimer <- 0;
 
-    // ---- NEW: list of all guests for guest-to-guest communication ----
     list<Guest> allGuests;
 
-    // ---- NEW: crowd mass preference ----
-    int crowdMassPreference <- rnd(0, 100); // 0 = small quiet crowd, 100 = large dense crowd
+    int crowdMassPreference <- rnd(0, 100);
     bool prefersLargeCrowd <- crowdMassPreference > 50;
-    bool hasInformedLeader <- false;        // has sent initial choice to leader
-    bool optimizationFinished <- false;     // when true, guest stops changing stages
+    bool hasInformedLeader <- false;
+    bool optimizationFinished <- false;
 
-    // ---- NEW: local estimate of how many guests per stage (built from guest messages) ----
     map<Stage, int> localCrowdEstimate <- nil;
     bool hasSharedChoiceWithGuests <- false;
     bool hasRefinedInitialChoice <- false;
@@ -491,13 +475,9 @@ species Guest skills:[moving, fipa]{
     int initialUtility <- 0;
     bool initialChoiceRecorded <- false;
 
-    reflex test when: true {
-        //write 'Stages: ' + stages;
-    }
-
     InformationCenter infoCenter <- nil;
 
-    // 1) ask stages for their stats (FIPA contract-net)
+    // 1) ask stages for their stats
     reflex request_utilities when: hasRequestedUtilities = false {
         write 'Requesting utilities from stages';
         do start_conversation to: list(Stage) protocol: 'fipa-contract-net' performative: 'cfp' contents: ["stats"];
@@ -523,7 +503,6 @@ species Guest skills:[moving, fipa]{
                          + speakerPreference    * speaker
                          + musicStylePreference * musicStyle;
 
-        // store BASE utility (content-based) – crowd mass will be added later
         utilities[sender] <- baseUtility;
         write name + ': Base utility for stage ' + sender + ' is ' + baseUtility;
         hasComputedUtilities <- true;
@@ -534,8 +513,6 @@ species Guest skills:[moving, fipa]{
         int maxEffectiveU <- -1;
         Stage bestStage <- nil;
 
-        // simple heuristic: assume crowd will be "evenly" distributed at first,
-        // so crowdRatio ≈ 1 / (#stages), and match it with preferredRatio.
         int nbStages <- length(stages);
         float assumedRatio <- (nbStages > 0) ? (1.0 / (nbStages as float)) : 0.0;
         float preferredRatio <- (crowdMassPreference as float) / 100.0;
@@ -590,20 +567,20 @@ species Guest skills:[moving, fipa]{
 	        write name + ': Informing leader about initial choice ' + selectedStage;
 	        do start_conversation
 			    to: [infoCenter]
-			    protocol: 'no-protocol'
+			    protocol: 'fipa-contract-net'
 			    performative: 'inform'
 			    contents: ["choice", selectedStage];
 	        hasInformedLeader <- true;
 	    }
 	}
 
-    // 6) NEW: inform all other guests of our choice (guest-to-guest FIPA)
+    // 6) inform all other guests of our choice 
     reflex inform_guests_choice when: hasSelectedStage and !hasSharedChoiceWithGuests {
         if (selectedStage != nil and !empty(allGuests)) {
             write name + ': Broadcasting choice ' + selectedStage + ' to other guests';
             do start_conversation
                 to: allGuests
-                protocol: 'no-protocol'
+                protocol: 'fipa-contract-net'
                 performative: 'inform'
                 contents: ["guest_choice", selectedStage];
             
@@ -674,7 +651,7 @@ species Guest skills:[moving, fipa]{
                 if (infoCenter != nil) {
                     do start_conversation
                         to: [infoCenter]
-                        protocol: 'no-protocol'
+                        protocol: 'fipa-contract-net'
                         performative: 'inform'
                         contents: ["choice_update", selectedStage];
                 }
@@ -749,21 +726,20 @@ species Guest skills:[moving, fipa]{
                 // switch to the new stage
                 selectedStage <- proposedStage;
 
-                // Inform leader of new choice so it can update assignments (FIPA)
+                // Inform leader of new choice so it can update assignments
                 if (infoCenter != nil) {
                     do start_conversation
                         to: [infoCenter]
-                        protocol: 'no-protocol'
+                        protocol: 'fipa-contract-net'
                         performative: 'inform'
                         contents: ["choice_update", selectedStage];
                 }
             }
 
-            // NEW: messages from other guests informing their current stage
             else if (tag = "guest_choice") {
                 Stage st <- contents_list[1] as Stage;
                 if (localCrowdEstimate = nil) {
-                    // map will be auto-created when assigning first key
+                    // ... ignore
                 }
                 localCrowdEstimate[st] <- localCrowdEstimate[st] + 1;
             }
@@ -772,7 +748,6 @@ species Guest skills:[moving, fipa]{
 
     aspect base {
 	
-	    // ===== VISUALIZATION OF CROWD PREFERENCE =====
 	    rgb prefColor <- prefersLargeCrowd ? #green : #blue;
 	
 	    if (isDancing) {
@@ -809,10 +784,6 @@ species Guest skills:[moving, fipa]{
 
     action go_infocenter {
         do goto target: infoCenter.location speed: movingSpeed;
-    }   
-
-    reflex reached_info_center when: infoCenter != nil and (location distance_to infoCenter.location) < 1.0 {
-        // todo: implement
     }   
 }
 

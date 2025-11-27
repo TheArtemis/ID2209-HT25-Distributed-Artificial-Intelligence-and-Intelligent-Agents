@@ -361,17 +361,107 @@ As it can be seen in \ref{fig:calculate_best} each guest is selecting the stage 
 
 
 % --- SECTION 4 ---
-\section{Challenge 1: global utility function}
+\section{Challenge: Crowd Mass and Maximum Utility}
+The festival simulation described previously was further extended to include a crowd mass into a decision-making process for guests selecting stages to attend.
+Guests are assigned with random crowd mass preference (further called $c_m$), affecting their sensitivity to crowd sizes when evaluating stages. 
+If such preference is high ($c_m>50$), then guests prefer crowded stages, otherwise they prefer less crowded ones. The boundaries of $c_m$: $c_m \in [0,100]$.
+\\ \\
+Furthermore, the utility function was modified to account for crowd mass at each stage, influencing guest initial and subsequent choices.
+First, the crowd mass is taken into account while each guest is making their initial choice of stage to attend.
+Then, guests exchange their initial stage choices with one another using FIPA protocol. Based on other guests decisions, each guest recalculates its crowd mass component of utility. 
+Such changed crowd mass utility may lead to a different stage choice, which guests then proceed to attend.
+Moreover, Information Center agent acts as a leader and has all decision information from the guest agents. This allows Information Center to:
+\begin{itemize}
+    \item Calculate the global utility of all guest agents.
+    \item Issue proposals to specific agents to change their assigned stage in order to maximize overall utility.
+\end{itemize} 
+\subsubsection*{4.1 Explanation}
+As mentioned, each guest is assigned a random crowd mass preference $c_m$ at initialization.
+Let's begin by explaining what happens inside each individual agent. The initial behavior is not different from the previous task: each guest requests stage statistics using FIPA Contract Net Protocol and computes utilities for each stage.
+$c_m$ is not taken into account at this particular point because it is most likely equal to zero as other agents are also performing this step at the same time. 
+Instead, we assume that all stages might be occupied equally following normal distribution. This allows us to calculate the utility in a more fair way.
+The crowd mass utility then can be calculated as follows:
+\begin{verbatim}
+        float assumedRatio <- (nbStages > 0) ? (1.0 / (nbStages as float)) : 0.0;
+        float preferredRatio <- (crowdMassPreference as float) / 100.0;
 
-\subsection*{4.1 Explanation}
-Explain the challenge and your approach.
+        float diffAssumed <- assumedRatio - preferredRatio;
+        if (diffAssumed < 0.0) { diffAssumed <- -diffAssumed; }
+        float crowdU_assumed <- 1.0 - diffAssumed;
+        if (crowdU_assumed < 0.0) { crowdU_assumed <- 0.0; }
+\end{verbatim}
+Afterwards, the local utility for each stage is calculated as:
+\begin{verbatim}
+        (0.7 * (baseU as float)) + (0.3 * crowdU_assumed * 1000000.0);
+\end{verbatim}
+Where $baseU$ is the utility of other stage characteristics (light show, speaker quality, music style), and the crowd mass utility is weighted at 30\% of the total utility.
+Finally, the stage with the highest utility is selected as the initial choice, and leader with other guest agents are informed about this decision.
+\\ \\
+Subsequently, upon receiving other guest's choices, we can recalculate the $c_m$ component and readjust the our stage choice if necessary.
+Additionally, in the meantime, the leader (Information Center) collects all guest decisions and computes the global utility of the system.
+If the leader identifies that the global utility can be improved by suggesting certain guests to change their stage, it sends proposals to those specific agents.
+Upon receiving such proposal, the guest simply updates its selected stage and proceeds to attend it. 
+Such mechanism allows each guest agent to make their own decisions based on other agent's choices, while following orders from the leader in cases where global utility can be maximised.
+\\ \\
+To avoid infinite loops and freezes, the leader only suggests a single proposal (and together recalculates global utility) every 30th tick of the simulation, while guest will react to those proposals every 15th tick.
+\subsubsection*{4.2 Code}
+Figure \ref{fig:global_utility_calculation} illustrates the calculation of the global utility which is done by calculating each guests utility and summing them up.
+Such calculation might take place for up to $25$ times during the simulation to ensure that the global utility is maximized as much as possible. 
+Otherwise, the guest agents might maximize their own local utility without considering the overall utility of the environment.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/global_utility_calculation.png}
+    \caption{Global utility calculation by Information Center}
+    \label{fig:global_utility_calculation}
+\end{figure}
+\\ \\
+Figure \ref{fig:leader_proposals} illustrates the proposal mechanism used by the leader to suggest specific guest agents to change their selected stage.
+It works by evaluating the possible changes in global utility if a specific guest left or joined currently iterated stage. 
+If such delta is higher than previously recorded maximum delta, the leader stores this information to be used later when sending proposals.
+Finally, after iterating through all stages and guests, the leader sends a proposal to the guest which would lead to the highest increase in global utility.
+Such mechanism is repeated every 30th tick of the simulation.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/leader_proposals.png}
+    \caption{Leader proposal mechanism (simplified view, details regarding delta utility calculation has been omitted for clarity)}
+    \label{fig:leader_proposals}
+\end{figure}
 
-\subsection*{4.2 Code}
-Show relevant code snippets and screenshots.
+\subsubsection*{4.3 Demonstration}
+As for the demonstration of this challenge, we will provide the following:
+\begin{enumerate}[leftmargin=*]
+  \item Figure \ref{fig:initial_screen}: The initial environment setup where guests who prefer large crowds are colored in green, while those who prefer smaller crowds are colored in blue. The exact preference of crowd mass is also visible near each agent's position.  
+  \item Figure \ref{fig:initial_choices_done}: State after each guest has made their initial stage choices with text indicating that. Also initial utilities are calculated at this phase of execution.
+  \item Figure \ref{fig:global}: State where global utility is reached and optimization is complete. The differences between initial and final stage choices can be visible in the figure provided below.
+  \item Figure \ref{fig:final}: Final phase where each guest is enjoying the festival.
+\end{enumerate}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/initial_screen.png}
+    \caption{Initial environment setup with crowd mass preferences}
+    \label{fig:initial_screen}
+\end{figure}
 
-\subsection*{4.3 Demonstration}
-Provide 4 complete use cases:
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/initial_choices_done.png}
+    \caption{State after each guest has made their initial stage choices with text indicating that. Also initial utilities are calculated at this phase of execution.}
+    \label{fig:initial_choices_done}
+\end{figure}
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/image.png}
+    \caption{Leader imposes custom proposals to each agent to maximize global utility.}
+    \label{fig:global}
+\end{figure}
+    
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/final.png}
+    \caption{Each guest is enjoying the festival at their selected stage with the global utility maximized.}
+    \label{fig:final}
+\end{figure}
 % --- SECTION 5 ---
 \section{Final Remarks}
 In this homework we learnt a couple of things related to GAMA language and agents coordination.
