@@ -111,6 +111,9 @@ global {
     // === CONFIGURATION ===
     bool enable_supply_shuttle <- false;
 
+    // === SIMULATION STATE ===
+    bool first_shuttle_arrived <- false;
+
     init {
         create HabitatDome number: 1 returns: domes;
         habitat_dome <- domes[0];
@@ -129,7 +132,9 @@ global {
         commanders <- [];
     }
 
-    reflex supply_shuttle when: enable_supply_shuttle {
+    reflex supply_shuttle when: enable_supply_shuttle or not first_shuttle_arrived {
+        first_shuttle_arrived <- true;
+        
         int delta_engineers <- desired_number_of_engineers - current_number_of_engineers;
         int delta_medics <- desired_number_of_medics - current_number_of_medics;
         int delta_scavengers <- desired_number_of_scavengers - current_number_of_scavengers;
