@@ -88,9 +88,10 @@ global {
     int current_number_of_commanders <- 0;
 
     // === HEALTH ===
-    float oxygen_decrease_rate <- 1.0;
+    float oxygen_decrease_rate <- 0.5;
     float oxygen_decrease_factor_in_wasteland <- 1.2;
-    float energy_decrease_rate <- 1.0;
+    float energy_decrease_rate <- 0.2;
+    float energy_decrease_rate_when_moving <- 1.0;
     float health_decrease_rate <- 1.0;
 
     float oxygen_level_threshold <- max_oxygen_level * 0.2;
@@ -114,7 +115,6 @@ global {
     float movement_speed <- 10.0;
 
     // === VISUALIZATION ===
-    bool show_debug <- true;
 
     // === CONFIGURATION ===
     bool enable_supply_shuttle <- true;
@@ -295,7 +295,7 @@ species Human skills: [moving, fipa] {
         } else {
             oxygen_level <- max(0, oxygen_level - oxygen_decrease_rate * oxygen_decrease_factor_in_wasteland);
         }
-    } 
+    }
 
     reflex update_health when: oxygen_level <= 0 or energy_level <= 0 {
             health_level <- max(0, health_level - health_decrease_rate);
@@ -321,7 +321,15 @@ species Human skills: [moving, fipa] {
     }
 
     reflex death when: health_level <= 0 {
-        write 'Agent ' + name + ' died';
+        string death_reason <- "";
+        if (oxygen_level <= 0) {
+            death_reason <- "suffocation";
+        } else if (energy_level <= 0) {
+            death_reason <- "starvation";
+        } else {
+            death_reason <- "health depletion";
+        }
+        write 'Agent ' + name + ' (' + species + ') died from ' + death_reason;
         do die_and_update_counter;
     }   
 
@@ -566,9 +574,9 @@ experiment MarsColony type: gui {
             
             
 	    }
-	    if (show_debug) {
-	        inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state', 'is_ok'];
-	    }
+	    
+        inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state', 'is_ok'];
+	
 	}
 	
 }
