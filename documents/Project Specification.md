@@ -30,9 +30,20 @@ This simulation models a Mars Colony struggling to survive. The agents (Colonist
 ### 3. The Environment (Places)
 *Requirement: 2+ Types of Places.*
 
-1.  **The Habitat Dome (Safe Zone):** Contains the *Greenhouse* (Food) and *Oxygen Generator* (Air).
-2.  **The Wasteland (Danger Zone):** Agents wander here to find "Raw Materials" (Points/Cash). It has no oxygen (drains `oxygen_level` faster).
-3.  **The Med-Bay:** Where Medics hang out.
+1.  **The Habitat Dome (Safe Zone):** 
+    *   Size: 250x250 units (large safe zone)
+    *   Contains the *Greenhouse* (Food), *Oxygen Generator* (Air), and *Med-Bay* (Health)
+    *   Facilities are spread out (80 units from center) for better visualization
+    *   Located at center of 400x400 map
+2.  **The Wasteland (Danger Zone):** 
+    *   Agents wander here to find "Raw Materials" (Points/Cash)
+    *   It has no oxygen (drains `oxygen_level` 1.2x faster than in dome)
+    *   Size: 100x100 units
+3.  **The Med-Bay:** Where Medics hang out. Features:
+    *   Queue system for injured agents
+    *   Visual feedback: Changes color (orange) when patients are waiting
+    *   Displays queue count and medic presence status
+    *   Automatic cleanup of dead agents from queue
 4.  **The Landing Pad:** Where new agents spawn.
 
 ---
@@ -120,12 +131,120 @@ To ensure the simulation never ends:
 
 ---
 
-### 9. Implementation Roadmap
+### 9. Implementation Status
 
-1.  **Step 1 (Map & Physics):** Create the map, the 3 zones, and the 5 species. Give them `energy` and movement.
-2.  **Step 2 (Survival BDI):** Implement the simple BDI. Make them die if they don't eat/breathe.
-3.  **Step 3 (Continuous Loop):** Implement the "Shuttle" reflex to respawn agents when they die.
-4.  **Step 4 (Interaction & Parasites):** Code the "Trade" action. Make Parasites steal.
-5.  **Step 5 (RL Logic):** Add the `trust_memory` map. Add the logic: `if trust < 0, do not trade`.
-6.  **Step 6 (FIPA):** Add the Commander and the Dust Storm event.
-7.  **Step 7 (UI):** Add the charts.
+#### ✅ Completed Features
+
+**Step 1 (Map & Physics):** ✅ COMPLETE
+- Created 400x400 map with 3 zones (Habitat Dome, Wasteland, Landing Pad)
+- Implemented all 5 species (Engineer, Medic, Scavenger, Parasite, Commander)
+- Energy and oxygen systems with movement-based energy drain
+- Health system that decreases when oxygen/energy reaches 0
+
+**Step 2 (Survival BDI):** ✅ COMPLETE
+- Full BDI architecture implemented:
+  - **Beliefs:** `suffocating` (Oxygen < 20%), `starving` (Energy < 20%), `injured` (Health < 50%)
+  - **Belief Management:** Dynamic belief system that adds/removes beliefs based on current state
+  - **Desires:** Priority system with `maintain_life` as highest priority
+  - **Intentions:** State-based behavior (going_to_oxygen, going_to_greenhouse, going_to_med_bay, waiting_at_med_bay, healing, refilling_oxygen, refilling_energy, retiring, idle)
+- Agents automatically seek resources when beliefs are triggered
+- Priority system: Injured agents prioritize med bay over other needs
+- Death system when health reaches 0 with death reason tracking
+- Energy system: Decreases with movement (higher rate) or at rest (lower rate)
+
+**Step 3 (Continuous Loop):** ✅ COMPLETE
+- Supply Shuttle system implemented with configurable desired population counts per agent type
+- Retirement system: Agents retire after 1000 cycles (configurable via `retirement_age`)
+- ETA (Estimated Time of Arrival) tracking for retirement
+- Automatic respawning maintains population levels
+- Death tracking and counter updates for all agent types
+- Configurable flags: `enable_supply_shuttle` and `enable_retirement`
+
+**Med Bay System:** ✅ COMPLETE (Enhanced Feature)
+- **Queue System:** Injured agents automatically queue at med bay
+- **Medic AI:** Medics check queue and go to med bay to heal patients
+- **Priority System:** Injured agents have highest priority, overriding other needs
+- **Medic Immunity:** Medics at med bay are immune to oxygen drain and hunger
+- **Visual Feedback:** Med bay changes color (orange) when queue has patients
+- **Queue Display:** Shows queue count and medic presence status
+- **Dead Agent Cleanup:** Automatic removal of dead agents from queue
+- **Physical Queueing:** Agents physically go to and stay at med bay when queued
+
+**Oxygen Generator System:** ✅ COMPLETE
+- Random breaking mechanism (10% probability per cycle, configurable)
+- Engineer agents detect broken generator and repair it
+- Belief system: Engineers get `oxygen_generator_broken` belief
+- Visual feedback: Generator turns red when broken
+- Engineers prioritize repair over other tasks when generator is broken
+
+**Agent Movement & Behavior:** ✅ COMPLETE
+- Wandering behavior when agents are idle and healthy
+- Movement to dome when outside safe zone
+- State-based movement prevents agents from wandering when they have urgent needs
+- Continuous movement to med bay when injured
+
+**State Management:** ✅ COMPLETE
+- Comprehensive state system: `idle`, `going_to_oxygen`, `going_to_greenhouse`, `going_to_med_bay`, `waiting_at_med_bay`, `healing`, `refilling_oxygen`, `refilling_energy`, `retiring`
+- State transitions prevent agents from wandering when they have urgent needs
+
+#### 🚧 In Progress / TODO
+
+**Step 4 (Interaction & Parasites):** ⏳ TODO
+- Trade action not yet implemented
+- Parasite stealing behavior not yet implemented
+
+**Step 5 (RL Logic):** ⏳ TODO
+- `trust_memory` map structure exists but marked as TODO
+- Q-Learning logic for trust evolution not yet implemented
+
+**Step 6 (FIPA):** ⏳ TODO
+- Commander FIPA skills exist but communication events not yet implemented
+- Dust Storm event not yet implemented
+
+**Step 7 (UI):** ⏳ TODO
+- Charts for trust evolution and survival rate not yet implemented
+- Agent beliefs inspector exists in experiment
+
+---
+
+### 10. Potential System Improvements
+
+**Energy and Oxygen Mechanics - Alternative Designs:**
+
+The current implementation has energy and oxygen decreasing continuously, but alternative designs could make the simulation more interesting and realistic:
+
+**Energy System Alternatives:**
+*   **Action-Based Energy Consumption:** Instead of energy decreasing with movement, energy could be consumed when performing specific actions:
+    *   Engineers consume energy when repairing oxygen generators
+    *   Medics consume energy when healing patients
+    *   Scavengers consume energy when collecting materials in the wasteland
+    *   This would make energy management more strategic and action-oriented
+*   **Work-Based Energy:** Energy could only decrease when agents are "working" (performing their role-specific tasks), making idle time truly restful
+*   **Variable Consumption Rates:** Different actions could have different energy costs, making some activities more "expensive" than others
+
+**Oxygen System Alternatives:**
+*   **Wasteland-Only Oxygen Consumption:** Oxygen could only decrease when agents are in the wasteland, making the habitat dome a true "safe zone" where oxygen is naturally available
+    *   This would simplify dome life and make wasteland exploration more strategic
+    *   Agents would need to plan expeditions carefully
+*   **Oxygen Generator Dependency:** Oxygen could only be consumed when the oxygen generator is broken, making generator maintenance critical for survival
+*   **Zone-Based Oxygen:** Different zones could have different oxygen levels, with the dome having infinite oxygen and wasteland having limited/no oxygen
+
+**Benefits of These Changes:**
+*   More strategic resource management
+*   Clearer distinction between safe zones and danger zones
+*   More meaningful choices about when to perform actions
+*   Better simulation of a controlled environment (dome) vs. hostile environment (wasteland)
+
+**Considerations:**
+*   Would require rebalancing of consumption rates
+*   Might need to adjust belief thresholds
+*   Could change the urgency of certain needs (e.g., oxygen becomes less urgent in dome)
+
+---
+
+### 11. Implementation Roadmap (Remaining)
+
+1.  **Step 4 (Interaction & Parasites):** Code the "Trade" action. Make Parasites steal.
+2.  **Step 5 (RL Logic):** Add the `trust_memory` map. Add the logic: `if trust < 0, do not trade`.
+3.  **Step 6 (FIPA):** Add the Commander and the Dust Storm event.
+4.  **Step 7 (UI):** Add the charts.
