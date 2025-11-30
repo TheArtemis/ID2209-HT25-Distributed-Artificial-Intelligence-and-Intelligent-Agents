@@ -201,23 +201,7 @@ species Human skills: [moving, fipa] {
     bool is_ok {
         return not has_belief("suffocating") and not has_belief("starving") and not has_belief("injured");
     }
-    
-    string active_beliefs_string {
-        list<string> active <- [];
-        if (has_belief("suffocating")) {
-            active <- active + ["Suffocating"];
-        }
-        if (has_belief("starving")) {
-            active <- active + ["Starving"];
-        }
-        if (has_belief("injured")) {
-            active <- active + ["Injured"];
-        }
-        if (length(active) = 0) {
-            return "None";
-        }
-        return string(active);
-    }
+
     
     bool has_belief(string belief_name) {
         return beliefs contains belief_name and beliefs[belief_name] = true;
@@ -500,6 +484,6 @@ experiment MarsColony type: gui {
             species Commander aspect: base;
 	    }
 	    
-	    inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'species', 'active_beliefs_string', 'oxygen_level', 'energy_level', 'health_level', 'state'];
+	    inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'species', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state'];
 	}
 }
