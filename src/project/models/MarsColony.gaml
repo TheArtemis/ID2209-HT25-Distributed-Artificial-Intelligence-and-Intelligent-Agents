@@ -198,13 +198,13 @@ species Human skills: [moving, fipa] {
     // === BELIEFS ===
     map<string, bool> beliefs <- [];
     
-    bool is_ok {
-        return not has_belief("suffocating") and not has_belief("starving") and not has_belief("injured");
-    }
-
+    bool is_ok <- true;
     
     bool has_belief(string belief_name) {
-        return beliefs contains belief_name and beliefs[belief_name] = true;
+        if (not (beliefs contains_key(belief_name))) {
+            return false;
+        }
+        return beliefs[belief_name];
     }
     
     action add_belief(string belief_name) {
@@ -248,6 +248,9 @@ species Human skills: [moving, fipa] {
                 do remove_belief("injured");
             }
         }
+        
+        // Update is_ok after updating all beliefs
+        is_ok <- not has_belief("suffocating") and not has_belief("starving") and not has_belief("injured");
     }
 
     // === HEALTH ===
@@ -281,44 +284,60 @@ species Human skills: [moving, fipa] {
         }
         
         do die;
+    }   
+
+    reflex handle_idle when: state = 'idle' and is_ok {
+        if (not (habitat_dome.shape covers location)) {
+            do move_to_dome;
+        } else {
+            do wander_in_dome;
+        }
     }
 
-    reflex move_to_dome when: state = 'idle' and not (habitat_dome.shape covers location) {
+    action move_to_dome {
         do goto target: habitat_dome.location speed: movement_speed;
     }
 
-    reflex wander_in_dome when: state = 'idle' and (habitat_dome.shape covers location) {
+    action wander_in_dome {
         do wander amplitude: 50.0 speed: movement_speed;
-    }    
+    } 
 
-    reflex handle_suffocating when: has_belief("suffocating") and oxygen_level < max_oxygen_level {
-        // Only move if not already at the oxygen generator
-        if ((location distance_to habitat_dome.oxygen_generator.location) > facility_proximity) {
-            do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
-        }
-    }
-
-    reflex refill_oxygen when: (location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity and oxygen_level < max_oxygen_level {
-        // Stop moving and refill
-        state <- 'refilling_oxygen';
+    reflex refill_oxygen when: state = 'refilling_oxygen' and (location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity and oxygen_level < max_oxygen_level {
         oxygen_level <- min(max_oxygen_level, oxygen_level + oxygen_refill_rate);
     }
-
-    reflex handle_starving when: has_belief("starving") and energy_level < max_energy_level {
-        // Only move if not already at the greenhouse
-        if ((location distance_to habitat_dome.greenhouse.location) > facility_proximity) {
-            do goto target: habitat_dome.greenhouse.location speed: movement_speed;
-        }
-    }
-
-    reflex refill_energy when: (location distance_to habitat_dome.greenhouse.location) <= facility_proximity and energy_level < max_energy_level {
-        // Stop moving and refill
-        state <- 'refilling_energy';
+    
+    reflex refill_energy when: state = 'refilling_energy' and (location distance_to habitat_dome.greenhouse.location) <= facility_proximity and energy_level < max_energy_level {
         energy_level <- min(max_energy_level, energy_level + energy_refill_rate);
     }
-
-    reflex handle_injured when: has_belief("injured") {
-        do goto target: habitat_dome.med_bay.location speed: movement_speed;
+    
+    reflex handle_urgent_needs when: state != 'refilling_oxygen' and state != 'refilling_energy' {
+        if (has_belief("injured")) {
+            state <- 'going_to_med_bay';
+            if ((location distance_to habitat_dome.med_bay.location) > facility_proximity) {
+                do goto target: habitat_dome.med_bay.location speed: movement_speed;
+            }
+            return;
+        }
+        
+        if (has_belief("suffocating") and oxygen_level < max_oxygen_level) {
+            if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
+                state <- 'refilling_oxygen';
+            } else {
+                state <- 'going_to_oxygen';
+                do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
+            }
+            return;
+        }
+        
+        if (has_belief("starving") and energy_level < max_energy_level) {
+            if ((location distance_to habitat_dome.greenhouse.location) <= facility_proximity) {
+                state <- 'refilling_energy';
+            } else {
+                state <- 'going_to_greenhouse';
+                do goto target: habitat_dome.greenhouse.location speed: movement_speed;
+            }
+            return;
+        }
     }
     
     reflex return_to_idle when: (state = 'refilling_oxygen' and oxygen_level >= max_oxygen_level) or (state = 'refilling_energy' and energy_level >= max_energy_level) {
@@ -484,6 +503,6 @@ experiment MarsColony type: gui {
             species Commander aspect: base;
 	    }
 	    
-	    inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'species', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state'];
+	    inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'species', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state', 'is_ok'];
 	}
 }
