@@ -12,8 +12,8 @@ model MarsColony
 
 global {
     // === MAP ===
-    int map_width <- 250;
-    int map_height <- 250;
+    int map_width <- 400;
+    int map_height <- 400;
     geometry shape <- rectangle(map_width, map_height);
 
     // === AGENTS ===    
@@ -30,6 +30,9 @@ global {
 
     rgb med_bay_color <- rgb(255, 0, 0);
     rgb med_bay_border_color <- rgb(128, 0, 0);
+    rgb med_bay_queue_color <- rgb(255, 165, 0);
+    rgb med_bay_queue_border_color <- rgb(168, 92, 0);
+    rgb med_bay_text_color <- rgb(255, 255, 255);
 
     rgb landing_pad_color <- rgb(128, 128, 128);
     rgb landing_pad_border_color <- rgb(0, 0, 0);
@@ -297,6 +300,14 @@ species Human skills: [moving, fipa] {
         }
     }
 
+    reflex update_energy {
+        if (state = 'going_to_oxygen' or state = 'going_to_greenhouse' or state = 'going_to_med_bay' or state = 'going_to_oxygen_generator' or state = 'retiring') {
+            energy_level <- max(0, energy_level - energy_decrease_rate_when_moving);
+        } else {
+            energy_level <- max(0, energy_level - energy_decrease_rate);
+        }
+    }
+
     reflex update_health when: oxygen_level <= 0 or energy_level <= 0 {
             health_level <- max(0, health_level - health_decrease_rate);
         }
@@ -329,7 +340,7 @@ species Human skills: [moving, fipa] {
         } else {
             death_reason <- "health depletion";
         }
-        write 'Agent ' + name + ' (' + species + ') died from ' + death_reason;
+        write 'Agent ' + name + ' died from ' + death_reason;
         do die_and_update_counter;
     }   
 
@@ -338,6 +349,18 @@ species Human skills: [moving, fipa] {
             do move_to_dome;
         } else {
             do wander_in_dome;
+        }
+    }
+    
+    reflex go_to_med_bay_continuous when: state = 'going_to_med_bay' {
+        if ((location distance_to habitat_dome.med_bay.location) > facility_proximity) {
+            do goto target: habitat_dome.med_bay.location speed: movement_speed;
+        }
+    }
+    
+    reflex stay_at_med_bay_when_queued when: state = 'waiting_at_med_bay' {
+        if ((location distance_to habitat_dome.med_bay.location) > facility_proximity) {
+            do goto target: habitat_dome.med_bay.location speed: movement_speed;
         }
     }
 
@@ -357,15 +380,11 @@ species Human skills: [moving, fipa] {
         energy_level <- min(max_energy_level, energy_level + energy_refill_rate);
     }
     
-    reflex handle_urgent_needs when: state != 'refilling_oxygen' and state != 'refilling_energy' {
-        if (has_belief("injured")) {
-            state <- 'going_to_med_bay';
-            if ((location distance_to habitat_dome.med_bay.location) > facility_proximity) {
-                do goto target: habitat_dome.med_bay.location speed: movement_speed;
-            }
-            return;
-        }
-        
+    reflex prioritize_med_bay when: has_belief("injured") and state != 'waiting_at_med_bay' and state != 'healing' and state != 'going_to_med_bay' {
+        state <- 'going_to_med_bay';
+    }
+    
+    reflex handle_urgent_needs when: state != 'refilling_oxygen' and state != 'refilling_energy' and state != 'waiting_at_med_bay' and state != 'healing' and state != 'going_to_med_bay' and not has_belief("injured") {
         if (has_belief("suffocating") and oxygen_level < max_oxygen_level) {
             if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
                 state <- 'refilling_oxygen';
@@ -385,6 +404,22 @@ species Human skills: [moving, fipa] {
             }
             return;
         }
+    }
+    
+    reflex arrive_at_med_bay when: state = 'going_to_med_bay' and (location distance_to habitat_dome.med_bay.location) <= facility_proximity {
+        state <- 'waiting_at_med_bay';
+        Human agent_to_queue <- self;
+        ask habitat_dome.med_bay {
+            do add_to_queue(agent_to_queue);
+        }
+    }
+    
+    reflex leave_med_bay when: state = 'waiting_at_med_bay' and not has_belief("injured") {
+        Human agent_to_remove <- self;
+        ask habitat_dome.med_bay {
+            do remove_from_queue(agent_to_remove);
+        }
+        state <- 'idle';
     }
     
     reflex return_to_idle when: (state = 'refilling_oxygen' and oxygen_level >= max_oxygen_level) or (state = 'refilling_energy' and energy_level >= max_energy_level) {
@@ -411,7 +446,7 @@ species Engineer parent: Human {
 
 
     reflex repair_oxygen_generator when: state = 'going_to_oxygen_generator' and (location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity and habitat_dome.oxygen_generator.is_broken {
-        write 'Agent ' + name + ' repaired the oxygen generator';
+        //write 'Agent ' + name + ' repaired the oxygen generator';
         habitat_dome.oxygen_generator.is_broken <- false;
         do remove_belief("oxygen_generator_broken");
         state <- 'idle';
@@ -423,6 +458,144 @@ species Engineer parent: Human {
 }
 
 species Medic parent: Human {
+    Human current_patient <- nil;
+    
+    reflex update_oxygen {
+        bool at_med_bay <- (location distance_to habitat_dome.med_bay.location) <= facility_proximity;
+        if (not at_med_bay) {
+            if (habitat_dome.shape covers location) {
+                oxygen_level <- max(0, oxygen_level - oxygen_decrease_rate);
+            } else {
+                oxygen_level <- max(0, oxygen_level - oxygen_decrease_rate * oxygen_decrease_factor_in_wasteland);
+            }
+        }
+    }
+    
+    reflex ignore_hunger_when_at_med_bay when: state = 'healing' or state = 'going_to_med_bay' or state = 'waiting_at_med_bay' or (location distance_to habitat_dome.med_bay.location) <= facility_proximity {
+        if (has_belief("starving")) {
+            do remove_belief("starving");
+        }
+    }
+    
+    reflex handle_urgent_needs when: state != 'refilling_oxygen' and state != 'refilling_energy' and state != 'waiting_at_med_bay' and state != 'healing' and state != 'going_to_med_bay' and not has_belief("injured") {
+        bool at_med_bay <- (location distance_to habitat_dome.med_bay.location) <= facility_proximity;
+        
+        if (has_belief("suffocating") and oxygen_level < max_oxygen_level and not at_med_bay) {
+            if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
+                state <- 'refilling_oxygen';
+            } else {
+                state <- 'going_to_oxygen';
+                do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
+            }
+            return;
+        }
+        
+        if (has_belief("starving") and energy_level < max_energy_level and not at_med_bay) {
+            if ((location distance_to habitat_dome.greenhouse.location) <= facility_proximity) {
+                state <- 'refilling_energy';
+            } else {
+                state <- 'going_to_greenhouse';
+                do goto target: habitat_dome.greenhouse.location speed: movement_speed;
+            }
+            return;
+        }
+    }
+    
+    reflex check_med_bay_queue when: state != 'healing' and state != 'going_to_med_bay' and state != 'waiting_at_med_bay' {
+        if (not empty(habitat_dome.med_bay.waiting_queue)) {
+            // Find first alive patient in queue
+            Human first_alive_patient <- nil;
+            list<Human> queue <- habitat_dome.med_bay.waiting_queue;
+            loop i from: 0 to: length(queue) - 1 {
+                Human patient <- queue[i];
+                // Check if patient is still alive by checking their health
+                if (patient != nil) {
+                    bool is_alive <- false;
+                    ask patient {
+                        if (health_level > 0) {
+                            is_alive <- true;
+                        }
+                    }
+                    if (is_alive) {
+                        first_alive_patient <- patient;
+                        break;
+                    }
+                }
+            }
+            
+            if (first_alive_patient != nil) {
+                current_patient <- first_alive_patient;
+                state <- 'going_to_med_bay';
+                do goto target: habitat_dome.med_bay.location speed: movement_speed;
+            }
+        }
+    }
+    
+    reflex arrive_at_med_bay when: state = 'going_to_med_bay' and (location distance_to habitat_dome.med_bay.location) <= facility_proximity {
+        if (current_patient != nil) {
+            // Medic is going to heal someone else
+            state <- 'healing';
+        } else if (has_belief("injured")) {
+            // Medic is injured and going for themselves - queue up
+            state <- 'waiting_at_med_bay';
+            Human agent_to_queue <- self;
+            ask habitat_dome.med_bay {
+                do add_to_queue(agent_to_queue);
+            }
+        }
+    }
+    
+    reflex stay_at_med_bay_for_healing when: state = 'healing' {
+        if ((location distance_to habitat_dome.med_bay.location) > facility_proximity) {
+            do goto target: habitat_dome.med_bay.location speed: movement_speed;
+        }
+    }
+    
+    reflex heal_patient when: state = 'healing' and current_patient != nil and (location distance_to habitat_dome.med_bay.location) <= facility_proximity {
+        // Check if patient is still in queue (might have been removed by another medic)
+        if (habitat_dome.med_bay.waiting_queue contains current_patient) {
+            Human patient_to_heal <- current_patient;
+            
+            // Check if patient is still alive by checking their health
+            bool patient_alive <- false;
+            if (patient_to_heal != nil) {
+                ask patient_to_heal {
+                    if (health_level > 0) {
+                        patient_alive <- true;
+                    }
+                }
+            }
+            
+            if (patient_alive) {
+                string patient_name <- "";
+                ask patient_to_heal {
+                    patient_name <- name;
+                }
+                
+                // Heal the patient: restore health, oxygen, and energy
+                ask patient_to_heal {
+                    health_level <- max_health_level;
+                    oxygen_level <- max_oxygen_level;
+                    energy_level <- max_energy_level;
+                }
+                
+                write 'Medic ' + name + ' healed ' + patient_name;
+                
+                // Remove patient from queue
+                ask habitat_dome.med_bay {
+                    do remove_from_queue(patient_to_heal);
+                }
+            } else {
+                // Patient died, just remove from queue
+                ask habitat_dome.med_bay {
+                    do remove_from_queue(patient_to_heal);
+                }
+            }
+        }
+        current_patient <- nil;
+        state <- 'idle';
+    }
+    
     aspect base {
         draw circle(3) color: medic_color border: medic_border_color;
     }
@@ -450,7 +623,7 @@ species Commander parent: Human {
 
 // Habitat Dome: Safe zone containing Greenhouse and Oxygen Generator
 species HabitatDome {
-    geometry shape <- rectangle(100, 100); // Safe zone area
+    geometry shape <- rectangle(250, 250); // Safe zone area
     
     // Facilities within the dome
     Greenhouse greenhouse;
@@ -458,7 +631,7 @@ species HabitatDome {
     MedBay med_bay;
     
     init {
-        location <- point(50, 50); // Center of the dome
+        location <- point(200, 200); // Center of the dome
         shape <- shape at_location location; // Position the shape at location
         
         point dome_center <- location; // Store dome center for facility positioning
@@ -467,19 +640,19 @@ species HabitatDome {
         create Greenhouse number: 1 returns: greenhouses;
         greenhouse <- greenhouses[0];
         ask greenhouse {
-            location <- dome_center + point(-40, 0); // Position relative to dome center
+            location <- dome_center + point(-80, 0); // Position relative to dome center
         }
         
         create OxygenGenerator number: 1 returns: generators;
         oxygen_generator <- generators[0];
         ask oxygen_generator {
-            location <- dome_center + point(40, 0); // Position relative to dome center
+            location <- dome_center + point(80, 0); // Position relative to dome center
         }
         
         create MedBay number: 1 returns: med_bays;
         med_bay <- med_bays[0];
         ask med_bay {
-            location <- dome_center + point(0, -40); // Position relative to dome center
+            location <- dome_center + point(0, -80); // Position relative to dome center
         }
     }
     
@@ -524,7 +697,7 @@ species Wasteland {
     geometry shape <- rectangle(100, 100); // Large dangerous area
     
     init {
-        location <- point(150, 150); // Positioned away from safe zone
+        location <- point(50, 50); // Positioned away from safe zone
         shape <- shape at_location location; // Position the shape at location
     }
     
@@ -537,16 +710,94 @@ species Wasteland {
 // Med-Bay: Where medics work to restore health
 species MedBay {
     point location;
+    list<Human> waiting_queue <- [];
+    
+    action add_to_queue(Human human) {
+        if (human != nil) {
+            string agent_name <- "";
+            ask human {
+                agent_name <- name;
+            }
+            //write 'Agent ' + agent_name + ' added to the queue';
+            if (not (waiting_queue contains human)) {
+                waiting_queue <- waiting_queue + [human];
+            }
+        }
+    }
+    
+    action remove_from_queue(Human human) {
+        if (human != nil and waiting_queue contains human) {
+            string agent_name <- "Unknown";
+            bool is_alive <- false;
+            ask human {
+                if (health_level > 0) {
+                    is_alive <- true;
+                    agent_name <- name;
+                }
+            }
+            if (is_alive) {
+                //write 'Agent ' + agent_name + ' removed from the queue';
+            } else {
+                //write 'Dead agent removed from the queue';
+            }
+            waiting_queue <- waiting_queue - [human];
+        }
+    }
+    
+    reflex cleanup_dead_agents {
+        list<Human> dead_agents <- [];
+        loop patient over: waiting_queue {
+            if (patient != nil) {
+                bool is_alive <- false;
+                ask patient {
+                    is_alive <- (health_level > 0);
+                }
+                if (not is_alive) {
+                    dead_agents <- dead_agents + [patient];
+                }
+            } else {
+                dead_agents <- dead_agents + [patient];
+            }
+        }
+        loop dead_agent over: dead_agents {
+            waiting_queue <- waiting_queue - [dead_agent];
+        }
+    }
     
     aspect base {
-        draw square(10) color: med_bay_color border: med_bay_border_color;
-        draw "Med-Bay" at: location color: #white;
+        int queue_size <- length(waiting_queue);
+        rgb display_color <- med_bay_color;
+        rgb display_border_color <- med_bay_border_color;
+        
+        bool medic_present <- false;
+        loop medic over: list(Medic) {
+            if ((medic.location distance_to location) <= facility_proximity) {
+                medic_present <- true;
+                break;
+            }
+        }
+        
+        if (queue_size > 0) {
+            display_color <- med_bay_queue_color;
+            display_border_color <- med_bay_queue_border_color;
+        }
+        
+        draw square(10) color: display_color border: display_border_color;
+        draw "Med-Bay" at: location color: med_bay_text_color;
+        if (queue_size > 0) {
+            draw "Queue: " + queue_size at: location + {0, -15} color: med_bay_text_color;
+        }
+        if (medic_present) {
+            draw "Medic: Present" at: location + {0, -30} color: med_bay_text_color;
+        } else {
+            draw "Medic: None" at: location + {0, -30} color: med_bay_text_color;
+        }
     }
 }
 
 // Landing Pad: Where new agents spawn
 species LandingPad {
-    point location <- point(150, 50); // Positioned away from main activity
+    point location <- point(50, 200); // Positioned away from main activity
     
     aspect base {
         draw rectangle(15, 15) color: landing_pad_color border: landing_pad_border_color;
