@@ -97,6 +97,10 @@ global {
     float energy_level_threshold <- max_energy_level * 0.2;
     float health_level_threshold <- max_health_level * 0.5;
 
+
+    // === RANDOMNESS ===
+    float oxygen_generator_break_probability <- 0.1;
+
     // === REFILL ===
     float oxygen_refill_rate <- 50.0;
     float energy_refill_rate <- 50.0;
@@ -110,7 +114,7 @@ global {
     float movement_speed <- 10.0;
 
     // === VISUALIZATION ===
-    bool show_beliefs <- true;
+    bool show_debug <- true;
 
     // === CONFIGURATION ===
     bool enable_supply_shuttle <- true;
@@ -386,6 +390,25 @@ species Human skills: [moving, fipa] {
 }
 
 species Engineer parent: Human {
+    reflex update_oxygen_generator_belief when: habitat_dome.oxygen_generator.is_broken {
+        if (not has_belief("oxygen_generator_broken")) {
+            do add_belief("oxygen_generator_broken");
+        }
+    }
+
+    reflex handle_oxygen_generator_broken when: has_belief("oxygen_generator_broken") {
+        state <- 'going_to_oxygen_generator';
+        do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
+    }
+
+
+    reflex repair_oxygen_generator when: state = 'going_to_oxygen_generator' and (location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity and habitat_dome.oxygen_generator.is_broken {
+        write 'Agent ' + name + ' repaired the oxygen generator';
+        habitat_dome.oxygen_generator.is_broken <- false;
+        do remove_belief("oxygen_generator_broken");
+        state <- 'idle';
+    }
+
     aspect base {
         draw circle(3) color: engineer_color border: engineer_border_color;
     }
@@ -482,6 +505,10 @@ species OxygenGenerator {
             draw "O2 Generator" at: location color: #black;
         }
     }
+
+    reflex break_oxygen_generator when: rnd(0.0, 1.0) < oxygen_generator_break_probability {
+        is_broken <- true;
+    }
 }
 
 // Wasteland: Dangerous zone with no oxygen, but has raw materials
@@ -536,8 +563,12 @@ experiment MarsColony type: gui {
             species Scavenger aspect: base;
             species Parasite aspect: base;
             species Commander aspect: base;
+            
+            
 	    }
-	    
-	    inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state', 'is_ok'];
+	    if (show_debug) {
+	        inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state', 'is_ok'];
+	    }
 	}
+	
 }
