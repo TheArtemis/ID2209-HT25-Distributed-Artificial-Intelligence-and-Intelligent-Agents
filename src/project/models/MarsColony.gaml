@@ -102,6 +102,10 @@ global {
     float energy_refill_rate <- 50.0;
     float facility_proximity <- 5.0; // Distance to be considered "at" a facility
 
+    // === ETA ===
+    int retirement_age <- 1000;
+    float eta_increment <- 1.0;
+
     // === MOVEMENT ===
     float movement_speed <- 10.0;
 
@@ -109,7 +113,8 @@ global {
     bool show_beliefs <- true;
 
     // === CONFIGURATION ===
-    bool enable_supply_shuttle <- false;
+    bool enable_supply_shuttle <- true;
+    bool enable_retirement <- true;
 
     // === SIMULATION STATE ===
     bool first_shuttle_arrived <- false;
@@ -191,6 +196,8 @@ species Human skills: [moving, fipa] {
     float energy_level <- max_energy_level;
     float health_level <- max_health_level;
     
+    float eta <- 0.0;
+    
     // TODO: trust_memory
 
     string state <- 'idle';
@@ -213,6 +220,29 @@ species Human skills: [moving, fipa] {
     
     action remove_belief(string belief_name) {
         beliefs[belief_name] <- false;
+    }
+
+
+    // === RETIREMENT ===
+
+    reflex update_eta {
+        // If retirement is disabled, don't update eta
+        if (not enable_retirement) {
+            return;
+        }
+        eta <- eta + eta_increment;
+    }
+
+    reflex retire when: eta >= retirement_age {
+        state <- 'retiring';
+        do goto target: landing_pad.location speed: movement_speed;        
+    }
+
+    reflex handle_retiring when: state = 'retiring' {
+        if (location distance_to landing_pad.location) <= facility_proximity {
+            write 'Agent ' + name + ' retired';
+            do die_and_update_counter;
+        }
     }
     
     reflex update_beliefs {
@@ -267,23 +297,28 @@ species Human skills: [moving, fipa] {
             health_level <- max(0, health_level - health_decrease_rate);
         }
 
-    reflex death when: health_level <= 0 {
-        write 'Agent died';
-        
-        // Update the appropriate counter based on species
+    action die_and_update_counter {
         if (self is Engineer) {
             current_number_of_engineers <- max(0, current_number_of_engineers - 1);
         } else if (self is Medic) {
             current_number_of_medics <- max(0, current_number_of_medics - 1);
-        } else if (self is Scavenger) {
+        }
+        if (self is Scavenger) {
             current_number_of_scavengers <- max(0, current_number_of_scavengers - 1);
-        } else if (self is Parasite) {
+        }
+        if (self is Parasite) {
             current_number_of_parasites <- max(0, current_number_of_parasites - 1);
-        } else if (self is Commander) {
+        }
+        if (self is Commander) {
             current_number_of_commanders <- max(0, current_number_of_commanders - 1);
         }
-        
+
         do die;
+    }
+
+    reflex death when: health_level <= 0 {
+        write 'Agent ' + name + ' died';
+        do die_and_update_counter;
     }   
 
     reflex handle_idle when: state = 'idle' and is_ok {
