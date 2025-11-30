@@ -503,6 +503,6 @@ experiment MarsColony type: gui {
             species Commander aspect: base;
 	    }
 	    
-	    inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'species', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state', 'is_ok'];
+	    inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state', 'is_ok'];
 	}
 }
