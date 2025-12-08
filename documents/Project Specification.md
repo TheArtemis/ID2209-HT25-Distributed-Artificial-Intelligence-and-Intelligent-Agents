@@ -46,7 +46,8 @@ This simulation models a Mars Colony struggling to survive. The agents (Colonist
     *   Automatic cleanup of dead agents from queue
 4.  **The Landing Pad:** Where new agents spawn.
 5.  **The Rock Mine:** A place inside the wasteland where the 
-    * Scavenger go to obtain new materials
+    * Scavenger go to obtain new materials. Each trip to the wasteland
+    * guarantees 5 credits for the scavenger
 
 ---
 
@@ -192,9 +193,9 @@ To ensure the simulation never ends:
 #### 🚧 In Progress / TODO
 
 **Step 4 (Interaction & Parasites):** ⏳ TODO
+- Scavenger must have a measure of the credits it contains
 - Trade action not yet implemented
 - Parasite stealing behavior not yet implemented
-- Commander implementation
 
 **Step 5 (RL Logic):** ⏳ TODO
 - `trust_memory` map structure exists but marked as TODO

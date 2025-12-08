@@ -212,6 +212,7 @@ species Human skills: [moving, fipa] {
     float health_level <- max_health_level;
     
     float eta <- 0.0;
+    int raw_amount <- 0;
     
     // TODO: trust_memory
 
@@ -610,6 +611,8 @@ species Medic parent: Human {
 }
 
 species Scavenger parent: Human {
+
+    //Variables 
     float mining_start_time;
 
     reflex start_mission when: state = 'idle' and flip(scavenger_mission_probability) {
@@ -627,6 +630,7 @@ species Scavenger parent: Human {
     reflex mine when: state = 'mining' {
         if (time - mining_start_time >= 5.0) {
             state <- 'returning_to_dome';
+            raw_amount <-raw_amount + 5;
         }
     }
 
@@ -871,7 +875,7 @@ experiment MarsColony type: gui {
             
 	    }
 	    
-        inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state', 'is_ok'];
+        inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state', 'is_ok', 'raw_amount'];
 	
 	}
 	
