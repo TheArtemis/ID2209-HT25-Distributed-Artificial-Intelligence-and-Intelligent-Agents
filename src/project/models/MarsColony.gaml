@@ -60,11 +60,15 @@ global {
 
     rgb commander_color <- rgb(128, 0, 128);
     rgb commander_border_color <- rgb(64, 0, 64);
+
+    rgb mine_color <- rgb(0, 0, 0);
+    rgb mine_color_border <- rgb(0, 0, 0);
     
     // === PLACES ===
     HabitatDome habitat_dome;
     Wasteland wasteland;
     LandingPad landing_pad;
+    RockMine rock_mine;
 
     // === AGENTS ===
     list<Engineer> engineers;
@@ -104,6 +108,7 @@ global {
 
     // === RANDOMNESS ===
     float oxygen_generator_break_probability <- 0.1;
+    float scavenger_mission_probability <- 0.2;
 
     // === REFILL ===
     float oxygen_refill_rate <- 50.0;
@@ -135,6 +140,9 @@ global {
         
         create LandingPad number: 1 returns: pads;
         landing_pad <- pads[0];
+        
+        create RockMine number: 1 returns: mines;
+        rock_mine <- mines[0];
         
         // Initialize agent lists
         engineers <- [];
@@ -602,6 +610,33 @@ species Medic parent: Human {
 }
 
 species Scavenger parent: Human {
+    float mining_start_time;
+
+    reflex start_mission when: state = 'idle' and flip(scavenger_mission_probability) {
+        state <- 'going_to_mine';
+    }
+
+    reflex go_to_mine when: state = 'going_to_mine' {
+        do goto target: rock_mine.location speed: movement_speed;
+        if (location distance_to rock_mine.location <= facility_proximity) {
+            state <- 'mining';
+            mining_start_time <- time;
+        }
+    }
+
+    reflex mine when: state = 'mining' {
+        if (time - mining_start_time >= 5.0) {
+            state <- 'returning_to_dome';
+        }
+    }
+
+    reflex return_to_dome when: state = 'returning_to_dome' {
+        do goto target: habitat_dome.location speed: movement_speed;
+        if (location distance_to habitat_dome.location <= facility_proximity) {
+            state <- 'idle';
+        }
+    }
+
     aspect base {
         draw circle(3) color: scavenger_color border: scavenger_border_color;
     }
@@ -805,6 +840,15 @@ species LandingPad {
     }
 }
 
+species RockMine{
+    point location <- point(50,50); // Positioned in the middle of the Wasteland
+
+	aspect base{
+        draw rectangle(20,20) color: mine_color border: mine_color_border;
+        draw "Mine" at: location color: #black;
+    }
+}
+
 // ========== EXPERIMENT ==========
 
 experiment MarsColony type: gui {
@@ -822,6 +866,7 @@ experiment MarsColony type: gui {
             species Scavenger aspect: base;
             species Parasite aspect: base;
             species Commander aspect: base;
+            species RockMine aspect: base;
             
             
 	    }

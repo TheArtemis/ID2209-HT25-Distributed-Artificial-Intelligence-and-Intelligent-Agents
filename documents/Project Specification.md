@@ -45,6 +45,8 @@ This simulation models a Mars Colony struggling to survive. The agents (Colonist
     *   Displays queue count and medic presence status
     *   Automatic cleanup of dead agents from queue
 4.  **The Landing Pad:** Where new agents spawn.
+5.  **The Rock Mine:** A place inside the wasteland where the 
+    * Scavenger go to obtain new materials
 
 ---
 
@@ -192,6 +194,7 @@ To ensure the simulation never ends:
 **Step 4 (Interaction & Parasites):** ⏳ TODO
 - Trade action not yet implemented
 - Parasite stealing behavior not yet implemented
+- Commander implementation
 
 **Step 5 (RL Logic):** ⏳ TODO
 - `trust_memory` map structure exists but marked as TODO
