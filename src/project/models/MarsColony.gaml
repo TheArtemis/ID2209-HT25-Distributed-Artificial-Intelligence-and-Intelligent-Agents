@@ -206,7 +206,7 @@ global {
 }
 
 
-species Human skills: [moving, fipa] {
+species Human skills: [moving, fipa] control: simple_bdi{
     float oxygen_level <- max_oxygen_level;
     float energy_level <- max_energy_level;
     float health_level <- max_health_level;
@@ -218,26 +218,24 @@ species Human skills: [moving, fipa] {
 
     string state <- 'idle';
     
-    // === BELIEFS ===
-    map<string, bool> beliefs <- [];
-    
-    bool is_ok <- true;
-    
-    bool has_belief(string belief_name) {
-        if (not (beliefs contains_key(belief_name))) {
-            return false;
-        }
-        return beliefs[belief_name];
-    }
-    
-    action add_belief(string belief_name) {
-        beliefs[belief_name] <- true;
-    }
-    
-    action remove_belief(string belief_name) {
-        beliefs[belief_name] <- false;
-    }
+    // === BDI PREDICATES ===
+    // Beliefs
+    predicate suffocating_belief <- new_predicate("suffocating");
+    predicate starving_belief <- new_predicate("starving");
+    predicate injured_belief <- new_predicate("injured");
+    predicate should_retire_belief <- new_predicate("should_retire");
 
+    // Desires
+    predicate has_oxygen_desire <- new_predicate("has_oxygen");
+    predicate has_energy_desire <- new_predicate("has_energy");
+    predicate be_healthy_desire <- new_predicate("be_healthy");
+    predicate wander_desire <- new_predicate("wander");
+    predicate retire_desire <- new_predicate("retire");
+
+    init{
+        do add_desire(wander_desire); //Initial desire for everyone
+    }
+   
 
     // === RETIREMENT ===
 
@@ -247,79 +245,167 @@ species Human skills: [moving, fipa] {
             return;
         }
         eta <- eta + eta_increment;
+
+        if (eta >= retirement_age)
+        {
+            do add_belief(should_retire_belief);
+        }
     }
 
-    reflex retire when: eta >= retirement_age {
-        state <- 'retiring';
-        do goto target: landing_pad.location speed: movement_speed;        
+    // === PERCEPTION ===
+    reflex perception {
+        // Oxygen
+        if (oxygen_level < oxygen_level_threshold)
+        {
+           if (not has_belief(suffocating_belief)) 
+            { 
+                do add_belief(suffocating_belief); 
+            }
+
+        }
+        else
+        {
+            if (has_belief(suffocating_belief))
+            {
+                do remove_belief(suffocating_belief);
+            }
+        }
+
+        //Energy
+        if (energy_level < energy_level_threshold)
+        {
+            if (not has_belief(starving_belief))
+            {
+                do add_belief(starving_belief);
+            }
+        }
+        else
+        {
+            if (has_belief(starving_belief))
+            {
+                do remove_belief(starving_belief);
+            }
+        }
+
+        // Health
+        if (health_level < health_level_threshold)
+        {
+            if (not has_belief(injured_belief))
+            {
+                do add_belief(injured_belief);
+            }
+        }
+        else
+        {
+            if (has_belief(injured_belief))
+            {
+                do remove_belief(injured_belief);
+            }
+        }
     }
 
-    reflex handle_retiring when: state = 'retiring' {
+    // === RULES (Belief -> Desire) === 
+    
+    //Max Priority 100
+    rule belief: suffocating_belief new_desire: has_oxygen_desire strength: 100.0;
+    rule belief: starving_belief new_desire: has_energy_desire strength: 25.0;
+    rule belief: injured_belief new_desire: be_healthy_desire strength: 12.0;
+    rule belief: should_retire_belief new_desire: retire_desire strength: 6.0;
+
+    // === PLANS ===
+
+    plan do_retire intention: retire_desire{
+        state <- "retiring";
+        do goto target: landing_pad.location speed: movement_speed;
+        
         if (location distance_to landing_pad.location) <= facility_proximity {
             write 'Agent ' + name + ' retired';
             do die_and_update_counter;
         }
-    }
-    
-    reflex update_beliefs {
-        // Suffocating belief: triggered when Oxygen < 20%
-        if (oxygen_level < oxygen_level_threshold) {
-            if (not has_belief("suffocating")) {
-                do add_belief("suffocating");
-            }
-        } else {
-            if (has_belief("suffocating")) {
-                do remove_belief("suffocating");
-            }
-        }
-        
-        // Starving belief: triggered when Energy < 20%
-        if (energy_level < energy_level_threshold) {
-            if (not has_belief("starving")) {
-                do add_belief("starving");
-            }
-        } else {
-            if (has_belief("starving")) {
-                do remove_belief("starving");
-            }
-        }
-        
-        // Injured belief: triggered when Health < 50%
-        if (health_level < health_level_threshold) {
-            if (not has_belief("injured")) {
-                do add_belief("injured");
-            }
-        } else {
-            if (has_belief("injured")) {
-                do remove_belief("injured");
-            }
-        }
-        
-        // Update is_ok after updating all beliefs
-        is_ok <- not has_belief("suffocating") and not has_belief("starving") and not has_belief("injured");
+
     }
 
-    // === HEALTH ===
+    plan get_health intention: be_healthy_desire finished_when: health_level >= max_health_level {
+        // If I am at medbay i wait and queue
+        if (location distance_to habitat_dome.med_bay.location <= facility_proximity) {
+            state <- 'waiting_at_med_bay';
+            ask habitat_dome.med_bay { do add_to_queue(myself); }
+        } else {
+            state <- 'going_to_med_bay';
+            do goto target: habitat_dome.med_bay.location speed: movement_speed;
+        }
 
-    reflex update_oxygen {
-        if (habitat_dome.shape covers location) {
+        // Clean the queue if we are done with the healing
+        if (health_level >= max_health_level) {
+             ask habitat_dome.med_bay { do remove_from_queue(myself); }
+             do remove_belief(injured_belief);
+        }
+    }
+
+    plan get_oxygen intention: has_oxygen_desire finished_when:oxygen_level >= max_oxygen_level
+    {
+        if (location distance_to habitat_dome.oxygen_generator.location <= facility_proximity) {
+            state <- 'refilling_oxygen';
+            oxygen_level <- min(max_oxygen_level, oxygen_level + oxygen_refill_rate);
+        } else {
+            state <- 'going_to_oxygen';
+            do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
+        }
+        
+        if (oxygen_level >= max_oxygen_level) {
+            do remove_belief(suffocating_belief);
+        }
+    } 
+
+    plan get_energy intention: has_energy_desire finished_when: energy_level >= max_energy_level {
+        if (location distance_to habitat_dome.greenhouse.location <= facility_proximity) {
+            state <- 'refilling_energy';
+            energy_level <- min(max_energy_level, energy_level + energy_refill_rate);
+        } else {
+            state <- 'going_to_greenhouse';
+            do goto target: habitat_dome.greenhouse.location speed: movement_speed;
+        }
+        
+        if (energy_level >= max_energy_level) {
+            do remove_belief(starving_belief);
+        }
+    }
+
+    plan wander_around intention: wander_desire {
+        state <- 'idle';
+        if (not (habitat_dome.shape covers location)) {
+            do goto target: habitat_dome.location speed: movement_speed;
+        } else {
+            do wander amplitude: 50.0 speed: movement_speed;
+        }
+    }
+
+    // === Biological reflexes ===
+    // Run every step regardless of the plan
+
+    reflex update_oxygen{
+        if (habitat_dome.shape covers location)
+        {
             oxygen_level <- max(0, oxygen_level - oxygen_decrease_rate);
-        } else {
+        }
+        else
+        {
             oxygen_level <- max(0, oxygen_level - oxygen_decrease_rate * oxygen_decrease_factor_in_wasteland);
         }
     }
 
-    reflex update_energy {
-        if (state = 'going_to_oxygen' or state = 'going_to_greenhouse' or state = 'going_to_med_bay' or state = 'going_to_oxygen_generator' or state = 'retiring') {
+    reflex update_energy{
+        // If moving -> drain more
+        if (state in ['going_to_oxygen', 'going_to_greenhouse', 'going_to_med_bay', 'going_to_oxygen_generator', 'retiring', 'going_to_mine', 'returning_to_dome']) {
             energy_level <- max(0, energy_level - energy_decrease_rate_when_moving);
         } else {
             energy_level <- max(0, energy_level - energy_decrease_rate);
         }
     }
 
-    reflex update_health when: oxygen_level <= 0 or energy_level <= 0 {
-            health_level <- max(0, health_level - health_decrease_rate);
-        }
+    reflex update_health when: oxygen_level <= 0 or energy_level <= 0{
+        health_level <- max(0, health_level - health_decrease_rate);
+    }
 
     action die_and_update_counter {
         if (self is Engineer) {
@@ -353,88 +439,6 @@ species Human skills: [moving, fipa] {
         do die_and_update_counter;
     }   
 
-    reflex handle_idle when: state = 'idle' and is_ok {
-        if (not (habitat_dome.shape covers location)) {
-            do move_to_dome;
-        } else {
-            do wander_in_dome;
-        }
-    }
-    
-    reflex go_to_med_bay_continuous when: state = 'going_to_med_bay' {
-        if ((location distance_to habitat_dome.med_bay.location) > facility_proximity) {
-            do goto target: habitat_dome.med_bay.location speed: movement_speed;
-        }
-    }
-    
-    reflex stay_at_med_bay_when_queued when: state = 'waiting_at_med_bay' {
-        if ((location distance_to habitat_dome.med_bay.location) > facility_proximity) {
-            do goto target: habitat_dome.med_bay.location speed: movement_speed;
-        }
-    }
-
-    action move_to_dome {
-        do goto target: habitat_dome.location speed: movement_speed;
-    }
-
-    action wander_in_dome {
-        do wander amplitude: 50.0 speed: movement_speed;
-    } 
-
-    reflex refill_oxygen when: state = 'refilling_oxygen' and (location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity and oxygen_level < max_oxygen_level {
-        oxygen_level <- min(max_oxygen_level, oxygen_level + oxygen_refill_rate);
-    }
-    
-    reflex refill_energy when: state = 'refilling_energy' and (location distance_to habitat_dome.greenhouse.location) <= facility_proximity and energy_level < max_energy_level {
-        energy_level <- min(max_energy_level, energy_level + energy_refill_rate);
-    }
-    
-    reflex prioritize_med_bay when: has_belief("injured") and state != 'waiting_at_med_bay' and state != 'healing' and state != 'going_to_med_bay' {
-        state <- 'going_to_med_bay';
-    }
-    
-    reflex handle_urgent_needs when: state != 'refilling_oxygen' and state != 'refilling_energy' and state != 'waiting_at_med_bay' and state != 'healing' and state != 'going_to_med_bay' and not has_belief("injured") {
-        if (has_belief("suffocating") and oxygen_level < max_oxygen_level) {
-            if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
-                state <- 'refilling_oxygen';
-            } else {
-                state <- 'going_to_oxygen';
-                do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
-            }
-            return;
-        }
-        
-        if (has_belief("starving") and energy_level < max_energy_level) {
-            if ((location distance_to habitat_dome.greenhouse.location) <= facility_proximity) {
-                state <- 'refilling_energy';
-            } else {
-                state <- 'going_to_greenhouse';
-                do goto target: habitat_dome.greenhouse.location speed: movement_speed;
-            }
-            return;
-        }
-    }
-    
-    reflex arrive_at_med_bay when: state = 'going_to_med_bay' and (location distance_to habitat_dome.med_bay.location) <= facility_proximity {
-        state <- 'waiting_at_med_bay';
-        Human agent_to_queue <- self;
-        ask habitat_dome.med_bay {
-            do add_to_queue(agent_to_queue);
-        }
-    }
-    
-    reflex leave_med_bay when: state = 'waiting_at_med_bay' and not has_belief("injured") {
-        Human agent_to_remove <- self;
-        ask habitat_dome.med_bay {
-            do remove_from_queue(agent_to_remove);
-        }
-        state <- 'idle';
-    }
-    
-    reflex return_to_idle when: (state = 'refilling_oxygen' and oxygen_level >= max_oxygen_level) or (state = 'refilling_energy' and energy_level >= max_energy_level) {
-        state <- 'idle';
-    }    
-    
     aspect base {
         draw circle(3) color: human_color border: human_border_color;
     }
@@ -442,23 +446,31 @@ species Human skills: [moving, fipa] {
 }
 
 species Engineer parent: Human {
-    reflex update_oxygen_generator_belief when: habitat_dome.oxygen_generator.is_broken {
-        if (not has_belief("oxygen_generator_broken")) {
-            do add_belief("oxygen_generator_broken");
+    
+    predicate generator_broken_belief <- new_predicate("generator_broken");
+    predicate fix_generator_desire <- new_predicate("fix_generator");
+
+    reflex check_generator {
+        if (habitat_dome.oxygen_generator.is_broken) {
+            if (not has_belief(generator_broken_belief)) 
+                { 
+                    do add_belief(generator_broken_belief);
+                }
         }
     }
 
-    reflex handle_oxygen_generator_broken when: has_belief("oxygen_generator_broken") {
-        state <- 'going_to_oxygen_generator';
-        do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
-    }
+    rule belief: generator_broken_belief new_desire: fix_generator_desire strength: 9.0;
 
-
-    reflex repair_oxygen_generator when: state = 'going_to_oxygen_generator' and (location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity and habitat_dome.oxygen_generator.is_broken {
-        //write 'Agent ' + name + ' repaired the oxygen generator';
-        habitat_dome.oxygen_generator.is_broken <- false;
-        do remove_belief("oxygen_generator_broken");
-        state <- 'idle';
+    plan fix_generator intention: fix_generator_desire {
+        if (location distance_to habitat_dome.oxygen_generator.location <= facility_proximity) {
+            habitat_dome.oxygen_generator.is_broken <- false;
+            do remove_belief(generator_broken_belief);
+            do remove_intention(fix_generator_desire, true); // Done
+            state <- 'idle';
+        } else {
+             state <- 'going_to_oxygen_generator';
+             do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
+        }
     }
 
     aspect base {
@@ -468,141 +480,69 @@ species Engineer parent: Human {
 
 species Medic parent: Human {
     Human current_patient <- nil;
-    
-    reflex update_oxygen {
-        bool at_med_bay <- (location distance_to habitat_dome.med_bay.location) <= facility_proximity;
-        if (not at_med_bay) {
-            if (habitat_dome.shape covers location) {
-                oxygen_level <- max(0, oxygen_level - oxygen_decrease_rate);
-            } else {
-                oxygen_level <- max(0, oxygen_level - oxygen_decrease_rate * oxygen_decrease_factor_in_wasteland);
-            }
-        }
+
+    predicate patients_waiting_belief <- new_predicate("patients_waiting");
+    predicate heal_patients_desire <- new_predicate("heal_patients");
+
+    reflex update_medic_biologicals {
+         // Medic at medbay does not lose hunger/oxygen (optional rule from spec)
+         if (location distance_to habitat_dome.med_bay.location <= facility_proximity) {
+            if (has_belief(starving_belief)) 
+                { 
+                    do remove_belief(starving_belief); 
+                }
+            // Could also stop oxygen drain, but let's keep it simple
+            // TODO
+         }
     }
     
-    reflex ignore_hunger_when_at_med_bay when: state = 'healing' or state = 'going_to_med_bay' or state = 'waiting_at_med_bay' or (location distance_to habitat_dome.med_bay.location) <= facility_proximity {
-        if (has_belief("starving")) {
-            do remove_belief("starving");
-        }
-    }
-    
-    reflex handle_urgent_needs when: state != 'refilling_oxygen' and state != 'refilling_energy' and state != 'waiting_at_med_bay' and state != 'healing' and state != 'going_to_med_bay' and not has_belief("injured") {
-        bool at_med_bay <- (location distance_to habitat_dome.med_bay.location) <= facility_proximity;
-        
-        if (has_belief("suffocating") and oxygen_level < max_oxygen_level and not at_med_bay) {
-            if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
-                state <- 'refilling_oxygen';
-            } else {
-                state <- 'going_to_oxygen';
-                do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
-            }
-            return;
-        }
-        
-        if (has_belief("starving") and energy_level < max_energy_level and not at_med_bay) {
-            if ((location distance_to habitat_dome.greenhouse.location) <= facility_proximity) {
-                state <- 'refilling_energy';
-            } else {
-                state <- 'going_to_greenhouse';
-                do goto target: habitat_dome.greenhouse.location speed: movement_speed;
-            }
-            return;
-        }
-    }
-    
-    reflex check_med_bay_queue when: state != 'healing' and state != 'going_to_med_bay' and state != 'waiting_at_med_bay' {
+    reflex check_queue {
         if (not empty(habitat_dome.med_bay.waiting_queue)) {
-            // Find first alive patient in queue
-            Human first_alive_patient <- nil;
-            list<Human> queue <- habitat_dome.med_bay.waiting_queue;
-            loop i from: 0 to: length(queue) - 1 {
-                Human patient <- queue[i];
-                // Check if patient is still alive by checking their health
-                if (patient != nil) {
-                    bool is_alive <- false;
-                    ask patient {
-                        if (health_level > 0) {
-                            is_alive <- true;
-                        }
-                    }
-                    if (is_alive) {
-                        first_alive_patient <- patient;
-                        break;
-                    }
-                }
-            }
-            
-            if (first_alive_patient != nil) {
-                current_patient <- first_alive_patient;
-                state <- 'going_to_med_bay';
-                do goto target: habitat_dome.med_bay.location speed: movement_speed;
-            }
+             if (not has_belief(patients_waiting_belief)) { do add_belief(patients_waiting_belief); }
+        } else {
+             if (has_belief(patients_waiting_belief)) { do remove_belief(patients_waiting_belief); }
         }
     }
+
+    // Need to fit the value of all this beliefs so that we have a ranking
+    rule belief: patients_waiting_belief new_desire: heal_patients_desire strength: 7.0;
     
-    reflex arrive_at_med_bay when: state = 'going_to_med_bay' and (location distance_to habitat_dome.med_bay.location) <= facility_proximity {
-        if (current_patient != nil) {
-            // Medic is going to heal someone else
-            state <- 'healing';
-        } else if (has_belief("injured")) {
-            // Medic is injured and going for themselves - queue up
-            state <- 'waiting_at_med_bay';
-            Human agent_to_queue <- self;
-            ask habitat_dome.med_bay {
-                do add_to_queue(agent_to_queue);
-            }
-        }
-    }
-    
-    reflex stay_at_med_bay_for_healing when: state = 'healing' {
-        if ((location distance_to habitat_dome.med_bay.location) > facility_proximity) {
+    plan heal_others intention: heal_patients_desire {
+        // Go to medbay
+        if (location distance_to habitat_dome.med_bay.location > facility_proximity) {
+            state <- 'going_to_med_bay';
             do goto target: habitat_dome.med_bay.location speed: movement_speed;
-        }
-    }
-    
-    reflex heal_patient when: state = 'healing' and current_patient != nil and (location distance_to habitat_dome.med_bay.location) <= facility_proximity {
-        // Check if patient is still in queue (might have been removed by another medic)
-        if (habitat_dome.med_bay.waiting_queue contains current_patient) {
-            Human patient_to_heal <- current_patient;
+        } else {
+            // At medbay
+            state <- 'healing';
             
-            // Check if patient is still alive by checking their health
-            bool patient_alive <- false;
-            if (patient_to_heal != nil) {
-                ask patient_to_heal {
-                    if (health_level > 0) {
-                        patient_alive <- true;
-                    }
+            // Pick a patient and heal
+            if (current_patient = nil and not empty(habitat_dome.med_bay.waiting_queue)) {
+                Human potential_patient <- habitat_dome.med_bay.waiting_queue[0];
+                if (potential_patient != nil and not dead(potential_patient)) {
+                    current_patient <- potential_patient;
+                } else {
+                    // Clean dead
+                    ask habitat_dome.med_bay { do remove_from_queue(potential_patient); }
                 }
             }
             
-            if (patient_alive) {
-                string patient_name <- "";
-                ask patient_to_heal {
-                    patient_name <- name;
-                }
-                
-                // Heal the patient: restore health, oxygen, and energy
-                ask patient_to_heal {
+            if (current_patient != nil) {
+                 // Heal them
+                 ask current_patient {
                     health_level <- max_health_level;
                     oxygen_level <- max_oxygen_level;
                     energy_level <- max_energy_level;
-                }
-                
-                write 'Medic ' + name + ' healed ' + patient_name;
-                
-                // Remove patient from queue
-                ask habitat_dome.med_bay {
-                    do remove_from_queue(patient_to_heal);
-                }
+                 }
+                 write 'Medic ' + name + ' healed ' + current_patient.name;
+                 ask habitat_dome.med_bay { do remove_from_queue(myself.current_patient); }
+                 current_patient <- nil;
             } else {
-                // Patient died, just remove from queue
-                ask habitat_dome.med_bay {
-                    do remove_from_queue(patient_to_heal);
-                }
+                // Queue empty
+                do remove_belief(patients_waiting_belief);
+                do remove_intention(heal_patients_desire, true);
             }
         }
-        current_patient <- nil;
-        state <- 'idle';
     }
     
     aspect base {
@@ -615,32 +555,48 @@ species Scavenger parent: Human {
     //Variables 
     float mining_start_time;
 
-    reflex start_mission when: state = 'idle' and flip(scavenger_mission_probability) {
-        state <- 'going_to_mine';
-    }
+    predicate mission_time_belief <- new_predicate("mission_time");
+    predicate mine_desire <- new_predicate("mine_resources");
 
-    reflex go_to_mine when: state = 'going_to_mine' {
-        do goto target: rock_mine.location speed: movement_speed;
-        if (location distance_to rock_mine.location <= facility_proximity) {
-            state <- 'mining';
-            mining_start_time <- time;
+    reflex trigger_mission {
+        // Randomly decide to go on a mission if idle
+        if (flip(scavenger_mission_probability) and not has_belief(mission_time_belief)) {
+            do add_belief(mission_time_belief);
         }
     }
 
-    reflex mine when: state = 'mining' {
-        if (time - mining_start_time >= 5.0) {
-            state <- 'returning_to_dome';
-            raw_amount <-raw_amount + 5;
+    // TO FIT
+    rule belief: mission_time_belief new_desire: mine_desire strength: 5.0;
+
+    plan perform_mining intention: mine_desire {
+        if (location distance_to rock_mine.location > facility_proximity and mining_start_time = 0.0) {
+            state <- 'going_to_mine';
+            do goto target: rock_mine.location speed: movement_speed;
+        } else {
+            // At mine
+            if (mining_start_time = 0.0) {
+                mining_start_time <- time;
+                state <- 'mining';
+            }
+            
+            if (time - mining_start_time >= 5.0) {
+                // Done mining
+                state <- 'returning_to_dome';
+                do goto target: habitat_dome.location speed: movement_speed;
+                
+                if (location distance_to habitat_dome.location <= facility_proximity) {
+                     raw_amount <- raw_amount + 5;
+                     mining_start_time <- 0.0; // Reset
+                     do remove_belief(mission_time_belief);
+                     do remove_intention(mine_desire, true);
+                     state <- 'idle';
+                }
+            } else {
+                state <- 'mining';
+            }
         }
     }
-
-    reflex return_to_dome when: state = 'returning_to_dome' {
-        do goto target: habitat_dome.location speed: movement_speed;
-        if (location distance_to habitat_dome.location <= facility_proximity) {
-            state <- 'idle';
-        }
-    }
-
+    
     aspect base {
         draw circle(3) color: scavenger_color border: scavenger_border_color;
     }
