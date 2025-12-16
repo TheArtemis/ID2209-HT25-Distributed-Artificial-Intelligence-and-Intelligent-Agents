@@ -217,6 +217,15 @@ species Human skills: [moving, fipa] control: simple_bdi{
     // TODO: trust_memory
 
     string state <- 'idle';
+    string received_message <- nil;
+
+    reflex receive_message when: !empty(mailbox) {
+		message msg <- next_message();
+		if (msg.contents = "hello world") {
+			received_message <- string(msg.contents);
+			write name + " received: " + received_message;
+		}
+	}
     
     // === BDI PREDICATES ===
     // Beliefs
@@ -608,7 +617,12 @@ species Parasite parent: Human {
     }
 }
 
-species Commander parent: Human {
+species Commander parent: Human{
+
+    action send_hello_world {
+		do start_conversation to: list(Human) protocol: 'fipa-request' performative: 'inform' contents: ['hello world'];
+	}
+
     aspect base {
         draw circle(3) color: commander_color border: commander_border_color;
     }

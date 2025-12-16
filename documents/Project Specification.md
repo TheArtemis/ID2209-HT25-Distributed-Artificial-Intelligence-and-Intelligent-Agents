@@ -202,8 +202,8 @@ To ensure the simulation never ends:
 - Q-Learning logic for trust evolution not yet implemented
 
 **Step 6 (FIPA):** ⏳ TODO
-- Commander FIPA skills exist but communication events not yet implemented
-- Dust Storm event not yet implemented
+- Commander FIPA skills exist but communication events not yet implemented IMPLEMENTED WITH A SKELETON FOR NOW
+- Dust Storm event to be implemented
 
 **Step 7 (UI):** ⏳ TODO
 - Charts for trust evolution and survival rate not yet implemented
