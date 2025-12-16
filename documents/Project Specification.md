@@ -148,7 +148,7 @@ To ensure the simulation never ends:
 - Full BDI architecture implemented:
   - **Beliefs:** `suffocating` (Oxygen < 20%), `starving` (Energy < 20%), `injured` (Health < 50%)
   - **Belief Management:** Dynamic belief system that adds/removes beliefs based on current state
-  - **Desires:** Priority system with `maintain_life` as highest priority
+  - **Desires:** Priority system TODO
   - **Intentions:** State-based behavior (going_to_oxygen, going_to_greenhouse, going_to_med_bay, waiting_at_med_bay, healing, refilling_oxygen, refilling_energy, retiring, idle)
 - Agents automatically seek resources when beliefs are triggered
 - Priority system: Injured agents prioritize med bay over other needs
@@ -209,6 +209,11 @@ To ensure the simulation never ends:
 - Charts for trust evolution and survival rate not yet implemented
 - Agent beliefs inspector exists in experiment
 
+**Step 8 :** TODO
+- Rank the desires
+
+
+
 ---
 
 ### 10. Potential System Improvements
@@ -252,3 +257,15 @@ The current implementation has energy and oxygen decreasing continuously, but al
 2.  **Step 5 (RL Logic):** Add the `trust_memory` map. Add the logic: `if trust < 0, do not trade`.
 3.  **Step 6 (FIPA):** Add the Commander and the Dust Storm event.
 4.  **Step 7 (UI):** Add the charts.
+
+### 12. Very important
+1. We need to **rank the beliefs** so that there is a definite order of priorities
+2. The beliefs to be ranked (as far as now) are:
+- oxygen
+- healthy
+- starving
+- retiring
+- fix generator (for the engineer)
+- healing patients (for the medic)
+- mine (for the scavenger)
+3. This are very important as changing the value highly influences the behaviour of the agents 
