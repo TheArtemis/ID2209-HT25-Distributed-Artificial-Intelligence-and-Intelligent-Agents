@@ -201,9 +201,9 @@ To ensure the simulation never ends:
 - `trust_memory` map structure exists but marked as TODO
 - Q-Learning logic for trust evolution not yet implemented
 
-**Step 6 (FIPA):** ⏳ TODO
-- Commander FIPA skills exist but communication events not yet implemented IMPLEMENTED WITH A SKELETON FOR NOW
-- Dust Storm event to be implemented
+**Step 6 (FIPA):** ⏳ ✅ TO BE REFINED
+- Commander FIPA skills exist but communication events not yet implemented
+- Dust Storm event
 
 **Step 7 (UI):** ⏳ TODO
 - Charts for trust evolution and survival rate not yet implemented
@@ -268,4 +268,5 @@ The current implementation has energy and oxygen decreasing continuously, but al
 - fix generator (for the engineer)
 - healing patients (for the medic)
 - mine (for the scavenger)
+- dust_storm (for everyone who's in the wasteland)
 3. This are very important as changing the value highly influences the behaviour of the agents 

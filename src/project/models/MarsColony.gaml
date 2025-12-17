@@ -220,11 +220,15 @@ species Human skills: [moving, fipa] control: simple_bdi{
     string received_message <- nil;
 
     reflex receive_message when: !empty(mailbox) {
-		message msg <- next_message();
-		if (msg.contents = "hello world") {
-			received_message <- string(msg.contents);
-			write name + " received: " + received_message;
-		}
+		message msg <- first(mailbox);
+        mailbox <- mailbox - msg;
+		string msg_contents <- string(msg.contents);
+		if (msg_contents contains "Return to Base") {
+            write name + " received storm warning! Adding escape desire.";
+            if (not has_belief(storm_warning_belief)) {
+                 do add_belief(storm_warning_belief);
+            }
+        }
 	}
     
     // === BDI PREDICATES ===
@@ -233,6 +237,7 @@ species Human skills: [moving, fipa] control: simple_bdi{
     predicate starving_belief <- new_predicate("starving");
     predicate injured_belief <- new_predicate("injured");
     predicate should_retire_belief <- new_predicate("should_retire");
+    predicate storm_warning_belief <- new_predicate("storm_warning");
 
     // Desires
     predicate has_oxygen_desire <- new_predicate("has_oxygen");
@@ -240,6 +245,7 @@ species Human skills: [moving, fipa] control: simple_bdi{
     predicate be_healthy_desire <- new_predicate("be_healthy");
     predicate wander_desire <- new_predicate("wander");
     predicate retire_desire <- new_predicate("retire");
+    predicate escape_storm_desire <- new_predicate("escape_storm");
 
     init{
         do add_desire(wander_desire); //Initial desire for everyone
@@ -316,12 +322,25 @@ species Human skills: [moving, fipa] control: simple_bdi{
     // === RULES (Belief -> Desire) === 
     
     //Max Priority 100
+    rule belief: storm_warning_belief new_desire: escape_storm_desire strength: 200.0; // Most important
     rule belief: suffocating_belief new_desire: has_oxygen_desire strength: 100.0;
     rule belief: starving_belief new_desire: has_energy_desire strength: 25.0;
     rule belief: injured_belief new_desire: be_healthy_desire strength: 12.0;
     rule belief: should_retire_belief new_desire: retire_desire strength: 6.0;
 
     // === PLANS ===
+
+    plan escape_storm intention: escape_storm_desire {
+        state <- "escaping_storm";
+        do goto target: habitat_dome.location speed: movement_speed;
+        
+        if (habitat_dome.shape covers location) {
+            write name + " escaped the storm.";
+            do remove_belief(storm_warning_belief);
+            do remove_intention(escape_storm_desire, true);
+            state <- "idle";
+        }
+    }
 
     plan do_retire intention: retire_desire{
         state <- "retiring";
@@ -399,16 +418,25 @@ species Human skills: [moving, fipa] control: simple_bdi{
         }
         else
         {
-            oxygen_level <- max(0, oxygen_level - oxygen_decrease_rate * oxygen_decrease_factor_in_wasteland);
+            float decrease <- oxygen_decrease_rate * oxygen_decrease_factor_in_wasteland;
+            if (wasteland.dust_storm and (wasteland.shape covers location)) {
+                 decrease <- decrease * 2.0; // Faster reduction
+            }
+            oxygen_level <- max(0, oxygen_level - decrease);
         }
     }
 
     reflex update_energy{
         // If moving -> drain more
-        if (state in ['going_to_oxygen', 'going_to_greenhouse', 'going_to_med_bay', 'going_to_oxygen_generator', 'retiring', 'going_to_mine', 'returning_to_dome']) {
+        if (state in ['going_to_oxygen', 'going_to_greenhouse', 'going_to_med_bay', 'going_to_oxygen_generator', 'retiring', 'going_to_mine', 'returning_to_dome', 'escaping_storm']) {
             energy_level <- max(0, energy_level - energy_decrease_rate_when_moving);
         } else {
             energy_level <- max(0, energy_level - energy_decrease_rate);
+        }
+        
+        // Add storm effect
+        if (wasteland.dust_storm and (wasteland.shape covers location)) {
+             energy_level <- max(0, energy_level - 1.0); // Extra drain
         }
     }
 
@@ -619,9 +647,15 @@ species Parasite parent: Human {
 
 species Commander parent: Human{
 
-    action send_hello_world {
-		do start_conversation to: list(Human) protocol: 'fipa-request' performative: 'inform' contents: ['hello world'];
-	}
+    reflex check_storm {
+        if (wasteland.dust_storm) {
+            list<Human> agents_in_wasteland <- Human where (wasteland.shape covers each.location);
+            if (!empty(agents_in_wasteland)) {
+                do start_conversation to: agents_in_wasteland protocol: 'fipa-propose' performative: 'propose' contents: ['Return to Base'];
+                write "Commander sent 'Return to Base' to " + length(agents_in_wasteland) + " agents.";
+            }
+        }
+    }
 
     aspect base {
         draw circle(3) color: commander_color border: commander_border_color;
@@ -704,15 +738,38 @@ species OxygenGenerator {
 // Wasteland: Dangerous zone with no oxygen, but has raw materials
 species Wasteland {
     geometry shape <- rectangle(100, 100); // Large dangerous area
+    bool dust_storm <- false;
+    int storm_timer <- 0;
     
     init {
         location <- point(50, 50); // Positioned away from safe zone
         shape <- shape at_location location; // Position the shape at location
     }
+
+    reflex manage_storm {
+        if (dust_storm) {
+            storm_timer <- storm_timer - 1;
+            if (storm_timer <= 0) {
+                dust_storm <- false;
+                write "Dust storm ended.";
+            }
+        } else {
+            if (flip(0.01)) { // 1/100 probability
+                dust_storm <- true;
+                storm_timer <- 15;
+                write "Dust storm started in Wasteland!";
+            }
+        }
+    }
     
     aspect base {
-        draw shape color: wasteland_color border: wasteland_border_color;
-        draw "Wasteland" at: location color: #white;
+        if (dust_storm) {
+            draw shape color: #orange border: wasteland_border_color;
+            draw "Wasteland (STORM)" at: location color: #black;
+        } else {
+            draw shape color: wasteland_color border: wasteland_border_color;
+            draw "Wasteland" at: location color: #white;
+        }
     }
 }
 
