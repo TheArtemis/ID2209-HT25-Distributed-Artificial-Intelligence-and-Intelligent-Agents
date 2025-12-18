@@ -214,6 +214,25 @@ species Human skills: [moving, fipa] control: simple_bdi{
     float eta <- 0.0;
     int raw_amount <- 0;
     
+    // === LEARNING / TRUST ===
+    string role <- "Human";
+	float happiness <- 0.0;
+	
+	float alpha <- 0.2;      // learning rate
+	float gamma <- 0.0;      // no future return needed for one-shot trade decision
+	float epsilon <- 0.15;   // exploration rate
+	
+	// Q-table keyed by "state" string -> [Q_trade, Q_ignore]
+	map<string, list<float>> Q <- map([]);
+	
+	// Optional: explicit trust memory per role (range [-1, +1])
+	map<string, float> trust_memory <- map([]);
+	
+	// To avoid trading every tick with the same agent
+	int trade_cooldown <- 0;
+	int trade_cooldown_max <- 10;
+    
+    
     // TODO: trust_memory
 
     string state <- 'idle';
@@ -474,7 +493,141 @@ species Human skills: [moving, fipa] control: simple_bdi{
         }
         write 'Agent ' + name + ' died from ' + death_reason;
         do die_and_update_counter;
-    }   
+    }
+    
+    action ensure_state_exists(string s) {
+	    if (!(Q contains_key s)) {
+	        Q[s] <- [0.0, 0.0]; // [Q_trade, Q_ignore]
+	    }
+	    if (!(trust_memory contains_key s)) {
+	        trust_memory[s] <- 0.0;
+	    }
+	}
+
+	action choose_action(string s) {
+	    // epsilon-greedy
+	    if (flip(epsilon)) { 
+	        return (flip(0.5) ? "TRADE" : "IGNORE");
+	    }
+	    list<float> qs <- Q[s];
+	    return (qs[0] >= qs[1] ? "TRADE" : "IGNORE");
+	}
+	
+	action update_q(string s, string a, float r) {
+	    do ensure_state_exists(s);
+	    int idx <- (a = "TRADE" ? 0 : 1);
+	    list<float> qs <- Q[s];
+	    float old <- qs[idx];
+	    // one-step update (gamma can stay 0 for this scenario)
+	    float updated <- old + alpha * (r - old);
+	    qs[idx] <- updated;
+	    Q[s] <- qs;
+	
+	    // derive trust from trade-vs-ignore preference and clamp to [-1, +1]
+	    float pref <- Q[s][0] - Q[s][1];
+	    trust_memory[s] <- max(-1.0, min(1.0, pref / 20.0)); // scale factor tune as needed
+	}
+	
+	reflex update_trade_cooldown when: trade_cooldown > 0 {
+	    trade_cooldown <- trade_cooldown - 1;
+	}
+	
+	float meet_distance <- 6.0;
+
+	reflex learn_and_trade when: trade_cooldown = 0 {
+	    // pick any nearby human except myself
+	    list<Human> nearby <- Human where (each != self and (each.location distance_to location) <= meet_distance);
+	    if (empty(nearby)) { return; }
+	
+	    Human partner <- one_of(nearby);
+	
+	    // State = observed role label (you can change this if you implement "disguise")
+	    string s <- partner.role; // "Engineer", "Medic", "Scavenger", "Parasite", etc.
+	    do ensure_state_exists(s);
+	
+	    string a <- choose_action(s);
+	    if (a = "IGNORE") {
+	        do update_q(s, a, 0.0); // neutral reward for ignoring
+	        trade_cooldown <- trade_cooldown_max;
+	        return;
+	    }
+	
+	    // Attempt trade (reward depends on reciprocal outcome)
+	    float reward <- attempt_trade(partner);
+	    do update_q(s, a, reward);
+	    happiness <- happiness + reward;
+	
+	    trade_cooldown <- trade_cooldown_max;
+	}
+	
+	action attempt_trade(Human partner) {
+	    // Basic example resources:
+	    // - Scavenger: raw_amount
+	    // - Medic: can heal
+	    // - Engineer: can repair generator
+	    // Parasite: takes but gives nothing back
+	
+	    bool i_gave <- false;
+	    bool partner_gave <- false;
+	
+	    // --- I give something partner wants ---
+	    if (self is Scavenger and raw_amount > 0 and partner.energy_level < max_energy_level) {
+	        raw_amount <- raw_amount - 1;
+	        i_gave <- true;
+	        ask partner { energy_level <- min(max_energy_level, energy_level + 20.0); }
+	    }
+	
+	    if (self is Medic and partner.health_level < max_health_level) {
+	        i_gave <- true;
+	        ask partner { health_level <- min(max_health_level, health_level + 30.0); }
+	    }
+	
+	    if (self is Engineer and habitat_dome.oxygen_generator.is_broken) {
+	        // you can also treat "repair" as a service offered to others; this is just illustrative
+	        i_gave <- true;
+	        // service given could be represented by fixing shared infra
+	        habitat_dome.oxygen_generator.is_broken <- false;
+	    }
+	
+	    // --- Partner gives something I want ---
+	    // Parasite never reciprocates:
+	    if (partner is Parasite) {
+	        // parasite may still "take" (we already allowed i_gave), but gives nothing
+	        partner_gave <- false;
+	    } else {
+	        // non-parasite reciprocation rules:
+	        if (partner is Scavenger) {
+	            int their_raw <- 0;
+	            ask partner { their_raw <- raw_amount; }
+	            if (their_raw > 0 and energy_level < max_energy_level) {
+	                ask partner { raw_amount <- raw_amount - 1; }
+	                energy_level <- min(max_energy_level, energy_level + 20.0);
+	                partner_gave <- true;
+	            }
+	        }
+	        if (partner is Medic and health_level < max_health_level) {
+	            health_level <- min(max_health_level, health_level + 30.0);
+	            partner_gave <- true;
+	        }
+	        if (partner is Engineer and habitat_dome.oxygen_generator.is_broken) {
+	            habitat_dome.oxygen_generator.is_broken <- false;
+	            partner_gave <- true;
+	        }
+	    }
+	
+	    // --- Reward shaping ---
+	    if (i_gave and partner_gave) { 
+	        return 10.0;    // successful reciprocal trade
+	    }
+	    if (i_gave and !partner_gave) { 
+	        return -20.0;   // scammed (parasite signature)
+	    }
+	    // If no one could help (trade useless), mild negative or zero
+	    return -1.0;
+	}
+	
+	
+       
 
     aspect base {
         draw circle(3) color: human_color border: human_border_color;
