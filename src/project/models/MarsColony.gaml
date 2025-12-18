@@ -1,11 +1,14 @@
 /**
 * Name: MarsColony
-* Based on the internal empty template.
+* Based on the internal empty template. 
 * Author: Lorenzo Deflorian, Riccardo Fragale, Juozas Skarbalius
-* Tags:
+* Tags: 
 */
 
+
 model MarsColony
+
+// Mars Colony is a model that simulates a colony on Mars.
 
 global {
     // === MAP ===
@@ -13,7 +16,7 @@ global {
     int map_height <- 400;
     geometry shape <- rectangle(map_width, map_height);
 
-    // === AGENTS ===
+    // === AGENTS ===    
     float max_oxygen_level <- 100.0;
     float max_energy_level <- 100.0;
     float max_health_level <- 100.0;
@@ -137,7 +140,8 @@ global {
 
         create RockMine number: 1 returns: mines;
         rock_mine <- mines[0];
-
+		
+		// Initialize agent lists
         engineers <- [];
         medics <- [];
         scavengers <- [];
@@ -209,7 +213,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
     float alpha <- 0.2;      // learning rate
     float gamma <- 0.0;      // one-shot interaction (no future return)
-    float epsilon <- 0.15;   // exploration rate
+    float epsilon <- 0.10;   // exploration rate
 
     // Q-table keyed by "state" string -> [Q_trade, Q_ignore]
     // State is per-agent identity: "id:<name>" to learn which specific agents are parasites despite disguise.
@@ -220,7 +224,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
     // Trade timing
     int trade_cooldown <- 0;
-    int trade_cooldown_max <- 10;
+    int trade_cooldown_max <- 50;
     float meet_distance <- 6.0;
 
     // === BDI ===
@@ -442,7 +446,13 @@ species Human skills: [moving, fipa] control: simple_bdi {
     // Learning-triggered interaction:
     // - State key uses partner identity ("id:<name>") so agents can learn “this specific agent is a parasite”
     //   even if the parasite "looks like" a legit presented role.
-    reflex learn_and_trade when: trade_cooldown = 0 {
+    reflex learn_and_trade when:
+	    trade_cooldown = 0
+	    and (habitat_dome.shape covers location)
+	    and oxygen_level > oxygen_level_threshold
+	    and energy_level > energy_level_threshold
+	    and not has_belief(storm_warning_belief)
+	{
         list<Human> nearby <- Human where (each != self and (each.location distance_to location) <= meet_distance);
         if (empty(nearby)) { return; }
 
