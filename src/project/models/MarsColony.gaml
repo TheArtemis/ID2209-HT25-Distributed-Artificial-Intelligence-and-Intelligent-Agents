@@ -1,14 +1,11 @@
 /**
 * Name: MarsColony
-* Based on the internal empty template. 
+* Based on the internal empty template.
 * Author: Lorenzo Deflorian, Riccardo Fragale, Juozas Skarbalius
-* Tags: 
+* Tags:
 */
 
-
 model MarsColony
-
-// Mars Colony is a model that simulates a colony on Mars.
 
 global {
     // === MAP ===
@@ -16,7 +13,7 @@ global {
     int map_height <- 400;
     geometry shape <- rectangle(map_width, map_height);
 
-    // === AGENTS ===    
+    // === AGENTS ===
     float max_oxygen_level <- 100.0;
     float max_energy_level <- 100.0;
     float max_health_level <- 100.0;
@@ -42,7 +39,7 @@ global {
 
     rgb oxygen_generator_color <- rgb(0, 0, 255);
     rgb oxygen_generator_border_color <- rgb(0, 0, 128);
-    
+
     rgb human_color <- rgb(0, 0, 0);
     rgb human_border_color <- rgb(0, 0, 0);
 
@@ -54,7 +51,7 @@ global {
 
     rgb scavenger_color <- rgb(0, 0, 255);
     rgb scavenger_border_color <- rgb(0, 0, 128);
-    
+
     rgb parasite_color <- rgb(128, 128, 0);
     rgb parasite_border_color <- rgb(64, 64, 0);
 
@@ -63,7 +60,7 @@ global {
 
     rgb mine_color <- rgb(0, 0, 0);
     rgb mine_color_border <- rgb(0, 0, 0);
-    
+
     // === PLACES ===
     HabitatDome habitat_dome;
     Wasteland wasteland;
@@ -76,7 +73,7 @@ global {
     list<Scavenger> scavengers;
     list<Parasite> parasites;
     list<Commander> commanders;
-    
+
     list<Human> all_humans {
         return list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander);
     }
@@ -105,7 +102,6 @@ global {
     float energy_level_threshold <- max_energy_level * 0.2;
     float health_level_threshold <- max_health_level * 0.5;
 
-
     // === RANDOMNESS ===
     float oxygen_generator_break_probability <- 0.1;
     float scavenger_mission_probability <- 0.2;
@@ -113,7 +109,7 @@ global {
     // === REFILL ===
     float oxygen_refill_rate <- 50.0;
     float energy_refill_rate <- 50.0;
-    float facility_proximity <- 5.0; // Distance to be considered "at" a facility
+    float facility_proximity <- 5.0;
 
     // === ETA ===
     int retirement_age <- 1000;
@@ -121,8 +117,6 @@ global {
 
     // === MOVEMENT ===
     float movement_speed <- 10.0;
-
-    // === VISUALIZATION ===
 
     // === CONFIGURATION ===
     bool enable_supply_shuttle <- true;
@@ -134,17 +128,16 @@ global {
     init {
         create HabitatDome number: 1 returns: domes;
         habitat_dome <- domes[0];
-        
+
         create Wasteland number: 1 returns: wastelands;
         wasteland <- wastelands[0];
-        
+
         create LandingPad number: 1 returns: pads;
         landing_pad <- pads[0];
-        
+
         create RockMine number: 1 returns: mines;
         rock_mine <- mines[0];
-        
-        // Initialize agent lists
+
         engineers <- [];
         medics <- [];
         scavengers <- [];
@@ -154,7 +147,7 @@ global {
 
     reflex supply_shuttle when: enable_supply_shuttle or not first_shuttle_arrived {
         first_shuttle_arrived <- true;
-        
+
         int delta_engineers <- desired_number_of_engineers - current_number_of_engineers;
         int delta_medics <- desired_number_of_medics - current_number_of_medics;
         int delta_scavengers <- desired_number_of_scavengers - current_number_of_scavengers;
@@ -163,37 +156,27 @@ global {
 
         if (delta_engineers > 0) {
             create Engineer number: delta_engineers returns: new_engineers;
-            ask new_engineers {
-                location <- landing_pad.location;
-            }
+            ask new_engineers { location <- landing_pad.location; }
             engineers <- engineers + new_engineers;
         }
         if (delta_medics > 0) {
             create Medic number: delta_medics returns: new_medics;
-            ask new_medics {
-                location <- landing_pad.location;
-            }
+            ask new_medics { location <- landing_pad.location; }
             medics <- medics + new_medics;
         }
         if (delta_scavengers > 0) {
             create Scavenger number: delta_scavengers returns: new_scavengers;
-            ask new_scavengers {
-                location <- landing_pad.location;
-            }
+            ask new_scavengers { location <- landing_pad.location; }
             scavengers <- scavengers + new_scavengers;
         }
         if (delta_parasites > 0) {
             create Parasite number: delta_parasites returns: new_parasites;
-            ask new_parasites {
-                location <- landing_pad.location;
-            }
+            ask new_parasites { location <- landing_pad.location; }
             parasites <- parasites + new_parasites;
         }
         if (delta_commanders > 0) {
             create Commander number: delta_commanders returns: new_commanders;
-            ask new_commanders {
-                location <- landing_pad.location;
-            }
+            ask new_commanders { location <- landing_pad.location; }
             commanders <- commanders + new_commanders;
         }
 
@@ -206,59 +189,51 @@ global {
 }
 
 
-species Human skills: [moving, fipa] control: simple_bdi{
+species Human skills: [moving, fipa] control: simple_bdi {
+
     float oxygen_level <- max_oxygen_level;
     float energy_level <- max_energy_level;
     float health_level <- max_health_level;
-    
+
     float eta <- 0.0;
     int raw_amount <- 0;
-    
-    // === LEARNING / TRUST ===
-    string role <- "Human";
-	float happiness <- 0.0;
-	
-	float alpha <- 0.2;      // learning rate
-	float gamma <- 0.0;      // no future return needed for one-shot trade decision
-	float epsilon <- 0.15;   // exploration rate
-	
-	// Q-table keyed by "state" string -> [Q_trade, Q_ignore]
-	map<string, list<float>> Q <- map([]);
-	
-	// Optional: explicit trust memory per role (range [-1, +1])
-	map<string, float> trust_memory <- map([]);
-	
-	// To avoid trading every tick with the same agent
-	int trade_cooldown <- 0;
-	int trade_cooldown_max <- 10;
-    
-    
-    // TODO: trust_memory
 
-    string state <- 'idle';
+    // === IDENTITY / APPEARANCE ===
+    // True type for logic:
+    string role <- "Human";
+    // What others can observe (Parasite will randomize this to look legit):
+    string presented_role <- "Human";
+
+    // === LEARNING / TRUST (Q-Learning) ===
+    float happiness <- 0.0;
+
+    float alpha <- 0.2;      // learning rate
+    float gamma <- 0.0;      // one-shot interaction (no future return)
+    float epsilon <- 0.15;   // exploration rate
+
+    // Q-table keyed by "state" string -> [Q_trade, Q_ignore]
+    // State is per-agent identity: "id:<name>" to learn which specific agents are parasites despite disguise.
+    map<string, list<float>> Q <- map([]);
+
+    // Trust per agent id in [-1, +1], derived from Q preference
+    map<string, float> trust_memory <- map([]);
+
+    // Trade timing
+    int trade_cooldown <- 0;
+    int trade_cooldown_max <- 10;
+    float meet_distance <- 6.0;
+
+    // === BDI ===
+    string state <- "idle";
     string received_message <- nil;
 
-    reflex receive_message when: !empty(mailbox) {
-		message msg <- first(mailbox);
-        mailbox <- mailbox - msg;
-		string msg_contents <- string(msg.contents);
-		if (msg_contents contains "Return to Base") {
-            write name + " received storm warning! Adding escape desire.";
-            if (not has_belief(storm_warning_belief)) {
-                 do add_belief(storm_warning_belief);
-            }
-        }
-	}
-    
     // === BDI PREDICATES ===
-    // Beliefs
     predicate suffocating_belief <- new_predicate("suffocating");
     predicate starving_belief <- new_predicate("starving");
     predicate injured_belief <- new_predicate("injured");
     predicate should_retire_belief <- new_predicate("should_retire");
     predicate storm_warning_belief <- new_predicate("storm_warning");
 
-    // Desires
     predicate has_oxygen_desire <- new_predicate("has_oxygen");
     predicate has_energy_desire <- new_predicate("has_energy");
     predicate be_healthy_desire <- new_predicate("be_healthy");
@@ -266,93 +241,60 @@ species Human skills: [moving, fipa] control: simple_bdi{
     predicate retire_desire <- new_predicate("retire");
     predicate escape_storm_desire <- new_predicate("escape_storm");
 
-    init{
-        do add_desire(wander_desire); //Initial desire for everyone
+    init {
+        do add_desire(wander_desire);
     }
-   
+
+    reflex receive_message when: !empty(mailbox) {
+        message msg <- first(mailbox);
+        mailbox <- mailbox - msg;
+        string msg_contents <- string(msg.contents);
+        if (msg_contents contains "Return to Base") {
+            write name + " received storm warning! Adding escape desire.";
+            if (not has_belief(storm_warning_belief)) { do add_belief(storm_warning_belief); }
+        }
+    }
 
     // === RETIREMENT ===
-
     reflex update_eta {
-        // If retirement is disabled, don't update eta
-        if (not enable_retirement) {
-            return;
-        }
+        if (not enable_retirement) { return; }
         eta <- eta + eta_increment;
-
-        if (eta >= retirement_age)
-        {
-            do add_belief(should_retire_belief);
-        }
+        if (eta >= retirement_age) { do add_belief(should_retire_belief); }
     }
 
     // === PERCEPTION ===
     reflex perception {
-        // Oxygen
-        if (oxygen_level < oxygen_level_threshold)
-        {
-           if (not has_belief(suffocating_belief)) 
-            { 
-                do add_belief(suffocating_belief); 
-            }
-
-        }
-        else
-        {
-            if (has_belief(suffocating_belief))
-            {
-                do remove_belief(suffocating_belief);
-            }
+        if (oxygen_level < oxygen_level_threshold) {
+            if (not has_belief(suffocating_belief)) { do add_belief(suffocating_belief); }
+        } else {
+            if (has_belief(suffocating_belief)) { do remove_belief(suffocating_belief); }
         }
 
-        //Energy
-        if (energy_level < energy_level_threshold)
-        {
-            if (not has_belief(starving_belief))
-            {
-                do add_belief(starving_belief);
-            }
-        }
-        else
-        {
-            if (has_belief(starving_belief))
-            {
-                do remove_belief(starving_belief);
-            }
+        if (energy_level < energy_level_threshold) {
+            if (not has_belief(starving_belief)) { do add_belief(starving_belief); }
+        } else {
+            if (has_belief(starving_belief)) { do remove_belief(starving_belief); }
         }
 
-        // Health
-        if (health_level < health_level_threshold)
-        {
-            if (not has_belief(injured_belief))
-            {
-                do add_belief(injured_belief);
-            }
-        }
-        else
-        {
-            if (has_belief(injured_belief))
-            {
-                do remove_belief(injured_belief);
-            }
+        if (health_level < health_level_threshold) {
+            if (not has_belief(injured_belief)) { do add_belief(injured_belief); }
+        } else {
+            if (has_belief(injured_belief)) { do remove_belief(injured_belief); }
         }
     }
 
-    // === RULES (Belief -> Desire) === 
-    
-    //Max Priority 100
-    rule belief: storm_warning_belief new_desire: escape_storm_desire strength: 200.0; // Most important
+    // === RULES (Belief -> Desire) ===
+    rule belief: storm_warning_belief new_desire: escape_storm_desire strength: 200.0;
     rule belief: suffocating_belief new_desire: has_oxygen_desire strength: 100.0;
     rule belief: starving_belief new_desire: has_energy_desire strength: 25.0;
     rule belief: injured_belief new_desire: be_healthy_desire strength: 12.0;
     rule belief: should_retire_belief new_desire: retire_desire strength: 6.0;
 
     // === PLANS ===
-
     plan escape_storm intention: escape_storm_desire {
         state <- "escaping_storm";
         do goto target: habitat_dome.location speed: movement_speed;
-        
+
         if (habitat_dome.shape covers location) {
             write name + " escaped the storm.";
             do remove_belief(storm_warning_belief);
@@ -361,65 +303,55 @@ species Human skills: [moving, fipa] control: simple_bdi{
         }
     }
 
-    plan do_retire intention: retire_desire{
+    plan do_retire intention: retire_desire {
         state <- "retiring";
         do goto target: landing_pad.location speed: movement_speed;
-        
-        if (location distance_to landing_pad.location) <= facility_proximity {
-            write 'Agent ' + name + ' retired';
+
+        if ((location distance_to landing_pad.location) <= facility_proximity) {
+            write "Agent " + name + " retired";
             do die_and_update_counter;
         }
-
     }
 
     plan get_health intention: be_healthy_desire finished_when: health_level >= max_health_level {
-        // If I am at medbay i wait and queue
-        if (location distance_to habitat_dome.med_bay.location <= facility_proximity) {
-            state <- 'waiting_at_med_bay';
+        if ((location distance_to habitat_dome.med_bay.location) <= facility_proximity) {
+            state <- "waiting_at_med_bay";
             ask habitat_dome.med_bay { do add_to_queue(myself); }
         } else {
-            state <- 'going_to_med_bay';
+            state <- "going_to_med_bay";
             do goto target: habitat_dome.med_bay.location speed: movement_speed;
         }
 
-        // Clean the queue if we are done with the healing
         if (health_level >= max_health_level) {
-             ask habitat_dome.med_bay { do remove_from_queue(myself); }
-             do remove_belief(injured_belief);
+            ask habitat_dome.med_bay { do remove_from_queue(myself); }
+            do remove_belief(injured_belief);
         }
     }
 
-    plan get_oxygen intention: has_oxygen_desire finished_when:oxygen_level >= max_oxygen_level
-    {
-        if (location distance_to habitat_dome.oxygen_generator.location <= facility_proximity) {
-            state <- 'refilling_oxygen';
+    plan get_oxygen intention: has_oxygen_desire finished_when: oxygen_level >= max_oxygen_level {
+        if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
+            state <- "refilling_oxygen";
             oxygen_level <- min(max_oxygen_level, oxygen_level + oxygen_refill_rate);
         } else {
-            state <- 'going_to_oxygen';
+            state <- "going_to_oxygen";
             do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
         }
-        
-        if (oxygen_level >= max_oxygen_level) {
-            do remove_belief(suffocating_belief);
-        }
-    } 
+        if (oxygen_level >= max_oxygen_level) { do remove_belief(suffocating_belief); }
+    }
 
     plan get_energy intention: has_energy_desire finished_when: energy_level >= max_energy_level {
-        if (location distance_to habitat_dome.greenhouse.location <= facility_proximity) {
-            state <- 'refilling_energy';
+        if ((location distance_to habitat_dome.greenhouse.location) <= facility_proximity) {
+            state <- "refilling_energy";
             energy_level <- min(max_energy_level, energy_level + energy_refill_rate);
         } else {
-            state <- 'going_to_greenhouse';
+            state <- "going_to_greenhouse";
             do goto target: habitat_dome.greenhouse.location speed: movement_speed;
         }
-        
-        if (energy_level >= max_energy_level) {
-            do remove_belief(starving_belief);
-        }
+        if (energy_level >= max_energy_level) { do remove_belief(starving_belief); }
     }
 
     plan wander_around intention: wander_desire {
-        state <- 'idle';
+        state <- "idle";
         if (not (habitat_dome.shape covers location)) {
             do goto target: habitat_dome.location speed: movement_speed;
         } else {
@@ -428,243 +360,267 @@ species Human skills: [moving, fipa] control: simple_bdi{
     }
 
     // === Biological reflexes ===
-    // Run every step regardless of the plan
-
-    reflex update_oxygen{
-        if (habitat_dome.shape covers location)
-        {
-            oxygen_level <- max(0, oxygen_level - oxygen_decrease_rate);
-        }
-        else
-        {
-            float decrease <- oxygen_decrease_rate * oxygen_decrease_factor_in_wasteland;
-            if (wasteland.dust_storm and (wasteland.shape covers location)) {
-                 decrease <- decrease * 2.0; // Faster reduction
-            }
-            oxygen_level <- max(0, oxygen_level - decrease);
-        }
-    }
-
-    reflex update_energy{
-        // If moving -> drain more
-        if (state in ['going_to_oxygen', 'going_to_greenhouse', 'going_to_med_bay', 'going_to_oxygen_generator', 'retiring', 'going_to_mine', 'returning_to_dome', 'escaping_storm']) {
-            energy_level <- max(0, energy_level - energy_decrease_rate_when_moving);
+    reflex update_oxygen {
+        if (habitat_dome.shape covers location) {
+            oxygen_level <- max(0.0, oxygen_level - oxygen_decrease_rate);
         } else {
-            energy_level <- max(0, energy_level - energy_decrease_rate);
-        }
-        
-        // Add storm effect
-        if (wasteland.dust_storm and (wasteland.shape covers location)) {
-             energy_level <- max(0, energy_level - 1.0); // Extra drain
+            float decrease <- oxygen_decrease_rate * oxygen_decrease_factor_in_wasteland;
+            if (wasteland.dust_storm and (wasteland.shape covers location)) { decrease <- decrease * 2.0; }
+            oxygen_level <- max(0.0, oxygen_level - decrease);
         }
     }
 
-    reflex update_health when: oxygen_level <= 0 or energy_level <= 0{
-        health_level <- max(0, health_level - health_decrease_rate);
+    reflex update_energy {
+        if (state in ["going_to_oxygen", "going_to_greenhouse", "going_to_med_bay",
+                     "going_to_oxygen_generator", "retiring", "going_to_mine",
+                     "returning_to_dome", "escaping_storm"]) {
+            energy_level <- max(0.0, energy_level - energy_decrease_rate_when_moving);
+        } else {
+            energy_level <- max(0.0, energy_level - energy_decrease_rate);
+        }
+
+        if (wasteland.dust_storm and (wasteland.shape covers location)) {
+            energy_level <- max(0.0, energy_level - 1.0);
+        }
+    }
+
+    reflex update_health when: oxygen_level <= 0 or energy_level <= 0 {
+        health_level <- max(0.0, health_level - health_decrease_rate);
     }
 
     action die_and_update_counter {
-        if (self is Engineer) {
-            current_number_of_engineers <- max(0, current_number_of_engineers - 1);
-        } else if (self is Medic) {
-            current_number_of_medics <- max(0, current_number_of_medics - 1);
-        }
-        if (self is Scavenger) {
-            current_number_of_scavengers <- max(0, current_number_of_scavengers - 1);
-        }
-        if (self is Parasite) {
-            current_number_of_parasites <- max(0, current_number_of_parasites - 1);
-        }
-        if (self is Commander) {
-            current_number_of_commanders <- max(0, current_number_of_commanders - 1);
-        }
-
+        if (self is Engineer) { current_number_of_engineers <- max(0, current_number_of_engineers - 1); }
+        else if (self is Medic) { current_number_of_medics <- max(0, current_number_of_medics - 1); }
+        else if (self is Scavenger) { current_number_of_scavengers <- max(0, current_number_of_scavengers - 1); }
+        else if (self is Parasite) { current_number_of_parasites <- max(0, current_number_of_parasites - 1); }
+        else if (self is Commander) { current_number_of_commanders <- max(0, current_number_of_commanders - 1); }
         do die;
     }
 
     reflex death when: health_level <= 0 {
         string death_reason <- "";
-        if (oxygen_level <= 0) {
-            death_reason <- "suffocation";
-        } else if (energy_level <= 0) {
-            death_reason <- "starvation";
-        } else {
-            death_reason <- "health depletion";
-        }
-        write 'Agent ' + name + ' died from ' + death_reason;
+        if (oxygen_level <= 0) { death_reason <- "suffocation"; }
+        else if (energy_level <= 0) { death_reason <- "starvation"; }
+        else { death_reason <- "health depletion"; }
+        write "Agent " + name + " died from " + death_reason;
         do die_and_update_counter;
     }
-    
+
+    // =========================================================
+    // Q-LEARNING TRADE + PARASITE DISTINGUISHING (PER-AGENT)
+    // =========================================================
+
     action ensure_state_exists(string s) {
-	    if (!(Q contains_key s)) {
-	        Q[s] <- [0.0, 0.0]; // [Q_trade, Q_ignore]
-	    }
-	    if (!(trust_memory contains_key s)) {
-	        trust_memory[s] <- 0.0;
-	    }
-	}
-
-	action choose_action(string s) {
-	    // epsilon-greedy
-	    if (flip(epsilon)) { 
-	        return (flip(0.5) ? "TRADE" : "IGNORE");
-	    }
-	    list<float> qs <- Q[s];
-	    return (qs[0] >= qs[1] ? "TRADE" : "IGNORE");
-	}
-	
-	action update_q(string s, string a, float r) {
-	    do ensure_state_exists(s);
-	    int idx <- (a = "TRADE" ? 0 : 1);
-	    list<float> qs <- Q[s];
-	    float old <- qs[idx];
-	    // one-step update (gamma can stay 0 for this scenario)
-	    float updated <- old + alpha * (r - old);
-	    qs[idx] <- updated;
-	    Q[s] <- qs;
-	
-	    // derive trust from trade-vs-ignore preference and clamp to [-1, +1]
-	    float pref <- Q[s][0] - Q[s][1];
-	    trust_memory[s] <- max(-1.0, min(1.0, pref / 20.0)); // scale factor tune as needed
-	}
-	
-	reflex update_trade_cooldown when: trade_cooldown > 0 {
-	    trade_cooldown <- trade_cooldown - 1;
-	}
-	
-	float meet_distance <- 6.0;
-
-	reflex learn_and_trade when: trade_cooldown = 0 {
-	    // pick any nearby human except myself
-	    list<Human> nearby <- Human where (each != self and (each.location distance_to location) <= meet_distance);
-	    if (empty(nearby)) { return; }
-	
-	    Human partner <- one_of(nearby);
-	
-	    // State = observed role label (you can change this if you implement "disguise")
-	    string s <- partner.role; // "Engineer", "Medic", "Scavenger", "Parasite", etc.
-	    do ensure_state_exists(s);
-	
-	    string a <- choose_action(s);
-	    if (a = "IGNORE") {
-	        do update_q(s, a, 0.0); // neutral reward for ignoring
-	        trade_cooldown <- trade_cooldown_max;
-	        return;
-	    }
-	
-	    // Attempt trade (reward depends on reciprocal outcome)
-	    float reward <- attempt_trade(partner);
-	    do update_q(s, a, reward);
-	    happiness <- happiness + reward;
-	
-	    trade_cooldown <- trade_cooldown_max;
-	}
-	
-	action attempt_trade(Human partner) {
-	    // Basic example resources:
-	    // - Scavenger: raw_amount
-	    // - Medic: can heal
-	    // - Engineer: can repair generator
-	    // Parasite: takes but gives nothing back
-	
-	    bool i_gave <- false;
-	    bool partner_gave <- false;
-	
-	    // --- I give something partner wants ---
-	    if (self is Scavenger and raw_amount > 0 and partner.energy_level < max_energy_level) {
-	        raw_amount <- raw_amount - 1;
-	        i_gave <- true;
-	        ask partner { energy_level <- min(max_energy_level, energy_level + 20.0); }
-	    }
-	
-	    if (self is Medic and partner.health_level < max_health_level) {
-	        i_gave <- true;
-	        ask partner { health_level <- min(max_health_level, health_level + 30.0); }
-	    }
-	
-	    if (self is Engineer and habitat_dome.oxygen_generator.is_broken) {
-	        // you can also treat "repair" as a service offered to others; this is just illustrative
-	        i_gave <- true;
-	        // service given could be represented by fixing shared infra
-	        habitat_dome.oxygen_generator.is_broken <- false;
-	    }
-	
-	    // --- Partner gives something I want ---
-	    // Parasite never reciprocates:
-	    if (partner is Parasite) {
-	        // parasite may still "take" (we already allowed i_gave), but gives nothing
-	        partner_gave <- false;
-	    } else {
-	        // non-parasite reciprocation rules:
-	        if (partner is Scavenger) {
-	            int their_raw <- 0;
-	            ask partner { their_raw <- raw_amount; }
-	            if (their_raw > 0 and energy_level < max_energy_level) {
-	                ask partner { raw_amount <- raw_amount - 1; }
-	                energy_level <- min(max_energy_level, energy_level + 20.0);
-	                partner_gave <- true;
-	            }
-	        }
-	        if (partner is Medic and health_level < max_health_level) {
-	            health_level <- min(max_health_level, health_level + 30.0);
-	            partner_gave <- true;
-	        }
-	        if (partner is Engineer and habitat_dome.oxygen_generator.is_broken) {
-	            habitat_dome.oxygen_generator.is_broken <- false;
-	            partner_gave <- true;
-	        }
-	    }
-	
-	    // --- Reward shaping ---
-	    if (i_gave and partner_gave) { 
-	        return 10.0;    // successful reciprocal trade
-	    }
-	    if (i_gave and !partner_gave) { 
-	        return -20.0;   // scammed (parasite signature)
-	    }
-	    // If no one could help (trade useless), mild negative or zero
-	    return -1.0;
-	}
-	
-	
-       
-
-    aspect base {
-        draw circle(3) color: human_color border: human_border_color;
+        if (!(Q contains_key s)) { Q[s] <- [0.0, 0.0]; } // [Q_trade, Q_ignore]
+        if (!(trust_memory contains_key s)) { trust_memory[s] <- 0.0; }
     }
 
+    action choose_action(string s) {
+        if (flip(epsilon)) { return (flip(0.5) ? "TRADE" : "IGNORE"); }
+        list<float> qs <- Q[s];
+        return (qs[0] >= qs[1] ? "TRADE" : "IGNORE");
+    }
+
+    action update_q(string s, string a, float r) {
+        do ensure_state_exists(s);
+        int idx <- (a = "TRADE" ? 0 : 1);
+
+        list<float> qs <- Q[s];
+        float old <- qs[idx];
+        float updated <- old + alpha * (r - old);
+        qs[idx] <- updated;
+        Q[s] <- qs;
+
+        float pref <- Q[s][0] - Q[s][1];
+        trust_memory[s] <- max(-1.0, min(1.0, pref / 20.0));
+    }
+
+    reflex update_trade_cooldown when: trade_cooldown > 0 {
+        trade_cooldown <- trade_cooldown - 1;
+    }
+
+    // Learning-triggered interaction:
+    // - State key uses partner identity ("id:<name>") so agents can learn “this specific agent is a parasite”
+    //   even if the parasite "looks like" a legit presented role.
+    reflex learn_and_trade when: trade_cooldown = 0 {
+        list<Human> nearby <- Human where (each != self and (each.location distance_to location) <= meet_distance);
+        if (empty(nearby)) { return; }
+
+        Human partner <- one_of(nearby);
+
+        string s <- "id:" + partner.name;
+        do ensure_state_exists(s);
+
+        string a <- choose_action(s);
+        if (a = "IGNORE") {
+            do update_q(s, a, 0.0);
+            trade_cooldown <- trade_cooldown_max;
+            return;
+        }
+
+        float reward <- attempt_trade(partner);
+        do update_q(s, a, reward);
+        happiness <- happiness + reward;
+
+        trade_cooldown <- trade_cooldown_max;
+    }
+
+    // Trade protocol:
+    // - Legit agents may reciprocate.
+    // - Parasite NEVER reciprocates, and tries to extract value if it initiates.
+    // Reward is from the initiator's perspective:
+    // +10 if both gave, -20 if initiator gave but partner did not, -1 otherwise.
+    action attempt_trade(Human partner) {
+        bool i_gave <- false;
+        bool partner_gave <- false;
+
+        // -------------------------
+        // INITIATOR gives first
+        // -------------------------
+        if (!(self is Parasite)) {
+            // Scavenger gives "raw" converted to partner energy
+            if (self is Scavenger and raw_amount > 0 and partner.energy_level < max_energy_level) {
+                raw_amount <- raw_amount - 1;
+                i_gave <- true;
+                ask partner { energy_level <- min(max_energy_level, energy_level + 20.0); }
+            }
+
+            // Medic gives healing
+            if (self is Medic and partner.health_level < max_health_level) {
+                i_gave <- true;
+                ask partner { health_level <- min(max_health_level, health_level + 30.0); }
+            }
+
+            // Engineer gives repair service (public good)
+            if (self is Engineer and habitat_dome.oxygen_generator.is_broken) {
+                i_gave <- true;
+                habitat_dome.oxygen_generator.is_broken <- false;
+            }
+
+            // Commander can also "help" by topping up slightly (optional)
+            if (self is Commander and (partner.oxygen_level < max_oxygen_level or partner.energy_level < max_energy_level)) {
+                i_gave <- true;
+                ask partner {
+                    oxygen_level <- min(max_oxygen_level, oxygen_level + 10.0);
+                    energy_level <- min(max_energy_level, energy_level + 10.0);
+                }
+            }
+        }
+
+        // -------------------------
+        // PARTNER reciprocates
+        // -------------------------
+        if (partner is Parasite) {
+            partner_gave <- false; // scam: never returns anything
+        } else {
+            // Partner is legit: may reciprocate based on its capabilities
+            if (partner is Scavenger and energy_level < max_energy_level) {
+                int their_raw <- 0;
+                ask partner { their_raw <- raw_amount; }
+                if (their_raw > 0) {
+                    ask partner { raw_amount <- raw_amount - 1; }
+                    energy_level <- min(max_energy_level, energy_level + 20.0);
+                    partner_gave <- true;
+                }
+            }
+
+            if (partner is Medic and health_level < max_health_level) {
+                health_level <- min(max_health_level, health_level + 30.0);
+                partner_gave <- true;
+            }
+
+            if (partner is Engineer and habitat_dome.oxygen_generator.is_broken) {
+                habitat_dome.oxygen_generator.is_broken <- false;
+                partner_gave <- true;
+            }
+
+            if (partner is Commander) {
+                oxygen_level <- min(max_oxygen_level, oxygen_level + 10.0);
+                energy_level <- min(max_energy_level, energy_level + 10.0);
+                partner_gave <- true;
+            }
+        }
+
+        // -------------------------
+        // Parasite extraction if it initiates
+        // (If SELF is parasite, try to take without giving)
+        // -------------------------
+        if (self is Parasite) {
+            // Try to steal a raw unit from a scavenger partner (or any partner who has raw_amount)
+            int their_raw2 <- 0;
+            ask partner { their_raw2 <- raw_amount; }
+            if (their_raw2 > 0) {
+                ask partner { raw_amount <- raw_amount - 1; }
+                raw_amount <- raw_amount + 1;
+            }
+            // Parasite gains; it never gives
+            i_gave <- false;
+            partner_gave <- true; // from parasite’s perspective, it “received”
+        }
+
+        // -------------------------
+        // Reward shaping (initiator)
+        // -------------------------
+        if (i_gave and partner_gave) { return 10.0; }
+        if (i_gave and !partner_gave) { return -20.0; }
+        return -1.0;
+    }
+
+    // === Appearance helpers ===
+    action color_for_presented_role {
+        if (presented_role = "Engineer") { return engineer_color; }
+        if (presented_role = "Medic") { return medic_color; }
+        if (presented_role = "Scavenger") { return scavenger_color; }
+        if (presented_role = "Commander") { return commander_color; }
+        if (presented_role = "Parasite") { return parasite_color; }
+        return human_color;
+    }
+
+    action border_for_presented_role {
+        if (presented_role = "Engineer") { return engineer_border_color; }
+        if (presented_role = "Medic") { return medic_border_color; }
+        if (presented_role = "Scavenger") { return scavenger_border_color; }
+        if (presented_role = "Commander") { return commander_border_color; }
+        if (presented_role = "Parasite") { return parasite_border_color; }
+        return human_border_color;
+    }
+
+    aspect base {
+        // IMPORTANT: agents are drawn by presented_role, so Parasites visually blend in.
+        draw circle(3) color: (color_for_presented_role) border: border_for_presented_role;
+    }
 }
 
+
+// ================== ROLES ==================
+
 species Engineer parent: Human {
-    
     predicate generator_broken_belief <- new_predicate("generator_broken");
     predicate fix_generator_desire <- new_predicate("fix_generator");
 
+    init {
+        role <- "Engineer";
+        presented_role <- "Engineer";
+    }
+
     reflex check_generator {
         if (habitat_dome.oxygen_generator.is_broken) {
-            if (not has_belief(generator_broken_belief)) 
-                { 
-                    do add_belief(generator_broken_belief);
-                }
+            if (not has_belief(generator_broken_belief)) { do add_belief(generator_broken_belief); }
         }
     }
 
     rule belief: generator_broken_belief new_desire: fix_generator_desire strength: 9.0;
 
     plan fix_generator intention: fix_generator_desire {
-        if (location distance_to habitat_dome.oxygen_generator.location <= facility_proximity) {
+        if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
             habitat_dome.oxygen_generator.is_broken <- false;
             do remove_belief(generator_broken_belief);
-            do remove_intention(fix_generator_desire, true); // Done
-            state <- 'idle';
+            do remove_intention(fix_generator_desire, true);
+            state <- "idle";
         } else {
-             state <- 'going_to_oxygen_generator';
-             do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
+            state <- "going_to_oxygen_generator";
+            do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
         }
-    }
-
-    aspect base {
-        draw circle(3) color: engineer_color border: engineer_border_color;
     }
 }
 
@@ -674,205 +630,189 @@ species Medic parent: Human {
     predicate patients_waiting_belief <- new_predicate("patients_waiting");
     predicate heal_patients_desire <- new_predicate("heal_patients");
 
-    reflex update_medic_biologicals {
-         // Medic at medbay does not lose hunger/oxygen (optional rule from spec)
-         if (location distance_to habitat_dome.med_bay.location <= facility_proximity) {
-            if (has_belief(starving_belief)) 
-                { 
-                    do remove_belief(starving_belief); 
-                }
-            // Could also stop oxygen drain, but let's keep it simple
-            // TODO
-         }
+    init {
+        role <- "Medic";
+        presented_role <- "Medic";
     }
-    
-    reflex check_queue {
-        if (not empty(habitat_dome.med_bay.waiting_queue)) {
-             if (not has_belief(patients_waiting_belief)) { do add_belief(patients_waiting_belief); }
-        } else {
-             if (has_belief(patients_waiting_belief)) { do remove_belief(patients_waiting_belief); }
+
+    reflex update_medic_biologicals {
+        if ((location distance_to habitat_dome.med_bay.location) <= facility_proximity) {
+            if (has_belief(starving_belief)) { do remove_belief(starving_belief); }
         }
     }
 
-    // Need to fit the value of all this beliefs so that we have a ranking
+    reflex check_queue {
+        if (not empty(habitat_dome.med_bay.waiting_queue)) {
+            if (not has_belief(patients_waiting_belief)) { do add_belief(patients_waiting_belief); }
+        } else {
+            if (has_belief(patients_waiting_belief)) { do remove_belief(patients_waiting_belief); }
+        }
+    }
+
     rule belief: patients_waiting_belief new_desire: heal_patients_desire strength: 7.0;
-    
+
     plan heal_others intention: heal_patients_desire {
-        // Go to medbay
-        if (location distance_to habitat_dome.med_bay.location > facility_proximity) {
-            state <- 'going_to_med_bay';
+        if ((location distance_to habitat_dome.med_bay.location) > facility_proximity) {
+            state <- "going_to_med_bay";
             do goto target: habitat_dome.med_bay.location speed: movement_speed;
         } else {
-            // At medbay
-            state <- 'healing';
-            
-            // Pick a patient and heal
+            state <- "healing";
+
             if (current_patient = nil and not empty(habitat_dome.med_bay.waiting_queue)) {
                 Human potential_patient <- habitat_dome.med_bay.waiting_queue[0];
                 if (potential_patient != nil and not dead(potential_patient)) {
                     current_patient <- potential_patient;
                 } else {
-                    // Clean dead
                     ask habitat_dome.med_bay { do remove_from_queue(potential_patient); }
                 }
             }
-            
+
             if (current_patient != nil) {
-                 // Heal them
-                 ask current_patient {
+                ask current_patient {
                     health_level <- max_health_level;
                     oxygen_level <- max_oxygen_level;
                     energy_level <- max_energy_level;
-                 }
-                 write 'Medic ' + name + ' healed ' + current_patient.name;
-                 ask habitat_dome.med_bay { do remove_from_queue(myself.current_patient); }
-                 current_patient <- nil;
+                }
+                write "Medic " + name + " healed " + current_patient.name;
+				Human healed <- current_patient;
+				ask habitat_dome.med_bay { do remove_from_queue(healed); }
+				current_patient <- nil;
+
             } else {
-                // Queue empty
                 do remove_belief(patients_waiting_belief);
                 do remove_intention(heal_patients_desire, true);
             }
         }
     }
-    
-    aspect base {
-        draw circle(3) color: medic_color border: medic_border_color;
-    }
 }
 
 species Scavenger parent: Human {
-
-    //Variables 
-    float mining_start_time;
+    float mining_start_time <- 0.0;
 
     predicate mission_time_belief <- new_predicate("mission_time");
     predicate mine_desire <- new_predicate("mine_resources");
 
+    init {
+        role <- "Scavenger";
+        presented_role <- "Scavenger";
+    }
+
     reflex trigger_mission {
-        // Randomly decide to go on a mission if idle
         if (flip(scavenger_mission_probability) and not has_belief(mission_time_belief)) {
             do add_belief(mission_time_belief);
         }
     }
 
-    // TO FIT
     rule belief: mission_time_belief new_desire: mine_desire strength: 5.0;
 
     plan perform_mining intention: mine_desire {
-        if (location distance_to rock_mine.location > facility_proximity and mining_start_time = 0.0) {
-            state <- 'going_to_mine';
+        if ((location distance_to rock_mine.location) > facility_proximity and mining_start_time = 0.0) {
+            state <- "going_to_mine";
             do goto target: rock_mine.location speed: movement_speed;
         } else {
-            // At mine
             if (mining_start_time = 0.0) {
                 mining_start_time <- time;
-                state <- 'mining';
+                state <- "mining";
             }
-            
+
             if (time - mining_start_time >= 5.0) {
-                // Done mining
-                state <- 'returning_to_dome';
+                state <- "returning_to_dome";
                 do goto target: habitat_dome.location speed: movement_speed;
-                
-                if (location distance_to habitat_dome.location <= facility_proximity) {
-                     raw_amount <- raw_amount + 5;
-                     mining_start_time <- 0.0; // Reset
-                     do remove_belief(mission_time_belief);
-                     do remove_intention(mine_desire, true);
-                     state <- 'idle';
+
+                if ((location distance_to habitat_dome.location) <= facility_proximity) {
+                    raw_amount <- raw_amount + 5;
+                    mining_start_time <- 0.0;
+                    do remove_belief(mission_time_belief);
+                    do remove_intention(mine_desire, true);
+                    state <- "idle";
                 }
             } else {
-                state <- 'mining';
+                state <- "mining";
             }
         }
     }
-    
-    aspect base {
-        draw circle(3) color: scavenger_color border: scavenger_border_color;
-    }
 }
 
+// Parasite: true role = Parasite, but presented_role is randomized to appear legit.
+// This is the requested “randomly initiate as legit agents”.
 species Parasite parent: Human {
-    aspect base {
-        draw circle(3) color: parasite_color border: parasite_border_color;
+
+    init {
+        role <- "Parasite";
+        presented_role <- one_of(["Engineer", "Medic", "Scavenger", "Commander"]);
+        // Make parasites push interactions more often
+        trade_cooldown_max <- 5;
+        meet_distance <- 8.0;
     }
 }
 
-species Commander parent: Human{
+species Commander parent: Human {
+
+    init {
+        role <- "Commander";
+        presented_role <- "Commander";
+    }
 
     reflex check_storm {
         if (wasteland.dust_storm) {
             list<Human> agents_in_wasteland <- Human where (wasteland.shape covers each.location);
             if (!empty(agents_in_wasteland)) {
-                do start_conversation to: agents_in_wasteland protocol: 'fipa-propose' performative: 'propose' contents: ['Return to Base'];
+                do start_conversation to: agents_in_wasteland protocol: "fipa-propose"
+                   performative: "propose" contents: ["Return to Base"];
                 write "Commander sent 'Return to Base' to " + length(agents_in_wasteland) + " agents.";
             }
         }
     }
-
-    aspect base {
-        draw circle(3) color: commander_color border: commander_border_color;
-    }
 }
 
-// ========== PLACES ==========
 
-// Habitat Dome: Safe zone containing Greenhouse and Oxygen Generator
+// ================== PLACES ==================
+
 species HabitatDome {
-    geometry shape <- rectangle(250, 250); // Safe zone area
-    
-    // Facilities within the dome
+    geometry shape <- rectangle(250, 250);
+
     Greenhouse greenhouse;
     OxygenGenerator oxygen_generator;
     MedBay med_bay;
-    
+
     init {
-        location <- point(200, 200); // Center of the dome
-        shape <- shape at_location location; // Position the shape at location
-        
-        point dome_center <- location; // Store dome center for facility positioning
-        
-        // Create facilities inside the dome
+        location <- point(200, 200);
+        shape <- shape at_location location;
+
+        point dome_center <- location;
+
         create Greenhouse number: 1 returns: greenhouses;
         greenhouse <- greenhouses[0];
-        ask greenhouse {
-            location <- dome_center + point(-80, 0); // Position relative to dome center
-        }
-        
+        ask greenhouse { location <- dome_center + point(-80, 0); }
+
         create OxygenGenerator number: 1 returns: generators;
         oxygen_generator <- generators[0];
-        ask oxygen_generator {
-            location <- dome_center + point(80, 0); // Position relative to dome center
-        }
-        
+        ask oxygen_generator { location <- dome_center + point(80, 0); }
+
         create MedBay number: 1 returns: med_bays;
         med_bay <- med_bays[0];
-        ask med_bay {
-            location <- dome_center + point(0, -80); // Position relative to dome center
-        }
+        ask med_bay { location <- dome_center + point(0, -80); }
     }
-    
+
     aspect base {
         draw shape color: habitat_dome_color border: habitat_dome_border_color;
         draw "Habitat Dome" at: location color: #black;
     }
 }
 
-// Greenhouse: Provides food/energy
 species Greenhouse {
     point location;
-    
+
     aspect base {
         draw circle(5) color: greenhouse_color border: greenhouse_border_color;
         draw "Greenhouse" at: location color: #black;
     }
 }
 
-// Oxygen Generator: Provides oxygen (can break and need repair)
 species OxygenGenerator {
     point location;
     bool is_broken <- false;
-    
+
     aspect base {
         if (is_broken) {
             draw circle(5) color: #red border: #darkred;
@@ -888,15 +828,14 @@ species OxygenGenerator {
     }
 }
 
-// Wasteland: Dangerous zone with no oxygen, but has raw materials
 species Wasteland {
-    geometry shape <- rectangle(100, 100); // Large dangerous area
+    geometry shape <- rectangle(100, 100);
     bool dust_storm <- false;
     int storm_timer <- 0;
-    
+
     init {
-        location <- point(50, 50); // Positioned away from safe zone
-        shape <- shape at_location location; // Position the shape at location
+        location <- point(50, 50);
+        shape <- shape at_location location;
     }
 
     reflex manage_storm {
@@ -907,14 +846,14 @@ species Wasteland {
                 write "Dust storm ended.";
             }
         } else {
-            if (flip(0.01)) { // 1/100 probability
+            if (flip(0.01)) {
                 dust_storm <- true;
                 storm_timer <- 15;
                 write "Dust storm started in Wasteland!";
             }
         }
     }
-    
+
     aspect base {
         if (dust_storm) {
             draw shape color: #orange border: wasteland_border_color;
@@ -926,54 +865,29 @@ species Wasteland {
     }
 }
 
-// Med-Bay: Where medics work to restore health
 species MedBay {
     point location;
     list<Human> waiting_queue <- [];
-    
+
     action add_to_queue(Human human) {
-        if (human != nil) {
-            string agent_name <- "";
-            ask human {
-                agent_name <- name;
-            }
-            //write 'Agent ' + agent_name + ' added to the queue';
-            if (not (waiting_queue contains human)) {
-                waiting_queue <- waiting_queue + [human];
-            }
+        if (human != nil and not (waiting_queue contains human)) {
+            waiting_queue <- waiting_queue + [human];
         }
     }
-    
+
     action remove_from_queue(Human human) {
         if (human != nil and waiting_queue contains human) {
-            string agent_name <- "Unknown";
-            bool is_alive <- false;
-            ask human {
-                if (health_level > 0) {
-                    is_alive <- true;
-                    agent_name <- name;
-                }
-            }
-            if (is_alive) {
-                //write 'Agent ' + agent_name + ' removed from the queue';
-            } else {
-                //write 'Dead agent removed from the queue';
-            }
             waiting_queue <- waiting_queue - [human];
         }
     }
-    
+
     reflex cleanup_dead_agents {
         list<Human> dead_agents <- [];
         loop patient over: waiting_queue {
+            bool alive <- false;
             if (patient != nil) {
-                bool is_alive <- false;
-                ask patient {
-                    is_alive <- (health_level > 0);
-                }
-                if (not is_alive) {
-                    dead_agents <- dead_agents + [patient];
-                }
+                ask patient { alive <- (health_level > 0); }
+                if (not alive) { dead_agents <- dead_agents + [patient]; }
             } else {
                 dead_agents <- dead_agents + [patient];
             }
@@ -982,12 +896,12 @@ species MedBay {
             waiting_queue <- waiting_queue - [dead_agent];
         }
     }
-    
+
     aspect base {
         int queue_size <- length(waiting_queue);
         rgb display_color <- med_bay_color;
         rgb display_border_color <- med_bay_border_color;
-        
+
         bool medic_present <- false;
         loop medic over: list(Medic) {
             if ((medic.location distance_to location) <= facility_proximity) {
@@ -995,49 +909,43 @@ species MedBay {
                 break;
             }
         }
-        
+
         if (queue_size > 0) {
             display_color <- med_bay_queue_color;
             display_border_color <- med_bay_queue_border_color;
         }
-        
+
         draw square(10) color: display_color border: display_border_color;
         draw "Med-Bay" at: location color: med_bay_text_color;
-        if (queue_size > 0) {
-            draw "Queue: " + queue_size at: location + {0, -15} color: med_bay_text_color;
-        }
-        if (medic_present) {
-            draw "Medic: Present" at: location + {0, -30} color: med_bay_text_color;
-        } else {
-            draw "Medic: None" at: location + {0, -30} color: med_bay_text_color;
-        }
+        if (queue_size > 0) { draw "Queue: " + queue_size at: location + {0, -15} color: med_bay_text_color; }
+        draw (medic_present ? "Medic: Present" : "Medic: None") at: location + {0, -30} color: med_bay_text_color;
     }
 }
 
-// Landing Pad: Where new agents spawn
 species LandingPad {
-    point location <- point(50, 200); // Positioned away from main activity
-    
+    point location <- point(50, 200);
+
     aspect base {
         draw rectangle(15, 15) color: landing_pad_color border: landing_pad_border_color;
         draw "Landing Pad" at: location color: #black;
     }
 }
 
-species RockMine{
-    point location <- point(50,50); // Positioned in the middle of the Wasteland
+species RockMine {
+    point location <- point(50, 50);
 
-	aspect base{
-        draw rectangle(20,20) color: mine_color border: mine_color_border;
+    aspect base {
+        draw rectangle(20, 20) color: mine_color border: mine_color_border;
         draw "Mine" at: location color: #black;
     }
 }
 
-// ========== EXPERIMENT ==========
+
+// ================== EXPERIMENT ==================
 
 experiment MarsColony type: gui {
-	
-	output {	
+
+    output {
         display TheMarsColony {
             species LandingPad aspect: base;
             species HabitatDome aspect: base;
@@ -1051,12 +959,11 @@ experiment MarsColony type: gui {
             species Parasite aspect: base;
             species Commander aspect: base;
             species RockMine aspect: base;
-            
-            
-	    }
-	    
-        inspect "Agent Beliefs" type: table value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) attributes: ['name', 'beliefs', 'oxygen_level', 'energy_level', 'health_level', 'state', 'is_ok', 'raw_amount'];
-	
-	}
-	
+        }
+
+        // Added: learning visibility
+        inspect "Agent State" type: table
+            value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander))
+            attributes: ['name','role','presented_role','happiness','oxygen_level','energy_level','health_level','state','raw_amount','trust_memory'];
+    }
 }
