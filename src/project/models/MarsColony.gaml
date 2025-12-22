@@ -577,7 +577,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     aspect base {
-        draw circle(3) color: #white border: #black;
+        draw circle(3) color: human_color border: human_border_color;
     }
 }
 
@@ -615,7 +615,7 @@ species Engineer parent: Human {
     }
 
     aspect base {
-        draw circle(3) color: #white border: #black;
+        draw circle(3) color: engineer_color border: engineer_border_color;
     }
 }
 
@@ -681,7 +681,7 @@ species Medic parent: Human {
     }
 
     aspect base {
-        draw circle(3) color: #white border: #black;
+        draw circle(3) color: medic_color border: medic_border_color;
     }
 }
 
@@ -733,7 +733,7 @@ species Scavenger parent: Human {
     }
 
     aspect base {
-        draw circle(3) color: #white border: #black;
+        draw circle(3) color: scavenger_color border: scavenger_border_color;
     }
 }
 
@@ -747,7 +747,7 @@ species Parasite parent: Human {
     }
 
     aspect base {
-        draw circle(3) color: #white border: #black;
+        draw circle(3) color: parasite_color border: parasite_border_color;
     }
 }
 
@@ -769,7 +769,7 @@ species Commander parent: Human {
     }
 
     aspect base {
-        draw circle(3) color: #white border: #black;
+        draw circle(3) color: commander_color border: commander_border_color;
     }
 }
 
