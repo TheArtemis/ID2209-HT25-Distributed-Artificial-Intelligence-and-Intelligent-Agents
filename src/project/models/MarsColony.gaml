@@ -158,10 +158,6 @@ global {
 
     reflex supply_shuttle when: enable_supply_shuttle {
         int total_colonists <- length(list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander));
-        
-        if (cycle mod 100 = 0) {
-            write "DEBUG [supply_shuttle] cycle " + cycle + ", total_colonists before spawn: " + total_colonists;
-        }
 
         map<string, list<float>> q_sums <- map([]);
         map<string, int> q_counts <- map([]);
@@ -298,10 +294,6 @@ global {
         avg_trust_to_non_parasites <- (cnt_non > 0 ? sum_non / float(cnt_non) : 0.0);
         precision <- ((tp0 + fp0) > 0 ? float(tp0) / float(tp0 + fp0) : 0.0);
         recall <- ((tp0 + fn0) > 0 ? float(tp0) / float(tp0 + fn0) : 0.0);
-        
-        if (cycle mod 100 = 0) {
-            write "DEBUG [metrics] agents: " + total_agents + ", trades_this_tick: " + trades_this_tick + ", trust_entries: " + (cnt_par + cnt_non) + ", cnt_par: " + cnt_par + ", cnt_non: " + cnt_non + ", avg_trust_par: " + avg_trust_to_parasites + ", avg_trust_non: " + avg_trust_to_non_parasites + ", precision: " + precision + ", recall: " + recall;
-        }
     }
 }
 
@@ -566,7 +558,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
         
         if (empty(nearby)) { 
-            if (cycle mod 500 = 0) { write name + " checked " + length(all_humans) + " humans, found 0 nearby at cycle " + cycle; }
             return; 
         }
 
