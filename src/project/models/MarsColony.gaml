@@ -79,11 +79,11 @@ global {
     }
 
     // === GLOBAL VARIABLES ===
-    int desired_number_of_engineers <- 2;
-    int desired_number_of_medics <- 2;
-    int desired_number_of_scavengers <- 2;
-    int desired_number_of_parasites <- 2;
-    int desired_number_of_commanders <- 1;
+    int desired_number_of_engineers <- 5;
+    int desired_number_of_medics <- 5;
+    int desired_number_of_scavengers <- 5;
+    int desired_number_of_parasites <- 5;
+    int desired_number_of_commanders <- 2;
 
     // Cap the total number of agents in the colony
     int max_colony_size <- 60;
@@ -95,11 +95,11 @@ global {
     int current_number_of_commanders <- 0;
 
     // === HEALTH ===
-    float oxygen_decrease_rate <- 0.5;
+    float oxygen_decrease_rate <- 0.01;
     float oxygen_decrease_factor_in_wasteland <- 1.2;
 
-    float energy_decrease_rate <- 0.2;
-    float energy_decrease_rate_when_moving <- 1.0;
+    float energy_decrease_rate <- 0.005;
+    float energy_decrease_rate_when_moving <- 0.01;
     float health_decrease_rate <- 1.0;
 
     float oxygen_level_threshold <- max_oxygen_level * 0.2;
@@ -129,6 +129,13 @@ global {
     // === SIMULATION STATE ===
     bool first_shuttle_arrived <- false;
 
+    // === LEARNING METRICS (aggregated) ===
+    float avg_trust_to_parasites <- 0.0;
+    float avg_trust_to_non_parasites <- 0.0;
+    float precision <- 0.0; // TP / (TP + FP)
+    float recall <- 0.0;    // TP / (TP + FN)
+    int total_trades <- 0;
+
     init {
         create HabitatDome number: 1 returns: domes;
         habitat_dome <- domes[0];
@@ -150,14 +157,18 @@ global {
     }
 
     reflex supply_shuttle when: enable_supply_shuttle {
-        int total_colonists <- length(list(Human));
+        int total_colonists <- length(list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander));
+        
+        if (cycle mod 100 = 0) {
+            write "DEBUG [supply_shuttle] cycle " + cycle + ", total_colonists before spawn: " + total_colonists;
+        }
 
         map<string, list<float>> q_sums <- map([]);
         map<string, int> q_counts <- map([]);
         map<string, float> trust_sums <- map([]);
         map<string, int> trust_counts <- map([]);
 
-        loop survivor over: list(Human) {
+        loop survivor over: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) {
             loop k over: keys(survivor.Q) {
                 list<float> vals <- survivor.Q[k];
                 list<float> acc <- (q_sums contains_key k ? q_sums[k] : [0.0, 0.0]);
@@ -213,7 +224,7 @@ global {
             if (delta_engineers > 0 and max_to_spawn > 0) {
                 int to_spawn <- min(delta_engineers, max_to_spawn);
                 create Engineer number: to_spawn returns: new_engineers;
-                ask new_engineers { location <- landing_pad.location; if (!empty(keys(q_avg))) { Q <- q_avg; } if (!empty(keys(trust_avg))) { trust_memory <- trust_avg; } }
+                ask new_engineers { location <- habitat_dome.location; oxygen_level <- max_oxygen_level; energy_level <- max_energy_level; }
                 engineers <- engineers + new_engineers;
                 current_number_of_engineers <- current_number_of_engineers + to_spawn;
                 max_to_spawn <- max_to_spawn - to_spawn;
@@ -221,7 +232,7 @@ global {
             if (delta_medics > 0 and max_to_spawn > 0) {
                 int to_spawn <- min(delta_medics, max_to_spawn);
                 create Medic number: to_spawn returns: new_medics;
-                ask new_medics { location <- landing_pad.location; if (!empty(keys(q_avg))) { Q <- q_avg; } if (!empty(keys(trust_avg))) { trust_memory <- trust_avg; } }
+                ask new_medics { location <- habitat_dome.location; oxygen_level <- max_oxygen_level; energy_level <- max_energy_level; }
                 medics <- medics + new_medics;
                 current_number_of_medics <- current_number_of_medics + to_spawn;
                 max_to_spawn <- max_to_spawn - to_spawn;
@@ -229,7 +240,7 @@ global {
             if (delta_scavengers > 0 and max_to_spawn > 0) {
                 int to_spawn <- min(delta_scavengers, max_to_spawn);
                 create Scavenger number: to_spawn returns: new_scavengers;
-                ask new_scavengers { location <- landing_pad.location; if (!empty(keys(q_avg))) { Q <- q_avg; } if (!empty(keys(trust_avg))) { trust_memory <- trust_avg; } }
+                ask new_scavengers { location <- habitat_dome.location; oxygen_level <- max_oxygen_level; energy_level <- max_energy_level; }
                 scavengers <- scavengers + new_scavengers;
                 current_number_of_scavengers <- current_number_of_scavengers + to_spawn;
                 max_to_spawn <- max_to_spawn - to_spawn;
@@ -237,7 +248,7 @@ global {
             if (delta_parasites > 0 and max_to_spawn > 0) {
                 int to_spawn <- min(delta_parasites, max_to_spawn);
                 create Parasite number: to_spawn returns: new_parasites;
-                ask new_parasites { location <- landing_pad.location; if (!empty(keys(q_avg))) { Q <- q_avg; } if (!empty(keys(trust_avg))) { trust_memory <- trust_avg; } }
+                ask new_parasites { location <- habitat_dome.location; oxygen_level <- max_oxygen_level; energy_level <- max_energy_level; }
                 parasites <- parasites + new_parasites;
                 current_number_of_parasites <- current_number_of_parasites + to_spawn;
                 max_to_spawn <- max_to_spawn - to_spawn;
@@ -245,11 +256,51 @@ global {
             if (delta_commanders > 0 and max_to_spawn > 0) {
                 int to_spawn <- min(delta_commanders, max_to_spawn);
                 create Commander number: to_spawn returns: new_commanders;
-                ask new_commanders { location <- landing_pad.location; if (!empty(keys(q_avg))) { Q <- q_avg; } if (!empty(keys(trust_avg))) { trust_memory <- trust_avg; } }
+                ask new_commanders { location <- habitat_dome.location; oxygen_level <- max_oxygen_level; energy_level <- max_energy_level; }
                 commanders <- commanders + new_commanders;
                 current_number_of_commanders <- current_number_of_commanders + to_spawn;
                 max_to_spawn <- max_to_spawn - to_spawn;
             }
+        }
+    }
+
+    // Aggregate trust and detection metrics each tick
+    reflex update_learning_metrics {
+        int total_agents <- length(list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander));
+        int trades_this_tick <- total_trades;
+        total_trades <- 0;
+        
+        map<string, bool> is_parasite_by_id <- map([]);
+        loop h over: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) {
+            is_parasite_by_id["id:" + h.name] <- (h is Parasite);
+        }
+
+        float sum_par <- 0.0; int cnt_par <- 0;
+        float sum_non <- 0.0; int cnt_non <- 0;
+        int tp0 <- 0; int fp0 <- 0; int fn0 <- 0; int tn0 <- 0;
+
+        loop h over: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) {
+            loop k over: keys(h.trust_memory) {
+                float v <- h.trust_memory[k];
+                bool gt_par <- ((is_parasite_by_id contains_key k) ? is_parasite_by_id[k] : false);
+                if (gt_par) { sum_par <- sum_par + v; cnt_par <- cnt_par + 1; }
+                else { sum_non <- sum_non + v; cnt_non <- cnt_non + 1; }
+
+                bool pred_par <- v < 0.0;
+                if (pred_par and gt_par) { tp0 <- tp0 + 1; }
+                else if (pred_par and not gt_par) { fp0 <- fp0 + 1; }
+                else if ((not pred_par) and gt_par) { fn0 <- fn0 + 1; }
+                else { tn0 <- tn0 + 1; }
+            }
+        }
+
+        avg_trust_to_parasites <- (cnt_par > 0 ? sum_par / float(cnt_par) : 0.0);
+        avg_trust_to_non_parasites <- (cnt_non > 0 ? sum_non / float(cnt_non) : 0.0);
+        precision <- ((tp0 + fp0) > 0 ? float(tp0) / float(tp0 + fp0) : 0.0);
+        recall <- ((tp0 + fn0) > 0 ? float(tp0) / float(tp0 + fn0) : 0.0);
+        
+        if (cycle mod 100 = 0) {
+            write "DEBUG [metrics] agents: " + total_agents + ", trades_this_tick: " + trades_this_tick + ", trust_entries: " + (cnt_par + cnt_non) + ", cnt_par: " + cnt_par + ", cnt_non: " + cnt_non + ", avg_trust_par: " + avg_trust_to_parasites + ", avg_trust_non: " + avg_trust_to_non_parasites + ", precision: " + precision + ", recall: " + recall;
         }
     }
 }
@@ -273,14 +324,14 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
     float alpha <- 0.2;
     float gamma <- 0.0;
-    float epsilon <- 0.10;
+    float epsilon <- 0.20;
 
     map<string, list<float>> Q <- map([]);
     map<string, float> trust_memory <- map([]);
 
     int trade_cooldown <- 0;
-    int trade_cooldown_max <- 50;
-    float meet_distance <- 6.0;
+    int trade_cooldown_max <- 10;
+    float meet_distance <- 300.0;
 
     string state <- "idle";
     string received_message <- nil;
@@ -391,30 +442,13 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
     }
 
-    plan get_oxygen intention: has_oxygen_desire finished_when:oxygen_level >= max_oxygen_level
+    plan get_oxygen intention: has_oxygen_desire finished_when: false
     {
-        if (location distance_to habitat_dome.oxygen_generator.location <= facility_proximity) {
-            state <- 'refilling_oxygen';
-            oxygen_level <- min(max_oxygen_level, oxygen_level + oxygen_refill_rate);
-        } else {
-            state <- 'going_to_oxygen';
-            do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
-        }
-
-        if (oxygen_level >= max_oxygen_level) {
-            do remove_belief(suffocating_belief);
-        }
+        // Temporarily disabled to prioritize learning
     }
 
-    plan get_energy intention: has_energy_desire finished_when: energy_level >= max_energy_level {
-        if ((location distance_to habitat_dome.greenhouse.location) <= facility_proximity) {
-            state <- "refilling_energy";
-            energy_level <- min(max_energy_level, energy_level + energy_refill_rate);
-        } else {
-            state <- "going_to_greenhouse";
-            do goto target: habitat_dome.greenhouse.location speed: movement_speed;
-        }
-        if (energy_level >= max_energy_level) { do remove_belief(starving_belief); }
+    plan get_energy intention: has_energy_desire finished_when: false {
+        // Temporarily disabled to prioritize learning
     }
 
     plan wander_around intention: wander_desire {
@@ -468,17 +502,8 @@ species Human skills: [moving, fipa] control: simple_bdi {
         do die;
     }
 
-    reflex death when: health_level <= 0 {
-        string death_reason <- "";
-        if (oxygen_level <= 0) {
-            death_reason <- "suffocation";
-        } else if (energy_level <= 0) {
-            death_reason <- "starvation";
-        } else {
-            death_reason <- "health depletion";
-        }
-        write 'Agent ' + name + ' died from ' + death_reason;
-        do die_and_update_counter;
+    reflex death when: false {
+        // Disabled temporarily to allow learning to happen
     }
 
     // =========================================================
@@ -507,38 +532,48 @@ species Human skills: [moving, fipa] control: simple_bdi {
         Q[s] <- qs;
 
         float pref <- Q[s][0] - Q[s][1];
-        trust_memory[s] <- max(-1.0, min(1.0, pref / 20.0));
+        trust_memory[s] <- max(-1.0, min(1.0, pref / 4.0));
+        
+        if (cycle mod 200 = 0) {
+            write name + " update_q: s=" + s + ", a=" + a + ", r=" + r + ", old_q=" + old + ", new_q=" + updated + ", trust=" + trust_memory[s];
+        }
     }
 
     reflex update_trade_cooldown when: trade_cooldown > 0 {
         trade_cooldown <- trade_cooldown - 1;
     }
+    
+    reflex debug_state when: cycle mod 1000 = 0 {
+        write name + " [cycle " + cycle + "] role=" + role + ", location=" + location + ", cooldown=" + trade_cooldown + ", inside_dome=" + (habitat_dome.shape covers location) + ", Q_entries=" + length(keys(Q)) + ", trust_entries=" + length(keys(trust_memory));
+    }
 
-    // FIX: trade only when safe and not competing with urgent needs
+    // Trade with minimal gating to enable learning
     reflex learn_and_trade when:
         trade_cooldown = 0
         and (habitat_dome.shape covers location)
-        and oxygen_level > oxygen_level_threshold
-        and energy_level > energy_level_threshold
         and not has_belief(storm_warning_belief)
-        and not has_belief(suffocating_belief)
-        and not has_belief(starving_belief)
-        and not has_belief(injured_belief)
     {
-        list<Human> nearby <- Human where (each != self and (each.location distance_to location) <= meet_distance);
-        if (empty(nearby)) { return; }
+        list<Human> all_humans <- list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander);
+        list<Human> nearby <- [];
+        
+        loop h over: all_humans {
+            if (h != self) {
+                float dist <- h.location distance_to location;
+                if (dist <= meet_distance) {
+                    nearby <- nearby + [h];
+                }
+            }
+        }
+        
+        if (empty(nearby)) { 
+            if (cycle mod 500 = 0) { write name + " checked " + length(all_humans) + " humans, found 0 nearby at cycle " + cycle; }
+            return; 
+        }
 
         Human partner <- one_of(nearby);
 
         string s <- "id:" + partner.name;
         do ensure_state_exists(s);
-
-        float trust_score <- trust_memory[s];
-        if (trust_score < 0) {
-            do update_q(s, "IGNORE", 0.0);
-            trade_cooldown <- trade_cooldown_max;
-            return;
-        }
 
         string a <- choose_action(s);
         if (a = "IGNORE") {
@@ -550,6 +585,12 @@ species Human skills: [moving, fipa] control: simple_bdi {
         float reward <- attempt_trade(partner);
         do update_q(s, a, reward);
         happiness <- happiness + reward;
+        
+        total_trades <- total_trades + 1;
+        
+        if (cycle mod 100 = 0) {
+            write "[TRADE] " + name + " traded with " + partner.name + " (role=" + self.role + ", partner_role=" + partner.role + "), reward=" + reward + ", trust=" + trust_memory[s];
+        }
 
         trade_cooldown <- trade_cooldown_max;
     }
@@ -559,13 +600,13 @@ species Human skills: [moving, fipa] control: simple_bdi {
         bool partner_gave <- false;
 
         if (!(self is Parasite)) {
-            if (self is Scavenger and raw_amount > 0 and partner.energy_level < max_energy_level) {
+            if (self is Scavenger and raw_amount > 0) {
                 raw_amount <- raw_amount - 1;
                 i_gave <- true;
                 ask partner { energy_level <- min(max_energy_level, energy_level + 20.0); }
             }
 
-            if (self is Medic and partner.health_level < max_health_level) {
+            if (self is Medic) {
                 i_gave <- true;
                 ask partner { health_level <- min(max_health_level, health_level + 30.0); }
             }
@@ -573,9 +614,12 @@ species Human skills: [moving, fipa] control: simple_bdi {
             if (self is Engineer and habitat_dome.oxygen_generator.is_broken) {
                 i_gave <- true;
                 habitat_dome.oxygen_generator.is_broken <- false;
+            } else if (self is Engineer) {
+                i_gave <- true;
+                ask partner { oxygen_level <- min(max_oxygen_level, oxygen_level + 10.0); }
             }
 
-            if (self is Commander and (partner.oxygen_level < max_oxygen_level or partner.energy_level < max_energy_level)) {
+            if (self is Commander) {
                 i_gave <- true;
                 ask partner {
                     oxygen_level <- min(max_oxygen_level, oxygen_level + 10.0);
@@ -587,23 +631,31 @@ species Human skills: [moving, fipa] control: simple_bdi {
         if (partner is Parasite) {
             partner_gave <- false;
         } else {
-            if (partner is Scavenger and energy_level < max_energy_level) {
+            if (partner is Scavenger) {
                 int their_raw <- 0;
                 ask partner { their_raw <- raw_amount; }
                 if (their_raw > 0) {
                     ask partner { raw_amount <- raw_amount - 1; }
                     energy_level <- min(max_energy_level, energy_level + 20.0);
                     partner_gave <- true;
+                } else {
+                    // Scavenger offers small assistance even without raw (at personal energy cost)
+                    ask partner { energy_level <- max(0, energy_level - 5.0); }
+                    energy_level <- min(max_energy_level, energy_level + 10.0);
+                    partner_gave <- true;
                 }
             }
 
-            if (partner is Medic and health_level < max_health_level) {
+            if (partner is Medic) {
                 health_level <- min(max_health_level, health_level + 30.0);
                 partner_gave <- true;
             }
 
             if (partner is Engineer and habitat_dome.oxygen_generator.is_broken) {
                 habitat_dome.oxygen_generator.is_broken <- false;
+                partner_gave <- true;
+            } else if (partner is Engineer) {
+                oxygen_level <- min(max_oxygen_level, oxygen_level + 10.0);
                 partner_gave <- true;
             }
 
@@ -615,19 +667,27 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
 
         if (self is Parasite) {
+            // Parasite performs a harmful, one-sided interaction (steal/drain)
+            // Mark as actor "gave" harm and partner did NOT give back.
+            i_gave <- true;
+            partner_gave <- false;
+
             int their_raw2 <- 0;
             ask partner { their_raw2 <- raw_amount; }
             if (their_raw2 > 0) {
+                // Steal a raw resource if available
                 ask partner { raw_amount <- raw_amount - 1; }
                 raw_amount <- raw_amount + 1;
+            } else {
+                // Otherwise drain some energy from the partner
+                ask partner { energy_level <- max(0, energy_level - 10.0); }
+                energy_level <- min(max_energy_level, energy_level + 10.0);
             }
-            i_gave <- false;
-            partner_gave <- true;
         }
 
-        if (i_gave and partner_gave) { return 10.0; }
-        if (i_gave and !partner_gave) { return -20.0; }
-        return -1.0;
+        if (i_gave and partner_gave) { return 20.0; }
+        if (i_gave and !partner_gave) { return ((partner is Parasite) ? -20.0 : -1.0); }
+        return 0.0;
     }
 
     rgb get_color_for_presented_role {
@@ -814,8 +874,7 @@ species Parasite parent: Human {
         do add_desire(wander_desire);
         role <- "Parasite";
         presented_role <- one_of(["Engineer", "Medic", "Scavenger", "Commander"]);
-        trade_cooldown_max <- 20; // still more social, but not hyper-aggressive
-        meet_distance <- 8.0;
+        // Inherit meet_distance and trade_cooldown from parent for consistent trading
     }
 
     aspect base {
@@ -1041,5 +1100,14 @@ experiment MarsColony type: gui {
         inspect "Agent State" type: table
             value: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander))
             attributes: ['name','role','presented_role','location','happiness','oxygen_level','energy_level','health_level','state','raw_amount','trust_memory'];
+
+        display LearningMetrics {
+            chart "Avg Trust & Detection" type: series {
+                data 'Avg trust (parasites)' value: avg_trust_to_parasites;
+                data 'Avg trust (non-parasites)' value: avg_trust_to_non_parasites;
+                data 'Precision' value: precision;
+                data 'Recall' value: recall;
+            }
+        }
     }
 }
