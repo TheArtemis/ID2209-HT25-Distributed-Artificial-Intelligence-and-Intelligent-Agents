@@ -92,22 +92,19 @@ global {
     int current_number_of_commanders <- 0;
 
     // === HEALTH ===
-    // Key fix: Dome is safe; suit O2 drains primarily outside.
-    float oxygen_decrease_rate <- 0.6;                    // outside base drain
-    float oxygen_decrease_factor_in_wasteland <- 1.6;     // wasteland harsher
-    float oxygen_decrease_in_dome <- 0.0;                 // FIX: no drain in dome (or set small like 0.05)
+    float oxygen_decrease_rate <- 0.5;
+    float oxygen_decrease_factor_in_wasteland <- 1.2;
 
     float energy_decrease_rate <- 0.2;
-    float energy_decrease_rate_when_moving <- 0.6;        // reduced so movement is visible and survivable
+    float energy_decrease_rate_when_moving <- 1.0;
     float health_decrease_rate <- 1.0;
 
-    // Key fix: seek oxygen earlier so they don't hit 0 while traveling
-    float oxygen_level_threshold <- max_oxygen_level * 0.5;
-    float energy_level_threshold <- max_energy_level * 0.25;
+    float oxygen_level_threshold <- max_oxygen_level * 0.2;
+    float energy_level_threshold <- max_energy_level * 0.2;
     float health_level_threshold <- max_health_level * 0.5;
 
     // === RANDOMNESS ===
-    float oxygen_generator_break_probability <- 0.02;      // reduced; otherwise colony can collapse too often
+    float oxygen_generator_break_probability <- 0.1;
     float scavenger_mission_probability <- 0.2;
 
     // === REFILL ===
@@ -120,7 +117,7 @@ global {
     float eta_increment <- 1.0;
 
     // === MOVEMENT ===
-    float movement_speed <- 2.0;
+    float movement_speed <- 10.0;
 
     // === CONFIGURATION ===
     bool enable_supply_shuttle <- true;
@@ -149,17 +146,7 @@ global {
         commanders <- [];
     }
 
-    // FIX: Do not spawn every step. Spawn once, then only when deficits exist.
-    reflex supply_shuttle when:
-        (not first_shuttle_arrived)
-        or (enable_supply_shuttle and (
-            current_number_of_engineers < desired_number_of_engineers or
-            current_number_of_medics < desired_number_of_medics or
-            current_number_of_scavengers < desired_number_of_scavengers or
-            current_number_of_parasites < desired_number_of_parasites or
-            current_number_of_commanders < desired_number_of_commanders
-        ))
-    {
+    reflex supply_shuttle when: enable_supply_shuttle or not first_shuttle_arrived {
         first_shuttle_arrived <- true;
 
         int delta_engineers <- desired_number_of_engineers - current_number_of_engineers;
@@ -170,34 +157,45 @@ global {
 
         if (delta_engineers > 0) {
             create Engineer number: delta_engineers returns: new_engineers;
-            ask new_engineers { location <- landing_pad.location; }
+            ask new_engineers {
+                location <- landing_pad.location;
+            }
             engineers <- engineers + new_engineers;
-            current_number_of_engineers <- current_number_of_engineers + delta_engineers;
         }
         if (delta_medics > 0) {
             create Medic number: delta_medics returns: new_medics;
-            ask new_medics { location <- landing_pad.location; }
+            ask new_medics {
+                location <- landing_pad.location;
+            }
             medics <- medics + new_medics;
-            current_number_of_medics <- current_number_of_medics + delta_medics;
         }
         if (delta_scavengers > 0) {
             create Scavenger number: delta_scavengers returns: new_scavengers;
-            ask new_scavengers { location <- landing_pad.location; }
+            ask new_scavengers {
+                location <- landing_pad.location;
+            }
             scavengers <- scavengers + new_scavengers;
-            current_number_of_scavengers <- current_number_of_scavengers + delta_scavengers;
         }
         if (delta_parasites > 0) {
             create Parasite number: delta_parasites returns: new_parasites;
-            ask new_parasites { location <- landing_pad.location; }
+            ask new_parasites {
+                location <- landing_pad.location;
+            }
             parasites <- parasites + new_parasites;
-            current_number_of_parasites <- current_number_of_parasites + delta_parasites;
         }
         if (delta_commanders > 0) {
             create Commander number: delta_commanders returns: new_commanders;
-            ask new_commanders { location <- landing_pad.location; }
+            ask new_commanders {
+                location <- landing_pad.location;
+            }
             commanders <- commanders + new_commanders;
-            current_number_of_commanders <- current_number_of_commanders + delta_commanders;
         }
+
+        current_number_of_engineers <- current_number_of_engineers + delta_engineers;
+        current_number_of_medics <- current_number_of_medics + delta_medics;
+        current_number_of_scavengers <- current_number_of_scavengers + delta_scavengers;
+        current_number_of_parasites <- current_number_of_parasites + delta_parasites;
+        current_number_of_commanders <- current_number_of_commanders + delta_commanders;
     }
 }
 
@@ -330,25 +328,19 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
     }
 
-    plan get_oxygen intention: has_oxygen_desire finished_when: oxygen_level >= max_oxygen_level {
-        // FIX: If generator is broken, fall back to "stay in dome" (safe), not suicide outside.
-        if (habitat_dome.oxygen_generator.is_broken) {
-            state <- "waiting_for_o2_repair";
-            if (not (habitat_dome.shape covers location)) {
-                do goto target: habitat_dome.location speed: movement_speed;
-            }
-            // no refill while broken
-            return;
-        }
-
-        if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
-            state <- "refilling_oxygen";
+    plan get_oxygen intention: has_oxygen_desire finished_when:oxygen_level >= max_oxygen_level
+    {
+        if (location distance_to habitat_dome.oxygen_generator.location <= facility_proximity) {
+            state <- 'refilling_oxygen';
             oxygen_level <- min(max_oxygen_level, oxygen_level + oxygen_refill_rate);
         } else {
-            state <- "going_to_oxygen";
+            state <- 'going_to_oxygen';
             do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
         }
-        if (oxygen_level >= max_oxygen_level) { do remove_belief(suffocating_belief); }
+
+        if (oxygen_level >= max_oxygen_level) {
+            do remove_belief(suffocating_belief);
+        }
     }
 
     plan get_energy intention: has_energy_desire finished_when: energy_level >= max_energy_level {
@@ -363,7 +355,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     plan wander_around intention: wander_desire {
-        state <- "wandering";
+        state <- 'idle';
         if (not (habitat_dome.shape covers location)) {
             do goto target: habitat_dome.location speed: movement_speed;
         } else {
@@ -373,34 +365,35 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
     // === Biological reflexes ===
 
-    // FIX: Dome is survivable. Oxygen drains primarily outside.
-    reflex update_oxygen {
-        if (habitat_dome.shape covers location) {
-            oxygen_level <- max(0.0, oxygen_level - oxygen_decrease_in_dome);
-        } else {
-            float decrease <- oxygen_decrease_rate;
-            if (wasteland.shape covers location) { decrease <- decrease * oxygen_decrease_factor_in_wasteland; }
-            if (wasteland.dust_storm and (wasteland.shape covers location)) { decrease <- decrease * 2.0; }
-            oxygen_level <- max(0.0, oxygen_level - decrease);
+    reflex update_oxygen{
+        if (habitat_dome.shape covers location)
+        {
+            oxygen_level <- max(0, oxygen_level - oxygen_decrease_rate);
+        }
+        else
+        {
+            float decrease <- oxygen_decrease_rate * oxygen_decrease_factor_in_wasteland;
+            if (wasteland.dust_storm and (wasteland.shape covers location)) {
+                 decrease <- decrease * 2.0; // Faster reduction
+            }
+            oxygen_level <- max(0, oxygen_level - decrease);
         }
     }
 
-    reflex update_energy {
-        if (state in ["going_to_oxygen", "going_to_greenhouse", "going_to_med_bay",
-                     "going_to_oxygen_generator", "retiring", "going_to_mine",
-                     "returning_to_dome", "escaping_storm"]) {
-            energy_level <- max(0.0, energy_level - energy_decrease_rate_when_moving);
+    reflex update_energy{
+        if (state in ['going_to_oxygen', 'going_to_greenhouse', 'going_to_med_bay', 'going_to_oxygen_generator', 'retiring', 'going_to_mine', 'returning_to_dome', 'escaping_storm']) {
+            energy_level <- max(0, energy_level - energy_decrease_rate_when_moving);
         } else {
-            energy_level <- max(0.0, energy_level - energy_decrease_rate);
+            energy_level <- max(0, energy_level - energy_decrease_rate);
         }
 
         if (wasteland.dust_storm and (wasteland.shape covers location)) {
-            energy_level <- max(0.0, energy_level - 0.6);
+             energy_level <- max(0, energy_level - 1.0); // Extra drain
         }
     }
 
-    reflex update_health when: oxygen_level <= 0 or energy_level <= 0 {
-        health_level <- max(0.0, health_level - health_decrease_rate);
+    reflex update_health when: oxygen_level <= 0 or energy_level <= 0{
+        health_level <- max(0, health_level - health_decrease_rate);
     }
 
     action die_and_update_counter {
@@ -413,6 +406,15 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     reflex death when: health_level <= 0 {
+        string death_reason <- "";
+        if (oxygen_level <= 0) {
+            death_reason <- "suffocation";
+        } else if (energy_level <= 0) {
+            death_reason <- "starvation";
+        } else {
+            death_reason <- "health depletion";
+        }
+        write 'Agent ' + name + ' died from ' + death_reason;
         do die_and_update_counter;
     }
 
