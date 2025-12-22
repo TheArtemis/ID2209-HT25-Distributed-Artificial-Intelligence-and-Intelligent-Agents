@@ -85,6 +85,9 @@ global {
     int desired_number_of_parasites <- 2;
     int desired_number_of_commanders <- 1;
 
+    // Cap the total number of agents in the colony
+    int max_colony_size <- 60;
+
     int current_number_of_engineers <- 0;
     int current_number_of_medics <- 0;
     int current_number_of_scavengers <- 0;
@@ -113,7 +116,7 @@ global {
     float facility_proximity <- 5.0;
 
     // === ETA ===
-    int retirement_age <- 1000;
+    int retirement_age <- 2000;
     float eta_increment <- 1.0;
 
     // === MOVEMENT ===
@@ -146,56 +149,108 @@ global {
         commanders <- [];
     }
 
-    reflex supply_shuttle when: enable_supply_shuttle or not first_shuttle_arrived {
-        first_shuttle_arrived <- true;
+    reflex supply_shuttle when: enable_supply_shuttle {
+        int total_colonists <- length(list(Human));
 
-        int delta_engineers <- desired_number_of_engineers - current_number_of_engineers;
-        int delta_medics <- desired_number_of_medics - current_number_of_medics;
-        int delta_scavengers <- desired_number_of_scavengers - current_number_of_scavengers;
-        int delta_parasites <- desired_number_of_parasites - current_number_of_parasites;
-        int delta_commanders <- desired_number_of_commanders - current_number_of_commanders;
+        map<string, list<float>> q_sums <- map([]);
+        map<string, int> q_counts <- map([]);
+        map<string, float> trust_sums <- map([]);
+        map<string, int> trust_counts <- map([]);
 
-        if (delta_engineers > 0) {
-            create Engineer number: delta_engineers returns: new_engineers;
-            ask new_engineers {
-                location <- landing_pad.location;
+        loop survivor over: list(Human) {
+            loop k over: keys(survivor.Q) {
+                list<float> vals <- survivor.Q[k];
+                list<float> acc <- (q_sums contains_key k ? q_sums[k] : [0.0, 0.0]);
+                acc[0] <- acc[0] + vals[0];
+                acc[1] <- acc[1] + vals[1];
+                q_sums[k] <- acc;
+                int c <- (q_counts contains_key k ? q_counts[k] : 0);
+                q_counts[k] <- c + 1;
             }
-            engineers <- engineers + new_engineers;
-        }
-        if (delta_medics > 0) {
-            create Medic number: delta_medics returns: new_medics;
-            ask new_medics {
-                location <- landing_pad.location;
+
+            loop tk over: keys(survivor.trust_memory) {
+                float tv <- survivor.trust_memory[tk];
+                float acc_t <- (trust_sums contains_key tk ? trust_sums[tk] : 0.0);
+                trust_sums[tk] <- acc_t + tv;
+                int ct <- (trust_counts contains_key tk ? trust_counts[tk] : 0);
+                trust_counts[tk] <- ct + 1;
             }
-            medics <- medics + new_medics;
-        }
-        if (delta_scavengers > 0) {
-            create Scavenger number: delta_scavengers returns: new_scavengers;
-            ask new_scavengers {
-                location <- landing_pad.location;
-            }
-            scavengers <- scavengers + new_scavengers;
-        }
-        if (delta_parasites > 0) {
-            create Parasite number: delta_parasites returns: new_parasites;
-            ask new_parasites {
-                location <- landing_pad.location;
-            }
-            parasites <- parasites + new_parasites;
-        }
-        if (delta_commanders > 0) {
-            create Commander number: delta_commanders returns: new_commanders;
-            ask new_commanders {
-                location <- landing_pad.location;
-            }
-            commanders <- commanders + new_commanders;
         }
 
-        current_number_of_engineers <- current_number_of_engineers + delta_engineers;
-        current_number_of_medics <- current_number_of_medics + delta_medics;
-        current_number_of_scavengers <- current_number_of_scavengers + delta_scavengers;
-        current_number_of_parasites <- current_number_of_parasites + delta_parasites;
-        current_number_of_commanders <- current_number_of_commanders + delta_commanders;
+        map<string, list<float>> q_avg <- map([]);
+        loop k over: keys(q_sums) {
+            list<float> s <- q_sums[k];
+            float c <- float(q_counts[k]);
+            q_avg[k] <- [s[0] / c, s[1] / c];
+        }
+
+        map<string, float> trust_avg <- map([]);
+        loop tk over: keys(trust_sums) {
+            float s <- trust_sums[tk];
+            float c <- float(trust_counts[tk]);
+            trust_avg[tk] <- s / c;
+        }
+
+        if (not first_shuttle_arrived) {
+            first_shuttle_arrived <- true;
+        }
+
+        bool deficit_mode <- (current_number_of_engineers < desired_number_of_engineers) or
+                              (current_number_of_medics < desired_number_of_medics) or
+                              (current_number_of_scavengers < desired_number_of_scavengers) or
+                              (current_number_of_parasites < desired_number_of_parasites) or
+                              (current_number_of_commanders < desired_number_of_commanders);
+
+        if (deficit_mode) {
+            int max_to_spawn <- max_colony_size - total_colonists;
+
+            int delta_engineers <- desired_number_of_engineers - current_number_of_engineers;
+            int delta_medics <- desired_number_of_medics - current_number_of_medics;
+            int delta_scavengers <- desired_number_of_scavengers - current_number_of_scavengers;
+            int delta_parasites <- desired_number_of_parasites - current_number_of_parasites;
+            int delta_commanders <- desired_number_of_commanders - current_number_of_commanders;
+
+            if (delta_engineers > 0 and max_to_spawn > 0) {
+                int to_spawn <- min(delta_engineers, max_to_spawn);
+                create Engineer number: to_spawn returns: new_engineers;
+                ask new_engineers { location <- landing_pad.location; if (!empty(keys(q_avg))) { Q <- q_avg; } if (!empty(keys(trust_avg))) { trust_memory <- trust_avg; } }
+                engineers <- engineers + new_engineers;
+                current_number_of_engineers <- current_number_of_engineers + to_spawn;
+                max_to_spawn <- max_to_spawn - to_spawn;
+            }
+            if (delta_medics > 0 and max_to_spawn > 0) {
+                int to_spawn <- min(delta_medics, max_to_spawn);
+                create Medic number: to_spawn returns: new_medics;
+                ask new_medics { location <- landing_pad.location; if (!empty(keys(q_avg))) { Q <- q_avg; } if (!empty(keys(trust_avg))) { trust_memory <- trust_avg; } }
+                medics <- medics + new_medics;
+                current_number_of_medics <- current_number_of_medics + to_spawn;
+                max_to_spawn <- max_to_spawn - to_spawn;
+            }
+            if (delta_scavengers > 0 and max_to_spawn > 0) {
+                int to_spawn <- min(delta_scavengers, max_to_spawn);
+                create Scavenger number: to_spawn returns: new_scavengers;
+                ask new_scavengers { location <- landing_pad.location; if (!empty(keys(q_avg))) { Q <- q_avg; } if (!empty(keys(trust_avg))) { trust_memory <- trust_avg; } }
+                scavengers <- scavengers + new_scavengers;
+                current_number_of_scavengers <- current_number_of_scavengers + to_spawn;
+                max_to_spawn <- max_to_spawn - to_spawn;
+            }
+            if (delta_parasites > 0 and max_to_spawn > 0) {
+                int to_spawn <- min(delta_parasites, max_to_spawn);
+                create Parasite number: to_spawn returns: new_parasites;
+                ask new_parasites { location <- landing_pad.location; if (!empty(keys(q_avg))) { Q <- q_avg; } if (!empty(keys(trust_avg))) { trust_memory <- trust_avg; } }
+                parasites <- parasites + new_parasites;
+                current_number_of_parasites <- current_number_of_parasites + to_spawn;
+                max_to_spawn <- max_to_spawn - to_spawn;
+            }
+            if (delta_commanders > 0 and max_to_spawn > 0) {
+                int to_spawn <- min(delta_commanders, max_to_spawn);
+                create Commander number: to_spawn returns: new_commanders;
+                ask new_commanders { location <- landing_pad.location; if (!empty(keys(q_avg))) { Q <- q_avg; } if (!empty(keys(trust_avg))) { trust_memory <- trust_avg; } }
+                commanders <- commanders + new_commanders;
+                current_number_of_commanders <- current_number_of_commanders + to_spawn;
+                max_to_spawn <- max_to_spawn - to_spawn;
+            }
+        }
     }
 }
 
@@ -282,6 +337,14 @@ species Human skills: [moving, fipa] control: simple_bdi {
         } else {
             if (has_belief(injured_belief)) { do remove_belief(injured_belief); }
         }
+    }
+
+    // Keep agents topped up while inside the med-bay zone so they do not die while waiting
+    reflex med_bay_immunity when: (location distance_to habitat_dome.med_bay.location) <= facility_proximity {
+        oxygen_level <- max_oxygen_level;
+        energy_level <- max_energy_level;
+        if (has_belief(suffocating_belief)) { do remove_belief(suffocating_belief); }
+        if (has_belief(starving_belief)) { do remove_belief(starving_belief); }
     }
 
     // === RULES ===
@@ -469,6 +532,13 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
         string s <- "id:" + partner.name;
         do ensure_state_exists(s);
+
+        float trust_score <- trust_memory[s];
+        if (trust_score < 0) {
+            do update_q(s, "IGNORE", 0.0);
+            trade_cooldown <- trade_cooldown_max;
+            return;
+        }
 
         string a <- choose_action(s);
         if (a = "IGNORE") {
