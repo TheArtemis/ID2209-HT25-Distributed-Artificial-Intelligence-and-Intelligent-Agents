@@ -577,7 +577,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     aspect base {
-        draw circle(3) color: get_color_for_presented_role border: get_border_for_presented_role;
+        draw circle(3) color: #white border: #black;
     }
 }
 
@@ -589,6 +589,7 @@ species Engineer parent: Human {
     predicate fix_generator_desire <- new_predicate("fix_generator");
 
     init {
+        do add_desire(wander_desire);
         role <- "Engineer";
         presented_role <- "Engineer";
     }
@@ -614,7 +615,7 @@ species Engineer parent: Human {
     }
 
     aspect base {
-        draw circle(3) color: get_color_for_presented_role border: get_border_for_presented_role;
+        draw circle(3) color: #white border: #black;
     }
 }
 
@@ -625,6 +626,7 @@ species Medic parent: Human {
     predicate heal_patients_desire <- new_predicate("heal_patients");
 
     init {
+        do add_desire(wander_desire);
         role <- "Medic";
         presented_role <- "Medic";
     }
@@ -679,7 +681,7 @@ species Medic parent: Human {
     }
 
     aspect base {
-        draw circle(3) color: get_color_for_presented_role border: get_border_for_presented_role;
+        draw circle(3) color: #white border: #black;
     }
 }
 
@@ -690,6 +692,7 @@ species Scavenger parent: Human {
     predicate mine_desire <- new_predicate("mine_resources");
 
     init {
+        do add_desire(wander_desire);
         role <- "Scavenger";
         presented_role <- "Scavenger";
     }
@@ -730,12 +733,13 @@ species Scavenger parent: Human {
     }
 
     aspect base {
-        draw circle(3) color: get_color_for_presented_role border: get_border_for_presented_role;
+        draw circle(3) color: #white border: #black;
     }
 }
 
 species Parasite parent: Human {
     init {
+        do add_desire(wander_desire);
         role <- "Parasite";
         presented_role <- one_of(["Engineer", "Medic", "Scavenger", "Commander"]);
         trade_cooldown_max <- 20; // still more social, but not hyper-aggressive
@@ -743,12 +747,13 @@ species Parasite parent: Human {
     }
 
     aspect base {
-        draw circle(3) color: get_color_for_presented_role border: get_border_for_presented_role;
+        draw circle(3) color: #white border: #black;
     }
 }
 
 species Commander parent: Human {
     init {
+        do add_desire(wander_desire);
         role <- "Commander";
         presented_role <- "Commander";
     }
@@ -764,7 +769,7 @@ species Commander parent: Human {
     }
 
     aspect base {
-        draw circle(3) color: get_color_for_presented_role border: get_border_for_presented_role;
+        draw circle(3) color: #white border: #black;
     }
 }
 
