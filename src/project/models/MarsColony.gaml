@@ -82,11 +82,11 @@ global {
     }
 
     // === GLOBAL VARIABLES ===
-    int desired_number_of_engineers <- 2;
-    int desired_number_of_medics <- 2;
-    int desired_number_of_scavengers <- 2;
-    int desired_number_of_parasites <- 2;
-    int desired_number_of_commanders <- 1;
+    int desired_number_of_engineers <- 16;
+    int desired_number_of_medics <- 10;
+    int desired_number_of_scavengers <- 8;
+    int desired_number_of_parasites <- 12;
+    int desired_number_of_commanders <- 4;
 
     int current_number_of_engineers <- 0;
     int current_number_of_medics <- 0;
