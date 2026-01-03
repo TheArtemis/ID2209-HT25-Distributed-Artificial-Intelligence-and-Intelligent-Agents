@@ -107,7 +107,7 @@ global {
 
 
     // === RANDOMNESS ===
-    float oxygen_generator_break_probability <- 0.1;
+    float oxygen_generator_break_probability <- 0.05;
     float scavenger_mission_probability <- 0.2;
 
     // === REFILL ===
