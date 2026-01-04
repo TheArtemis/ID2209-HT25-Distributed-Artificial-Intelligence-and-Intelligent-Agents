@@ -14,6 +14,7 @@
 \geometry{margin=2.5cm}
 \setlength{\parskip}{0.7em}
 \setlength{\parindent}{0pt}
+\setlength{\headheight}{14.49998pt}
 \pagestyle{fancy}
 \fancyhf{}
 \rhead{DAIIA Assignment Report}
@@ -39,19 +40,6 @@ KTH Royal Institute of Technology \\[0.3em]
 \maketitle
 \tableofcontents
 \newpage
-
-% --- SECTION 0 ---
-\section{Important Notes (Read Before Starting)}
-\begin{itemize}[leftmargin=*]
-  \item At the end of each assignment description, you will find a list of deliverables.
-  \item These deliverables define the key points that will be checked in your code and report.
-  \item You must:
-  \begin{itemize}
-    \item Show in your source code that all deliverables are implemented.
-    \item Demonstrate them in your use cases.
-  \end{itemize}
-  \item Missing deliverables will require resubmission of a complete report.
-\end{itemize}
 
 % --- SECTION 1 ---
 \section{Running Instructions}
@@ -411,11 +399,11 @@ plan escape_storm intention: escape_storm_desire {
 \subsubsection*{3.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} A dust storm occurs in the wasteland while agents (particularly Scavengers) are present there.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing wasteland in storm state (orange color), with agents visible in the wasteland. The console should show FIPA messages from Commanders with "Return to Base" content. Agent state inspector should show some agents with state "escaping\_storm".]
+  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing wasteland in storm state (orange color), with agents visible in the wasteland. The console should show FIPA messages from Commanders with "Return to Base" content. Agent state inspector should show some agents with state \texttt{"escaping\_storm"}.]
   \item \textbf{Interpretation:} Commanders successfully detect the storm and send FIPA messages to agents in the wasteland. Receiving agents correctly process the messages and add the storm warning belief.
   
   \item \textbf{Input:} Agents receive storm warning messages and begin moving toward the habitat dome.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agents moving from wasteland toward the habitat dome. Agent state inspector should show agents with state "escaping\_storm" and locations gradually approaching the dome. Console should show agents removing the storm warning belief upon reaching safety.]
+  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agents moving from wasteland toward the habitat dome. Agent state inspector should show agents with state \texttt{"escaping\_storm"} and locations gradually approaching the dome. Console should show agents removing the storm warning belief upon reaching safety.]
   \item \textbf{Interpretation:} The FIPA communication successfully triggers behavioral changes. Agents prioritize storm escape (strength 200.0, highest priority) and navigate to safety, demonstrating the integration between FIPA messaging and BDI architecture.
 \end{enumerate}
 
@@ -489,7 +477,7 @@ The chart is defined in the experiment:
 
 \begin{verbatim}
 display LearningMetrics {
-    chart "Avg Trust \& Detection" type: series {
+    chart "Avg Trust & Detection" type: series {
         data 'Avg trust (parasites)' value: avg_trust_to_parasites;
         data 'Avg trust (non-parasites)' value: avg_trust_to_non_parasites;
         data 'Precision' value: precision;
@@ -518,10 +506,10 @@ The simulation implements a full BDI (Belief-Desire-Intention) architecture usin
 
 \textbf{Beliefs (Sensors):} Agents maintain beliefs about their internal state and external environment:
 \begin{itemize}
-  \item \texttt{suffocating\_belief}: Triggered when oxygen level < 20\%
-  \item \texttt{starving\_belief}: Triggered when energy level < 20\%
-  \item \texttt{injured\_belief}: Triggered when health level < 50\%
-  \item \texttt{should\_retire\_belief}: Triggered when ETA >= 2000 cycles
+  \item \texttt{suffocating\_belief}: Triggered when oxygen level $<$ 20\%
+  \item \texttt{starving\_belief}: Triggered when energy level $<$ 20\%
+  \item \texttt{injured\_belief}: Triggered when health level $<$ 50\%
+  \item \texttt{should\_retire\_belief}: Triggered when ETA $\geq$ 2000 cycles
   \item \texttt{storm\_warning\_belief}: Triggered by FIPA messages from Commander
   \item \texttt{generator\_broken\_belief}: Engineer-specific, triggered when oxygen generator is broken
   \item \texttt{patients\_waiting\_belief}: Medic-specific, triggered when med-bay queue has patients
@@ -625,19 +613,19 @@ species Engineer parent: Human {
 \subsubsection*{4.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} An agent's oxygen level drops below 20\% threshold.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with an agent having oxygen\_level < 20. The agent should have state showing it is responding to the suffocating belief (e.g., "going_to_oxygen" or similar). Console should show belief additions and desire creations. The agent should be moving toward an oxygen source.]
+  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with an agent having \texttt{oxygen\_level} $<$ 20. The agent should have state showing it is responding to the suffocating belief (e.g., \texttt{"going\_to\_oxygen"} or similar). Console should show belief additions and desire creations. The agent should be moving toward an oxygen source.]
   \item \textbf{Interpretation:} The perception reflex correctly detects low oxygen and adds the \texttt{suffocating\_belief}. The BDI system creates the \texttt{has\_oxygen\_desire} with high priority (100.0), and the agent forms an intention to seek oxygen, demonstrating the Belief → Desire → Intention cycle.
   
   \item \textbf{Input:} An agent's health drops below 50\% threshold.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with an agent having health\_level < 50. The agent should have state "going_to_med_bay" or "waiting_at_med_bay". The med-bay should show the agent in its queue (orange color, queue count > 0). Console should show the agent adding itself to the med-bay queue.]
+  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with an agent having \texttt{health\_level} $<$ 50. The agent should have state \texttt{"going\_to\_med\_bay"} or \texttt{"waiting\_at\_med\_bay"}. The med-bay should show the agent in its queue (orange color, queue count $>$ 0). Console should show the agent adding itself to the med-bay queue.]
   \item \textbf{Interpretation:} The agent correctly adds the \texttt{injured\_belief}, creates the \texttt{be\_healthy\_desire}, and executes the \texttt{get\_health} plan. The agent navigates to the med-bay and queues for treatment, demonstrating BDI-driven behavior with proper plan execution.
   
   \item \textbf{Input:} The oxygen generator breaks (5\% probability per cycle).
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing the oxygen generator displayed in red with "O2 Gen (BROKEN)" label. Engineer agents should have state "going_to_oxygen_generator" or be at the generator location. Console should show engineers detecting the broken generator and adding the generator\_broken\_belief. After repair, the generator should return to blue color.]
-  \item \textbf{Interpretation:} Engineers correctly detect the broken generator through their \texttt{check_generator} reflex, add the \texttt{generator\_broken\_belief}, create the \texttt{fix_generator\_desire}, and execute the repair plan. This demonstrates role-specific BDI behavior where only Engineers respond to generator failures.
+  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing the oxygen generator displayed in red with "O2 Gen (BROKEN)" label. Engineer agents should have state \texttt{"going\_to\_oxygen\_generator"} or be at the generator location. Console should show engineers detecting the broken generator and adding the \texttt{generator\_broken\_belief}. After repair, the generator should return to blue color.]
+  \item \textbf{Interpretation:} Engineers correctly detect the broken generator through their \texttt{check\_generator} reflex, add the \texttt{generator\_broken\_belief}, create the \texttt{fix\_generator\_desire}, and execute the repair plan. This demonstrates role-specific BDI behavior where only Engineers respond to generator failures.
   
   \item \textbf{Input:} Multiple agents have different priority desires simultaneously (e.g., one suffocating, one injured, one with storm warning).
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing multiple agents with different states: one "escaping\_storm" (highest priority), one "going_to_med_bay" (medium priority), one "going_to_oxygen" (high priority). The agent state inspector should show different agents prioritizing different tasks. Console should show the priority system in action.]
+  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing multiple agents with different states: one \texttt{"escaping\_storm"} (highest priority), one \texttt{"going\_to\_med\_bay"} (medium priority), one \texttt{"going\_to\_oxygen"} (high priority). The agent state inspector should show different agents prioritizing different tasks. Console should show the priority system in action.]
   \item \textbf{Interpretation:} The BDI system correctly prioritizes desires based on rule strengths. The agent with storm warning (strength 200.0) prioritizes escape over other tasks, while agents with suffocating (strength 100.0) prioritize oxygen over injured agents (strength 12.0). This demonstrates the priority system working correctly across the population.
 \end{enumerate}
 
@@ -766,7 +754,7 @@ reflex learn_and_trade when:
   
   \item \textbf{Input:} Simulation runs for an extended period (1000+ cycles) with learning metrics being tracked.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing the learning metrics chart with clear trends: average trust to parasites significantly negative (approaching -1.0), average trust to non-parasites positive, precision increasing (more true positives, fewer false positives), recall increasing (more parasites correctly identified). Console should show decreasing number of trades with parasites as agents learn to ignore them.]
-  \item \textbf{Interpretation:} The learning system has successfully evolved. Agents have developed strong negative trust toward parasites (trust values near -1.0) and positive trust toward cooperative agents. Precision and recall metrics improve as agents correctly identify parasites (trust < 0) and avoid trading with them, while maintaining positive relationships with cooperative agents.
+  \item \textbf{Interpretation:} The learning system has successfully evolved. Agents have developed strong negative trust toward parasites (trust values near -1.0) and positive trust toward cooperative agents. Precision and recall metrics improve as agents correctly identify parasites (trust $<$ 0) and avoid trading with them, while maintaining positive relationships with cooperative agents.
   
   \item \textbf{Input:} A new agent is spawned by the supply shuttle and begins interacting with existing agents.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing a newly spawned agent with empty Q-table and trust memory. The agent begins trading with existing agents. Console should show the new agent learning from scratch, while existing agents maintain their learned trust values. Over time, the new agent should develop similar trust patterns to existing agents after sufficient interactions.]
