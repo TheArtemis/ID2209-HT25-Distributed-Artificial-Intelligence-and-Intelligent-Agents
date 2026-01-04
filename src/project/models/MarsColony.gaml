@@ -552,8 +552,8 @@ species Human skills: [moving, fipa] control: simple_bdi {
         do die;
     }
 
-    reflex death when: false {
-        // Disabled temporarily to allow learning to happen
+    reflex death when: health_level <= 0 {
+        do die_and_update_counter;
     }
 
     // =========================================================
