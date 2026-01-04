@@ -557,8 +557,9 @@ species Human skills: [moving, fipa] control: simple_bdi {
         qs[idx] <- updated;
         Q[s] <- qs;
 
+        // Calculate trust based on Q-value preference (scaled for typical reward range of -20 to +20)
         float pref <- Q[s][0] - Q[s][1];
-        trust_memory[s] <- max(-1.0, min(1.0, pref / 4.0));
+        trust_memory[s] <- max(-1.0, min(1.0, pref / 10.0));
         
         if (cycle mod 200 = 0) {
             write name + " update_q: s=" + s + ", a=" + a + ", r=" + r + ", old_q=" + old + ", new_q=" + updated + ", trust=" + trust_memory[s];
