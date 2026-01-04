@@ -360,7 +360,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     float happiness <- 0.0;
     float generosity <- 0.0;   // Tracks giving behavior: positive when giving more than receiving
 
-    float sociability <- 0.2;  // Learning rate: how much agents learn from interactions
+    float sociability <- 0.35;  // Learning rate: how much agents learn from interactions (increased for faster convergence)
     float patience <- 0.0;     // Discount factor: how much they value future rewards
     float curiosity <- 0.20;   // Exploration rate: how often they try new interactions
     float base_curiosity <- 0.20;  // Base exploration rate for adaptation
@@ -629,15 +629,17 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
         list<float> qs <- Q[s];
         float old <- qs[idx];
-        float discount_factor <- 0.8;  // Gamma: weight future rewards
-        float max_future <- max(qs[0], qs[1]);  // Best possible future reward
-        float updated <- old + sociability * (r + discount_factor * max_future - old);
+        // Use exponential moving average: Q_new = Q_old + α(reward - Q_old)
+        // This prevents unbounded growth and converges to the average reward
+        float updated <- old + sociability * (r - old);
         qs[idx] <- updated;
         Q[s] <- qs;
 
-        // Calculate trust based on Q-value preference (scaled for typical reward range -50 to +100)
+        // Calculate trust based on Q-value preference
+        // For range -50 to +100, if mutual cooperation (100) dominates, pref approaches 100
+        // Trust of 0.30 means pref ≈ 30, suggesting Q[TRADE] ≈ 30, Q[IGNORE] ≈ 0
         float pref <- Q[s][0] - Q[s][1];
-        trust_memory[s] <- max(-1.0, min(1.0, pref / 75.0));  // Increased divisor for new reward scale
+        trust_memory[s] <- max(-1.0, min(1.0, pref / 100.0));  // Normalize by max expected difference
         
         if (cycle mod 200 = 0) {
             write name + " update_q: s=" + s + ", a=" + a + ", r=" + r + ", old_q=" + old + ", new_q=" + updated + ", trust=" + trust_memory[s];
@@ -648,7 +650,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
         trade_cooldown <- trade_cooldown - 1;
     }
     
-    reflex adapt_curiosity when: cycle mod 100 = 0 and length(keys(trust_memory)) > 0 {
+    reflex adapt_learning_parameters when: cycle mod 100 = 0 and length(keys(trust_memory)) > 0 {
         // Calculate average trust from recent interactions
         float total_trust <- 0.0;
         int count <- 0;
@@ -659,22 +661,22 @@ species Human skills: [moving, fipa] control: simple_bdi {
         float avg_trust_value <- total_trust / float(count);
         
         // Adapt curiosity: increase when learning is poor (low trust), decrease when learning is good (high trust)
-        // This encourages exploration when stuck, and exploitation when successful
         if (avg_trust_value < -0.2) {
-            // Very poor: explore more aggressively
             curiosity <- min(0.50, base_curiosity + 0.15);
         } else if (avg_trust_value < 0.0) {
-            // Poor: explore more
             curiosity <- min(0.45, base_curiosity + 0.10);
         } else if (avg_trust_value < 0.3) {
-            // Moderate: maintain base curiosity
             curiosity <- base_curiosity;
         } else if (avg_trust_value < 0.6) {
-            // Good: exploit more (reduce exploration)
             curiosity <- max(0.10, base_curiosity - 0.05);
         } else {
-            // Excellent: exploit heavily (minimum exploration)
             curiosity <- max(0.05, base_curiosity - 0.10);
+        }
+        
+        // Gradually recover sociability if it has dropped too low
+        // This prevents agents from getting stuck in low-learning states
+        if (sociability < 0.15) {
+            sociability <- sociability + 0.01;  // Slowly recover learning ability
         }
     }
 
@@ -732,7 +734,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
         string a <- choose_action(s);
         if (a = "IGNORE") {
-            do update_q(s, a, 0.0);
+            do update_q(s, a, 2.0);  // Small positive reward for avoiding bad interactions
             trade_cooldown <- trade_cooldown_max;
             return;
         }
@@ -841,11 +843,11 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
         if (i_gave and partner_gave) { return 100.0; }  // Strong reward for mutual cooperation
         if (i_gave and !partner_gave) { 
-            if (partner is Parasite) { return -50.0; }  // Victim heavily penalized for trusting parasite
-            if (self is Parasite) { return -50.0; }     // Parasite heavily penalized for stealing attempt
-            return 5.0;  // Non-parasite helpfully gave, modest reward for altruism
+            if (partner is Parasite) { return -80.0; }  // Victim strongly penalized for trusting parasite
+            if (self is Parasite) { return -80.0; }     // Parasite strongly penalized for stealing
+            return 20.0;  // Non-parasite helpfully gave, good reward for altruism
         }
-        return -10.0;  // Default penalty for missed trading opportunity
+        return 0.0;  // Neutral outcome for non-interaction
     }
 
     rgb get_color_for_presented_role {
