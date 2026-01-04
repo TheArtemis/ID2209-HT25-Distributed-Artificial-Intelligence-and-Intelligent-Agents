@@ -161,11 +161,22 @@ action attempt_trade(Human partner) {
 \subsubsection*{3.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} Simulation starts with all five agent types present in the habitat dome.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing the main simulation view with all five agent types visible (Engineer in green, Medic in red, Scavenger in blue, Parasite in yellow, Commander in purple) within the habitat dome. The agent state inspector table should be visible showing different roles and states.]
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/map_Mars.png}
+    \caption{Agents successfully inside the map}
+    \label{fig:mapmars}
+\end{figure}
   \item \textbf{Interpretation:} The simulation successfully initializes with all required agent types. Each type is visually distinct and has appropriate starting locations and attributes.
+    They are already moving within the map
   
   \item \textbf{Input:} Agents engage in trading interactions within the habitat dome.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agents in close proximity within the dome, with the agent state inspector showing trade cooldown values, happiness levels, and trust\_memory entries. The console should show trade log messages indicating successful trades between different agent types.]
+  \item \textbf{Screenshot:} \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{imgs/tradeHabitat.png}
+    \caption{Trading between agents}
+    \label{fig:mapmars}
+\end{figure}
     \item \textbf{Interpretation:} Agents successfully interact with each other following their type-specific rules. Scavengers provide energy via raw resources, Engineers provide oxygen/repairs, Commanders provide oxygen+energy, and Parasites attempt to steal/drain. Medic contributions occur through Med-Bay queue healing (not via trade).
 \end{enumerate}
 
@@ -246,12 +257,22 @@ reflex update_oxygen{
 \subsubsection*{4.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} Simulation displays the full map with all places visible.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing the complete 400x400 map with habitat dome (green rectangle) at center, wasteland (red/brown rectangle) visible, landing pad (gray square), and all facilities within the dome clearly labeled. Agents should be visible within appropriate zones.]
+  \item \textbf{Screenshot:} \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.37\textwidth]{imgs/map_Mars.png}
+    \caption{Mars colony map}
+    \label{fig:mapmars}
+\end{figure}
   \item \textbf{Interpretation:} All required places are correctly initialized and positioned. The habitat dome serves as the primary safe zone, while the wasteland represents a danger zone with different environmental properties.
   
   \item \textbf{Input:} A dust storm occurs in the wasteland.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing the wasteland area turned orange with "Wasteland (STORM)" label visible. Agents in the wasteland should be visible, and the console may show FIPA messages from the Commander.]
-  \item \textbf{Interpretation:} The wasteland correctly displays visual feedback during dust storms. The storm system affects oxygen depletion rates and triggers FIPA communication from Commanders.
+  \item \textbf{Screenshot:} \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.55\textwidth]{imgs/Storm_Wasteland.png}
+    \caption{Storm in the Wasteland}
+    \label{fig:mapmars}
+\end{figure}
+  \item \textbf{Interpretation:} The wasteland correctly displays visual feedback (it has changed colors) during dust storms.
 \end{enumerate}
 
 \section{Continuous Running System}
