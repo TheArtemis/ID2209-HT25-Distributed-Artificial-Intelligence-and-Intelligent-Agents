@@ -484,13 +484,26 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
     }
 
-    plan get_oxygen intention: has_oxygen_desire finished_when: false
-    {
-        // Temporarily disabled to prioritize learning
+    plan get_oxygen intention: has_oxygen_desire finished_when: oxygen_level >= max_oxygen_level * 0.8 {
+        // Navigate to oxygen generator
+        if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
+            state <- "at_oxygen_generator";
+            // Facility reflex handles replenishment automatically
+        } else {
+            state <- "going_to_oxygen";
+            do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
+        }
     }
 
-    plan get_energy intention: has_energy_desire finished_when: false {
-        // Temporarily disabled to prioritize learning
+    plan get_energy intention: has_energy_desire finished_when: energy_level >= max_energy_level * 0.8 {
+        // Navigate to greenhouse
+        if ((location distance_to habitat_dome.greenhouse.location) <= facility_proximity) {
+            state <- "at_greenhouse";
+            // Facility reflex handles replenishment automatically
+        } else {
+            state <- "going_to_greenhouse";
+            do goto target: habitat_dome.greenhouse.location speed: movement_speed;
+        }
     }
 
     plan wander_around intention: wander_desire {
@@ -1089,6 +1102,18 @@ species HabitatDome {
 
 species Greenhouse {
     point location;
+    float replenish_rate <- 0.5;  // Energy restored per cycle to agents at facility
+
+    reflex replenish_energy {
+        list<Human> nearby_agents <- Human where (each.location distance_to location <= facility_proximity);
+        loop h over: nearby_agents {
+            ask h {
+                if (energy_level < max_energy_level) {
+                    energy_level <- min(max_energy_level, energy_level + myself.replenish_rate);
+                }
+            }
+        }
+    }
 
     aspect base {
         draw circle(5) color: greenhouse_color border: greenhouse_border_color;
@@ -1099,6 +1124,18 @@ species Greenhouse {
 species OxygenGenerator {
     point location;
     bool is_broken <- false;
+    float replenish_rate <- 0.3;  // Oxygen restored per cycle to agents at facility (slower than energy)
+
+    reflex replenish_oxygen when: not is_broken {
+        list<Human> nearby_agents <- Human where (each.location distance_to location <= facility_proximity);
+        loop h over: nearby_agents {
+            ask h {
+                if (oxygen_level < max_oxygen_level) {
+                    oxygen_level <- min(max_oxygen_level, oxygen_level + myself.replenish_rate);
+                }
+            }
+        }
+    }
 
     aspect base {
         if (is_broken) {
