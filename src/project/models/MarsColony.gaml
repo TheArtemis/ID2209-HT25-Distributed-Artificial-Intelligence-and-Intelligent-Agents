@@ -141,6 +141,11 @@ global {
     float precision <- 0.0; // TP / (TP + FP)
     float recall <- 0.0;    // TP / (TP + FN)
     int total_trades <- 0;
+    
+    // === BEHAVIORAL METRICS ===
+    float avg_sociability <- 0.0;
+    float avg_happiness <- 0.0;
+    float avg_generosity <- 0.0;
 
     init {
         create HabitatDome number: 1 returns: domes;
@@ -300,6 +305,23 @@ global {
         avg_trust_to_non_parasites <- (cnt_non > 0 ? sum_non / float(cnt_non) : 0.0);
         precision <- ((tp0 + fp0) > 0 ? float(tp0) / float(tp0 + fp0) : 0.0);
         recall <- ((tp0 + fn0) > 0 ? float(tp0) / float(tp0 + fn0) : 0.0);
+        
+        // Calculate behavioral metrics
+        float sum_sociability <- 0.0;
+        float sum_happiness <- 0.0;
+        float sum_generosity <- 0.0;
+        int agent_count <- 0;
+        
+        loop h over: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) {
+            sum_sociability <- sum_sociability + h.sociability;
+            sum_happiness <- sum_happiness + h.happiness;
+            sum_generosity <- sum_generosity + h.generosity;
+            agent_count <- agent_count + 1;
+        }
+        
+        avg_sociability <- (agent_count > 0 ? sum_sociability / float(agent_count) : 0.0);
+        avg_happiness <- (agent_count > 0 ? sum_happiness / float(agent_count) : 0.0);
+        avg_generosity <- (agent_count > 0 ? sum_generosity / float(agent_count) : 0.0);
     }
 }
 
@@ -319,6 +341,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
     // === LEARNING / TRUST (Q-Learning) ===
     float happiness <- 0.0;
+    float generosity <- 0.0;   // Tracks giving behavior: positive when giving more than receiving
 
     float sociability <- 0.2;  // Learning rate: how much agents learn from interactions
     float patience <- 0.0;     // Discount factor: how much they value future rewards
@@ -724,6 +747,10 @@ species Human skills: [moving, fipa] control: simple_bdi {
                 energy_level <- min(max_energy_level, energy_level + 10.0);
             }
         }
+
+        // Update generosity metric based on giving behavior
+        if (i_gave) { generosity <- generosity + 1.0; }
+        if (partner_gave) { generosity <- generosity - 0.5; } // Receiving counts less
 
         if (i_gave and partner_gave) { return 20.0; }
         if (i_gave and !partner_gave) { return ((partner is Parasite) ? -20.0 : -1.0); }
@@ -1179,6 +1206,14 @@ experiment MarsColony type: gui {
                 data 'Avg trust (non-parasites)' value: avg_trust_to_non_parasites;
                 data 'Precision' value: precision;
                 data 'Recall' value: recall;
+            }
+        }
+        
+        display BehavioralMetrics {
+            chart "Sociability, Happiness & Generosity" type: series {
+                data 'Avg Sociability' value: avg_sociability color: #blue;
+                data 'Avg Happiness' value: avg_happiness color: #green;
+                data 'Avg Generosity' value: avg_generosity color: #orange;
             }
         }
     }
