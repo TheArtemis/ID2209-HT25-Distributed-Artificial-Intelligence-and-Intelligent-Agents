@@ -79,11 +79,11 @@ global {
     }
 
     // === GLOBAL VARIABLES ===
-    int desired_number_of_engineers <- 5;
-    int desired_number_of_medics <- 5;
-    int desired_number_of_scavengers <- 5;
-    int desired_number_of_parasites <- 5;
-    int desired_number_of_commanders <- 2;
+    int desired_number_of_engineers <- 16;
+    int desired_number_of_medics <- 10;
+    int desired_number_of_scavengers <- 8;
+    int desired_number_of_parasites <- 12;
+    int desired_number_of_commanders <- 4;
 
     // Cap the total number of agents in the colony
     int max_colony_size <- 60;
@@ -107,7 +107,7 @@ global {
     float health_level_threshold <- max_health_level * 0.5;
 
     // === RANDOMNESS ===
-    float oxygen_generator_break_probability <- 0.1;
+    float oxygen_generator_break_probability <- 0.05;
     float scavenger_mission_probability <- 0.2;
 
     // === REFILL ===
