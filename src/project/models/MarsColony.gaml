@@ -413,9 +413,15 @@ species Human skills: [moving, fipa] control: simple_bdi {
     // === PERCEPTION ===
     reflex perception {
         if (oxygen_level < oxygen_level_threshold) {
-            if (not has_belief(suffocating_belief)) { do add_belief(suffocating_belief); }
+            if (not has_belief(suffocating_belief)) {
+                do add_belief(suffocating_belief);
+                write "[BDI][O2] " + name + " oxygen_level=" + oxygen_level + " < " + oxygen_level_threshold + " -> added suffocating_belief; rule will create has_oxygen_desire";
+            }
         } else {
-            if (has_belief(suffocating_belief)) { do remove_belief(suffocating_belief); }
+            if (has_belief(suffocating_belief)) {
+                do remove_belief(suffocating_belief);
+                write "[BDI][O2] " + name + " oxygen_level=" + oxygen_level + " >= " + oxygen_level_threshold + " -> removed suffocating_belief";
+            }
         }
 
         if (energy_level < energy_level_threshold) {
@@ -425,9 +431,15 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
 
         if (health_level < health_level_threshold) {
-            if (not has_belief(injured_belief)) { do add_belief(injured_belief); }
+            if (not has_belief(injured_belief)) {
+                do add_belief(injured_belief);
+                write "[BDI][HP] " + name + " health_level=" + health_level + " < " + health_level_threshold + " -> added injured_belief; rule will create be_healthy_desire";
+            }
         } else {
-            if (has_belief(injured_belief)) { do remove_belief(injured_belief); }
+            if (has_belief(injured_belief)) {
+                do remove_belief(injured_belief);
+                write "[BDI][HP] " + name + " health_level=" + health_level + " >= " + health_level_threshold + " -> removed injured_belief";
+            }
         }
     }
 
@@ -472,6 +484,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     plan get_health intention: be_healthy_desire finished_when: health_level >= max_health_level {
         if ((location distance_to habitat_dome.med_bay.location) <= facility_proximity) {
             state <- "waiting_at_med_bay";
+            write "[BDI][MedBay] " + name + " enqueues at med-bay (state=waiting_at_med_bay)";
             ask habitat_dome.med_bay { do add_to_queue(myself); }
         } else {
             state <- "going_to_med_bay";
