@@ -101,11 +101,11 @@ global {
     int current_number_of_commanders <- 0;
 
     // === HEALTH ===
-    float oxygen_decrease_rate <- 0.01;
+    float oxygen_decrease_rate <- 0.1;
     float oxygen_decrease_factor_in_wasteland <- 1.2;
 
-    float energy_decrease_rate <- 0.005;
-    float energy_decrease_rate_when_moving <- 0.01;
+    float energy_decrease_rate <- 0.05;
+    float energy_decrease_rate_when_moving <- 0.1;
     float health_decrease_rate <- 1.0;
 
     float oxygen_level_threshold <- max_oxygen_level * 0.2;
@@ -415,7 +415,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     // Keep agents topped up while inside the med-bay zone so they do not die while waiting
-    reflex med_bay_immunity when: (location distance_to habitat_dome.med_bay.location) <= facility_proximity {
+    reflex med_bay_immunity when: false {
         oxygen_level <- max_oxygen_level;
         energy_level <- max_energy_level;
         if (has_belief(suffocating_belief)) { do remove_belief(suffocating_belief); }
@@ -541,6 +541,10 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
     reflex update_health when: oxygen_level <= 0 or energy_level <= 0{
         health_level <- max(0, health_level - health_decrease_rate);
+    }
+    
+    reflex update_health_when_low when: oxygen_level < oxygen_level_threshold or energy_level < energy_level_threshold {
+        health_level <- max(0, health_level - health_decrease_rate * 0.5);
     }
 
     action die_and_update_counter {
