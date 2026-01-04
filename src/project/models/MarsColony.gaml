@@ -319,7 +319,8 @@ global {
             agent_count <- agent_count + 1;
         }
         
-        avg_sociability <- (agent_count > 0 ? sum_sociability / float(agent_count) : 0.0);
+        // Scale sociability (0.05-0.4 range) to make it comparable with happiness and generosity
+        avg_sociability <- (agent_count > 0 ? (sum_sociability / float(agent_count)) * 100.0 : 0.0);
         avg_happiness <- (agent_count > 0 ? sum_happiness / float(agent_count) : 0.0);
         avg_generosity <- (agent_count > 0 ? sum_generosity / float(agent_count) : 0.0);
     }
