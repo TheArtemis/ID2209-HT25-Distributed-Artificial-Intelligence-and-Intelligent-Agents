@@ -750,10 +750,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
             // Medic agents don't heal other agents outside of the medbay area
 
-            if (self is Engineer and habitat_dome.oxygen_generator.is_broken) {
-                i_gave <- true;
-                habitat_dome.oxygen_generator.is_broken <- false;
-            } else if (self is Engineer) {
+            if (self is Engineer) {
                 i_gave <- true;
                 ask partner { oxygen_level <- min(max_oxygen_level, oxygen_level + 10.0); }
             }
@@ -794,10 +791,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
             // Medic healing disabled - only happens at medbay
 
-            if (partner is Engineer and habitat_dome.oxygen_generator.is_broken) {
-                habitat_dome.oxygen_generator.is_broken <- false;
-                partner_gave <- true;
-            } else if (partner is Engineer) {
+            if (partner is Engineer) {
                 oxygen_level <- min(max_oxygen_level, oxygen_level + 10.0);
                 partner_gave <- true;
             }
