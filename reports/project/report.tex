@@ -53,16 +53,6 @@ KTH Royal Institute of Technology \\[0.3em]
     \item Use the simulation controls to adjust speed, pause, or reset as needed
   \end{itemize}
   \item \textbf{Expected inputs:} No manual inputs are required. The simulation runs automatically with predefined parameters that can be modified in the global section if desired (e.g., desired number of agents per type, map dimensions, learning parameters).
-  \item \textbf{Important:}
-  \begin{itemize}
-    \item Instructions must work exactly as written.
-    \item You are responsible for uploading:
-    \begin{itemize}
-      \item This report (PDF only)
-      \item Complete and working source code (\texttt{MarsColony.gaml})
-      \item Any additional files needed to run the program
-    \end{itemize}
-  \end{itemize}
 \end{itemize}
 
 % --- SECTION 2 ---
@@ -91,9 +81,8 @@ The simulation demonstrates how a population can evolve a "social immune system"
 \end{itemize}
 
 % --- SECTION 3 ---
-\section{Section Reports}
 
-\subsection*{Section 1: Agent Types and Interactions}
+\section{Agent Types and Interactions}
 \subsubsection*{3.1 Explanation}
 The simulation features five distinct agent types, each with unique roles, capabilities, and interaction rules. All agents share three core biological traits: \texttt{oxygen\_level}, \texttt{energy\_level}, and \texttt{health\_level}, which decrease over time and must be managed for survival. Each agent type has specific interaction rules that determine how they trade resources with other agents.
 
@@ -174,8 +163,8 @@ action attempt_trade(Human partner) {
   \item \textbf{Interpretation:} Agents successfully interact with each other following their type-specific rules. Scavengers provide energy, Medics provide health, Engineers provide oxygen, and parasites attempt to steal resources.
 \end{enumerate}
 
-\subsection*{Section 2: Environment and Places}
-\subsubsection*{3.1 Explanation}
+\section{Environment and Places}
+\subsubsection*{4.1 Explanation}
 The simulation features multiple distinct places where agents can interact and perform activities. The environment includes safe zones (habitat dome) and danger zones (wasteland), each with different properties affecting agent survival.
 
 \textbf{Places:}
@@ -187,7 +176,7 @@ The simulation features multiple distinct places where agents can interact and p
   \item \textbf{Rock Mine:} Location in wasteland where Scavengers collect raw materials.
 \end{enumerate}
 
-\subsubsection*{3.2 Code}
+\subsubsection*{4.2 Code}
 The places are defined as species with specific geometries and behaviors:
 
 \begin{verbatim}
@@ -244,7 +233,7 @@ reflex update_oxygen{
 }
 \end{verbatim}
 
-\subsubsection*{3.3 Demonstration}
+\subsubsection*{4.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} Simulation displays the full map with all places visible.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing the complete 400x400 map with habitat dome (green rectangle) at center, wasteland (red/brown rectangle) visible, landing pad (gray square), and all facilities within the dome clearly labeled. Agents should be visible within appropriate zones.]
@@ -255,8 +244,8 @@ reflex update_oxygen{
   \item \textbf{Interpretation:} The wasteland correctly displays visual feedback during dust storms. The storm system affects oxygen depletion rates and triggers FIPA communication from Commanders.
 \end{enumerate}
 
-\subsection*{Section 3: Continuous Running System}
-\subsubsection*{3.1 Explanation}
+\section{Continuous Running System}
+\subsubsection*{5.1 Explanation}
 The simulation runs continuously by maintaining a target population through a supply shuttle system. When agents retire (after 2000 cycles) or die, new agents are spawned to maintain desired population levels. The system maintains at least 50 agents total across all types, with a maximum cap of 60 agents.
 
 The supply shuttle operates in "deficit mode," spawning new agents when any agent type falls below its desired count:
@@ -270,7 +259,7 @@ The supply shuttle operates in "deficit mode," spawning new agents when any agen
 
 Additionally, the supply shuttle aggregates Q-tables and trust memory from all survivors to calculate averages (preparing for potential knowledge inheritance by new agents).
 
-\subsubsection*{3.2 Code}
+\subsubsection*{5.2 Code}
 The supply shuttle reflex checks population counts and spawns new agents:
 
 \begin{verbatim}
@@ -327,7 +316,7 @@ plan do_retire intention: retire_desire {
 }
 \end{verbatim}
 
-\subsubsection*{3.3 Demonstration}
+\subsubsection*{5.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} Simulation runs for an extended period, allowing agents to reach retirement age (2000 cycles).
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with ETA values approaching or exceeding 2000. Some agents should have state "retiring" and be moving toward the landing pad. Console should show retirement-related messages.]
@@ -338,13 +327,13 @@ plan do_retire intention: retire_desire {
   \item \textbf{Interpretation:} The supply shuttle system successfully detects population deficits and spawns new agents to maintain the desired population levels. The simulation continues running indefinitely.
 \end{enumerate}
 
-\subsection*{Section 4: FIPA Communication}
-\subsubsection*{3.1 Explanation}
+\section{FIPA Communication}
+\subsubsection*{6.1 Explanation}
 FIPA (Foundation for Intelligent Physical Agents) protocol is used for long-distance messaging between agents. In this simulation, Commanders send storm warning messages to all agents in the wasteland when a dust storm is detected. This demonstrates asynchronous, long-range communication that triggers behavioral changes in receiving agents.
 
 When a dust storm occurs in the wasteland, Commanders detect it and broadcast a "Return to Base" message using the FIPA propose protocol. Agents receiving this message add a \texttt{storm\_warning\_belief} to their BDI system, which triggers the highest-priority desire (\texttt{escape\_storm}) to return to the safe habitat dome.
 
-\subsubsection*{3.2 Code}
+\subsubsection*{6.2 Code}
 Commanders monitor for storms and send FIPA messages:
 
 \begin{verbatim}
@@ -396,7 +385,7 @@ plan escape_storm intention: escape_storm_desire {
 }
 \end{verbatim}
 
-\subsubsection*{3.3 Demonstration}
+\subsubsection*{6.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} A dust storm occurs in the wasteland while agents (particularly Scavengers) are present there.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing wasteland in storm state (orange color), with agents visible in the wasteland. The console should show FIPA messages from Commanders with "Return to Base" content. Agent state inspector should show some agents with state \texttt{"escaping\_storm"}.]
@@ -407,8 +396,8 @@ plan escape_storm intention: escape_storm_desire {
   \item \textbf{Interpretation:} The FIPA communication successfully triggers behavioral changes. Agents prioritize storm escape (strength 200.0, highest priority) and navigate to safety, demonstrating the integration between FIPA messaging and BDI architecture.
 \end{enumerate}
 
-\subsection*{Section 5: Charts and Monitoring}
-\subsubsection*{3.1 Explanation}
+\section{Charts and Monitoring}
+\subsubsection*{7.1 Explanation}
 The simulation includes real-time monitoring of learning metrics through charts and global values. The primary chart tracks the evolution of trust and parasite detection accuracy over time, demonstrating how the population learns to identify malicious actors.
 
 \textbf{Global Values and Metrics:}
@@ -425,7 +414,7 @@ The chart displays these metrics over time, showing the learning evolution. The 
 \textbf{Interesting Conclusion:}
 The simulation demonstrates that a population utilizing Reinforcement Learning can develop a "Social Immune System," effectively identifying and isolating malicious actors (Parasites) without centralized police control, simply through individual negative experiences and learning.
 
-\subsubsection*{3.2 Code}
+\subsubsection*{7.2 Code}
 Learning metrics are updated each cycle:
 
 \begin{verbatim}
@@ -486,7 +475,7 @@ display LearningMetrics {
 }
 \end{verbatim}
 
-\subsubsection*{3.3 Demonstration}
+\subsubsection*{7.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} Simulation runs for an extended period to allow learning to occur.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing the "Avg Trust \& Detection" chart with four lines visible: average trust to parasites (expected to trend downward), average trust to non-parasites (expected to remain positive), precision (expected to increase), and recall (expected to increase). The chart should show evolution over time with clear trends visible.]
@@ -498,10 +487,9 @@ display LearningMetrics {
 \end{enumerate}
 
 % --- SECTION 4 ---
-\section{Challenge / Bonus Section}
 
-\subsection*{Challenge 1: BDI Agents}
-\subsubsection*{4.1 Explanation}
+\section{Challenge 1: BDI Agents}
+\subsubsection*{8.1 Explanation}
 The simulation implements a full BDI (Belief-Desire-Intention) architecture using GAMA's Simple BDI control. This architecture allows agents to make decisions based on their beliefs about the world, desires (goals) they want to achieve, and intentions (plans) to fulfill those desires.
 
 \textbf{Beliefs (Sensors):} Agents maintain beliefs about their internal state and external environment:
@@ -531,7 +519,7 @@ The simulation implements a full BDI (Belief-Desire-Intention) architecture usin
 
 \textbf{Intentions (Plans):} Plans define the actions agents take to fulfill desires. Each plan is associated with a specific desire and executes until the desire is satisfied or the plan is completed.
 
-\subsubsection*{4.2 Code}
+\subsubsection*{8.2 Code}
 Beliefs are managed through perception reflexes:
 
 \begin{verbatim}
@@ -610,7 +598,7 @@ species Engineer parent: Human {
 }
 \end{verbatim}
 
-\subsubsection*{4.3 Demonstration}
+\subsubsection*{8.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} An agent's oxygen level drops below 20\% threshold.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with an agent having \texttt{oxygen\_level} $<$ 20. The agent should have state showing it is responding to the suffocating belief (e.g., \texttt{"going\_to\_oxygen"} or similar). Console should show belief additions and desire creations. The agent should be moving toward an oxygen source.]
@@ -629,8 +617,8 @@ species Engineer parent: Human {
   \item \textbf{Interpretation:} The BDI system correctly prioritizes desires based on rule strengths. The agent with storm warning (strength 200.0) prioritizes escape over other tasks, while agents with suffocating (strength 100.0) prioritize oxygen over injured agents (strength 12.0). This demonstrates the priority system working correctly across the population.
 \end{enumerate}
 
-\subsection*{Challenge 2: Reinforcement Learning}
-\subsubsection*{4.1 Explanation}
+\section{Challenge 2: Reinforcement Learning}
+\subsubsection*{9.1 Explanation}
 The simulation implements Q-Learning, a model-free reinforcement learning algorithm, to enable agents to learn which other agents are trustworthy through experience. Agents learn to identify parasites by tracking the outcomes of trade interactions and updating Q-values accordingly.
 
 \textbf{Q-Learning Implementation:}
@@ -652,7 +640,7 @@ The simulation implements Q-Learning, a model-free reinforcement learning algori
 \textbf{Learning Evolution:}
 Initially, agents interact randomly (curiosity = 20\%). Parasites thrive and get rich through scams. Over time, Q-values for parasite interactions decrease due to negative rewards. Trust values drop toward -1.0 for parasites, and agents learn to IGNORE agents with negative trust values. The learning metrics track average trust to parasites vs non-parasites, plus precision/recall for parasite detection.
 
-\subsubsection*{4.2 Code}
+\subsubsection*{9.2 Code}
 Q-Learning state and action selection:
 
 \begin{verbatim}
@@ -742,7 +730,7 @@ reflex learn_and_trade when:
 }
 \end{verbatim}
 
-\subsubsection*{4.3 Demonstration}
+\subsubsection*{9.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} Simulation starts with agents having empty Q-tables and trust memory. Agents begin trading with each other.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with trust\_memory column showing initial values (mostly 0.0 or empty). Console should show trade interactions with rewards. The learning metrics chart should show initial trust values (around 0) for both parasites and non-parasites. Some trades should show positive rewards (+20) and some negative rewards (-20 from parasites).]
