@@ -36,8 +36,12 @@ This simulation models a Mars Colony struggling to survive. The agents (Colonist
     *   Facilities are spread out (80 units from center) for better visualization
     *   Located at center of 400x400 map
 2.  **The Wasteland (Danger Zone):** 
-    *   Agents wander here to find "Raw Materials" (Points/Cash)
-    *   It has no oxygen (drains `oxygen_level` 1.2x faster than in dome)
+    *   Scavengers venture here to mine at the Rock Mine for raw materials
+    *   Oxygen drains 1.2x faster than in dome (0.012 rate vs 0.01)
+    *   **Dust Storms:** Random events (1% probability per cycle) that last 15 cycles
+    *   During storms: Oxygen drains 2x faster (0.024 rate), energy drains +1.0 per cycle
+    *   Visual feedback: Wasteland turns orange during storms
+    *   Commander sends FIPA "Return to Base" messages to agents in wasteland during storms
     *   Size: 100x100 units
 3.  **The Med-Bay:** Where Medics hang out. Features:
     *   Queue system for injured agents
@@ -57,15 +61,32 @@ This simulation models a Mars Colony struggling to survive. The agents (Colonist
 We use the **Simple BDI** architecture to handle biological survival.
 
 *   **Beliefs (Sensors):**
-    *   `has_belief("suffocating")` (Triggered when Oxygen < 20%).
-    *   `has_belief("starving")` (Triggered when Energy < 20%).
-    *   `has_belief("injured")` (Triggered when Health < 50%).
-*   **Desires (Goals):**
-    *   `maintain_life` (Highest Priority).
-    *   `perform_job` (Lower Priority - e.g., Scavenger goes to Wasteland).
+    *   `suffocating_belief` (Triggered when Oxygen < 20%).
+    *   `starving_belief` (Triggered when Energy < 20%).
+    *   `injured_belief` (Triggered when Health < 50%).
+    *   `should_retire_belief` (Triggered when ETA >= 2000 cycles).
+    *   `storm_warning_belief` (Triggered by FIPA message from Commander).
+    *   `generator_broken_belief` (Engineer only, when oxygen generator is broken).
+    *   `patients_waiting_belief` (Medic only, when med bay queue has patients).
+    *   `mission_time_belief` (Scavenger only, 20% probability per cycle).
+*   **Desires (Goals):** Ranked by rule strengths (see Section 12)
+    *   `escape_storm` (200.0) - Highest priority
+    *   `has_oxygen` (100.0) - High priority
+    *   `has_energy` (25.0) - Medium priority
+    *   `be_healthy` (12.0) - Medium-low priority
+    *   `fix_generator` (9.0) - Engineer only
+    *   `heal_patients` (7.0) - Medic only
+    *   `retire` (6.0) - Low priority
+    *   `mine_resources` (5.0) - Scavenger only
+    *   `wander` (default) - Lowest priority
 *   **Intentions (Plans):**
-    *   If `suffocating` -> `intention: goto_target(oxygen_generator)`.
-    *   If `injured` -> `intention: find_medic`.
+    *   `escape_storm` -> Move to habitat dome
+    *   `be_healthy` -> Queue at med bay, wait for medic
+    *   `retire` -> Move to landing pad and despawn
+    *   `fix_generator` -> Move to oxygen generator and repair
+    *   `heal_patients` -> Move to med bay and heal queued patients
+    *   `mine_resources` -> Move to rock mine, mine for 5 seconds, return to dome
+    *   `wander_around` -> Wander within dome when idle
 
 ---
 
@@ -79,16 +100,23 @@ Resource exchange is necessary. Scavengers have materials, Medics have health, E
 The **Parasite** agent looks like a normal agent. It asks to trade, takes the item, and gives nothing back.
 
 **The Q-Learning Implementation:**
-1.  **State:** Meeting an agent of type X (e.g., Meeting a Parasite).
-2.  **Action:** `Trade` OR `Ignore`.
+1.  **State:** Agent ID (e.g., "id:agent_name") - Each agent tracks trust per individual, not per type
+2.  **Action:** `TRADE` OR `IGNORE` (selected via epsilon-greedy: 20% random, 80% based on Q-values)
 3.  **Reward:**
-    *   Successful Trade: +10 Happiness.
-    *   Scammed by Parasite: -20 Happiness.
-4.  **The Evolution:**
-    *   Initially, agents interact randomly. Parasites thrive and get rich.
-    *   Over time, the `trust_memory` for "Parasite" drops to -1.
-    *   Agents stop interacting with Parasites.
-    *   Parasites effectively "starve" (socially) or are forced to change behavior (if you code that complexity).
+    *   Successful mutual trade: +20.0
+    *   Scammed by Parasite: -20.0
+    *   One-sided trade (non-parasite): -1.0
+    *   Ignore action: 0.0
+4.  **The Learning:**
+    *   Q-value update: `Q(s,a) = Q(s,a) + alpha * (reward - Q(s,a))` where `alpha = 0.2`
+    *   Trust calculation: `trust = (Q[TRADE] - Q[IGNORE]) / 4.0`, clamped to [-1.0, 1.0]
+    *   Trust < 0 indicates predicted parasite (used for precision/recall metrics)
+5.  **The Evolution:**
+    *   Initially, agents interact randomly (epsilon = 20%). Parasites thrive and get rich.
+    *   Over time, Q-values for parasite interactions decrease (negative rewards)
+    *   Trust values drop toward -1.0 for parasites
+    *   Agents learn to IGNORE agents with negative trust values
+    *   Learning metrics track average trust to parasites vs non-parasites, plus precision/recall
 
 ---
 
@@ -96,13 +124,15 @@ The **Parasite** agent looks like a normal agent. It asks to trade, takes the it
 *Requirement: Simulation continuously running + 50 Guests.*
 
 To ensure the simulation never ends:
-1.  **Death:** Agents die if `health` <= 0.
-2.  **Retirement:** Agents leave the simulation (Despawn) after 2000 cycles (simulating a completed tour of duty).
+1.  **Death:** Currently disabled (`death` reflex set to `when: false`) to allow learning. When enabled, agents die if `health` <= 0.
+2.  **Retirement:** Agents leave the simulation (Despawn) after 2000 cycles (configurable via `retirement_age`, simulating a completed tour of duty).
 3.  **The Supply Shuttle:**
-    *   A global `reflex` checks the population count.
-    *   `if length(agents) < 20`: The "Supply Shuttle" arrives.
-    *   It creates 30 new agents at the `Landing Pad`.
-    *   **The Evolutionary Link:** New agents inherit the *average Q-Table* of the current survivors. This represents "Training" received from the previous generation.
+    *   A global `reflex` checks population counts per agent type.
+    *   Operates in "deficit mode" when any agent type is below desired count.
+    *   Desired counts: Engineers (16), Medics (10), Scavengers (8), Parasites (12), Commanders (4)
+    *   Max colony size: 60 agents total
+    *   New agents spawn at `habitat_dome.location` (not landing pad).
+    *   **The Evolutionary Link:** Supply shuttle aggregates Q-tables and trust_memory from all survivors, calculating averages. Currently calculated but not yet applied to new agents (TODO: initialize new agents with averaged Q-tables).
 
 ---
 
@@ -146,22 +176,35 @@ To ensure the simulation never ends:
 
 **Step 2 (Survival BDI):** ✅ COMPLETE
 - Full BDI architecture implemented:
-  - **Beliefs:** `suffocating` (Oxygen < 20%), `starving` (Energy < 20%), `injured` (Health < 50%)
+  - **Beliefs:** `suffocating` (Oxygen < 20%), `starving` (Energy < 20%), `injured` (Health < 50%), `should_retire` (ETA >= 2000), `storm_warning` (from FIPA messages)
   - **Belief Management:** Dynamic belief system that adds/removes beliefs based on current state
-  - **Desires:** Priority system TODO
-  - **Intentions:** State-based behavior (going_to_oxygen, going_to_greenhouse, going_to_med_bay, waiting_at_med_bay, healing, refilling_oxygen, refilling_energy, retiring, idle)
+  - **Desires:** Fully implemented with priority system via rule strengths:
+    - `escape_storm` (strength: 200.0) - Highest priority
+    - `has_oxygen` (strength: 100.0) - High priority
+    - `has_energy` (strength: 25.0) - Medium priority
+    - `be_healthy` (strength: 12.0) - Medium-low priority
+    - `retire` (strength: 6.0) - Low priority
+    - `fix_generator` (Engineer, strength: 9.0) - Medium priority
+    - `heal_patients` (Medic, strength: 7.0) - Medium priority
+    - `mine_resources` (Scavenger, strength: 5.0) - Low-medium priority
+  - **Intentions:** State-based behavior (idle, going_to_med_bay, waiting_at_med_bay, retiring, escaping_storm, going_to_oxygen_generator, healing, going_to_mine, mining, returning_to_dome)
 - Agents automatically seek resources when beliefs are triggered
-- Priority system: Injured agents prioritize med bay over other needs
-- Death system when health reaches 0 with death reason tracking
-- Energy system: Decreases with movement (higher rate) or at rest (lower rate)
+- Priority system: Rule strengths determine desire priority, with storm escape being highest
+- Death system: Currently disabled to allow learning (death reflex set to `when: false`)
+- Energy system: Decreases with movement (0.01 rate) or at rest (0.005 rate), extra drain during dust storms
+- Oxygen system: Decreases in dome (0.01 rate), faster in wasteland (1.2x), 2x faster during dust storms
 
 **Step 3 (Continuous Loop):** ✅ COMPLETE
-- Supply Shuttle system implemented with configurable desired population counts per agent type
-- Retirement system: Agents retire after 1000 cycles (configurable via `retirement_age`)
-- ETA (Estimated Time of Arrival) tracking for retirement
-- Automatic respawning maintains population levels
+- Supply Shuttle system implemented with configurable desired population counts per agent type:
+  - Desired counts: Engineers (16), Medics (10), Scavengers (8), Parasites (12), Commanders (4)
+  - Max colony size: 60 agents
+  - Spawns agents at habitat dome location when population is below desired levels
+- Retirement system: Agents retire after 2000 cycles (configurable via `retirement_age`)
+- ETA (Estimated Time of Arrival) tracking for retirement (increments by 1.0 per cycle)
+- Automatic respawning maintains population levels based on deficit mode
 - Death tracking and counter updates for all agent types
 - Configurable flags: `enable_supply_shuttle` and `enable_retirement`
+- **Evolutionary Link:** Supply shuttle aggregates Q-tables and trust_memory from all survivors, calculating averages (though not yet applied to new agents)
 
 **Med Bay System:** ✅ COMPLETE (Enhanced Feature)
 - **Queue System:** Injured agents automatically queue at med bay
@@ -174,11 +217,12 @@ To ensure the simulation never ends:
 - **Physical Queueing:** Agents physically go to and stay at med bay when queued
 
 **Oxygen Generator System:** ✅ COMPLETE
-- Random breaking mechanism (10% probability per cycle, configurable)
+- Random breaking mechanism (5% probability per cycle, configurable via `oxygen_generator_break_probability`)
 - Engineer agents detect broken generator and repair it
-- Belief system: Engineers get `oxygen_generator_broken` belief
-- Visual feedback: Generator turns red when broken
-- Engineers prioritize repair over other tasks when generator is broken
+- Belief system: Engineers get `generator_broken_belief` when generator is broken
+- Visual feedback: Generator turns red when broken, displays "O2 Gen (BROKEN)" text
+- Engineers prioritize repair over other tasks when generator is broken (strength: 9.0)
+- Engineers can also repair generator during trades (if broken)
 
 **Agent Movement & Behavior:** ✅ COMPLETE
 - Wandering behavior when agents are idle and healthy
@@ -187,30 +231,75 @@ To ensure the simulation never ends:
 - Continuous movement to med bay when injured
 
 **State Management:** ✅ COMPLETE
-- Comprehensive state system: `idle`, `going_to_oxygen`, `going_to_greenhouse`, `going_to_med_bay`, `waiting_at_med_bay`, `healing`, `refilling_oxygen`, `refilling_energy`, `retiring`
+- Comprehensive state system: `idle`, `going_to_med_bay`, `waiting_at_med_bay`, `retiring`, `escaping_storm`, `going_to_oxygen_generator`, `healing`, `going_to_mine`, `mining`, `returning_to_dome`
 - State transitions prevent agents from wandering when they have urgent needs
+- Trade cooldown system: Agents have 10-cycle cooldown between trades to prevent spam
 
-#### 🚧 In Progress / TODO
+**Step 4 (Interaction & Parasites):** ✅ COMPLETE
+- Scavenger raw material tracking: `raw_amount` variable tracks collected materials
+- Scavengers mine at RockMine location, gaining 5 raw materials per successful mining trip (5 seconds)
+- Trade action fully implemented: `attempt_trade()` action handles all trade interactions
+- Parasite stealing behavior fully implemented:
+  - Parasites steal raw materials if partner has them
+  - Otherwise, parasites drain 10 energy from partner and gain 10 energy themselves
+  - Parasites use `presented_role` to disguise themselves (randomly presents as Engineer, Medic, Scavenger, or Commander)
+- Trading mechanics:
+  - Scavengers: Give raw materials (+20 energy to partner) or small assistance (+10 energy at -5 cost)
+  - Medics: Heal partners (+30 health)
+  - Engineers: Provide oxygen (+10) or repair broken generator
+  - Commanders: Provide both oxygen (+10) and energy (+10)
+  - Parasites: Always steal/drain, never give back
+- Reward system: +20 for mutual trade, -20 for parasite scam, -1 for one-sided trade, 0 for no trade
 
-**Step 4 (Interaction & Parasites):** ⏳ TODO
-- Scavenger must have a measure of the credits it contains
-- Trade action not yet implemented
-- Parasite stealing behavior not yet implemented
+**Step 5 (RL Logic):** ✅ COMPLETE
+- `trust_memory` map fully implemented: Stores trust values per agent ID (key: "id:agent_name")
+- Q-Learning logic fully implemented:
+  - Q-table: `map<string, list<float>>` where each state (agent ID) has [Q(TRADE), Q(IGNORE)]
+  - Learning parameters: `alpha = 0.2`, `gamma = 0.0`, `epsilon = 0.20`
+  - Epsilon-greedy action selection: 20% random exploration, 80% exploitation
+  - Q-value update: `Q(s,a) = Q(s,a) + alpha * (reward - Q(s,a))`
+  - Trust calculation: `trust = (Q[TRADE] - Q[IGNORE]) / 4.0`, clamped to [-1.0, 1.0]
+- Trade decision: Agents choose TRADE or IGNORE based on Q-values (or random if epsilon)
+- Learning metrics: Global tracking of `avg_trust_to_parasites`, `avg_trust_to_non_parasites`, `precision`, `recall`
+- Detection metrics: Precision (TP/(TP+FP)) and Recall (TP/(TP+FN)) for parasite identification (trust < 0 = predicted parasite)
 
-**Step 5 (RL Logic):** ⏳ TODO
-- `trust_memory` map structure exists but marked as TODO
-- Q-Learning logic for trust evolution not yet implemented
+**Step 6 (FIPA):** ✅ COMPLETE
+- Commander FIPA communication fully implemented:
+  - `check_storm` reflex monitors wasteland for dust storms
+  - When storm detected, Commander sends FIPA `propose` message "Return to Base" to all agents in wasteland
+  - Uses `start_conversation` with protocol "fipa-propose"
+- Dust Storm event fully implemented:
+  - Wasteland has `dust_storm` boolean and `storm_timer`
+  - Random storm generation: 1% probability per cycle
+  - Storms last 15 cycles
+  - Visual feedback: Wasteland turns orange during storms
+  - Effects: 2x oxygen drain, +1.0 energy drain per cycle
+- Message reception: All agents have `receive_message` reflex that processes FIPA messages
+- BDI integration: Receiving "Return to Base" message adds `storm_warning_belief`, triggering `escape_storm_desire` (highest priority: 200.0)
 
-**Step 6 (FIPA):** ⏳ ✅ TO BE REFINED
-- Commander FIPA skills exist but communication events not yet implemented
-- Dust Storm event
+**Step 7 (UI):** ✅ MOSTLY COMPLETE
+- Charts for trust evolution implemented:
+  - "Avg Trust & Detection" chart with 4 series:
+    - Avg trust (parasites)
+    - Avg trust (non-parasites)
+    - Precision
+    - Recall
+- Agent state inspector: Table showing agent attributes (name, role, presented_role, location, happiness, oxygen_level, energy_level, health_level, state, raw_amount, trust_memory)
+- Main display: All species and places rendered with appropriate colors
+- ⏳ TODO: Additional charts for survival rate or death tracking (currently death is disabled)
 
-**Step 7 (UI):** ⏳ TODO
-- Charts for trust evolution and survival rate not yet implemented
-- Agent beliefs inspector exists in experiment
-
-**Step 8 :** TODO
-- Rank the desires
+**Step 8 (Desire Ranking):** ✅ COMPLETE
+- All desires are ranked via rule strengths:
+  1. `escape_storm` (200.0) - Highest priority (dust storm warning)
+  2. `has_oxygen` (100.0) - High priority (suffocating)
+  3. `has_energy` (25.0) - Medium priority (starving)
+  4. `be_healthy` (12.0) - Medium-low priority (injured)
+  5. `fix_generator` (9.0) - Medium priority (Engineer only)
+  6. `heal_patients` (7.0) - Medium priority (Medic only)
+  7. `retire` (6.0) - Low priority (retirement age reached)
+  8. `mine_resources` (5.0) - Low-medium priority (Scavenger only)
+  9. `wander` (default) - Lowest priority (idle behavior)
+- Priority system ensures agents handle urgent needs (storms, suffocation) before lower-priority tasks
 
 
 
@@ -253,20 +342,58 @@ The current implementation has energy and oxygen decreasing continuously, but al
 
 ### 11. Implementation Roadmap (Remaining)
 
-1.  **Step 4 (Interaction & Parasites):** Code the "Trade" action. Make Parasites steal.
-2.  **Step 5 (RL Logic):** Add the `trust_memory` map. Add the logic: `if trust < 0, do not trade`.
-3.  **Step 6 (FIPA):** Add the Commander and the Dust Storm event.
-4.  **Step 7 (UI):** Add the charts.
+**All major features are complete!** Remaining items:
 
-### 12. Very important
-1. We need to **rank the beliefs** so that there is a definite order of priorities
-2. The beliefs to be ranked (as far as now) are:
-- oxygen
-- healthy
-- starving
-- retiring
-- fix generator (for the engineer)
-- healing patients (for the medic)
-- mine (for the scavenger)
-- dust_storm (for everyone who's in the wasteland)
-3. This are very important as changing the value highly influences the behaviour of the agents 
+1.  **Apply Q-table inheritance:** Currently, supply shuttle calculates average Q-tables and trust from survivors, but new agents don't inherit these values. Should initialize new agents with averaged Q-tables.
+2.  **Re-enable death system:** Death reflex is currently disabled (`when: false`) to allow learning. Consider re-enabling with proper death handling.
+3.  **Re-enable oxygen/energy refill plans:** `get_oxygen` and `get_energy` plans are currently disabled (marked "Temporarily disabled to prioritize learning"). Consider re-enabling if needed for full survival simulation.
+4.  **Additional UI charts:** Could add charts for:
+    - Total trades over time
+    - Colony population over time
+    - Happiness levels
+    - Death/retirement rates (when death is re-enabled)
+
+### 12. Desire Priority System ✅ COMPLETE
+
+**All desires are ranked via rule strengths (higher = higher priority):**
+
+1. **`escape_storm` (200.0)** - Highest priority
+   - Triggered by: `storm_warning_belief` (from FIPA message)
+   - Affects: All agents in wasteland during dust storm
+
+2. **`has_oxygen` (100.0)** - High priority
+   - Triggered by: `suffocating_belief` (oxygen < 20%)
+   - Affects: All agents
+   - Note: Plan is currently disabled to prioritize learning
+
+3. **`has_energy` (25.0)** - Medium priority
+   - Triggered by: `starving_belief` (energy < 20%)
+   - Affects: All agents
+   - Note: Plan is currently disabled to prioritize learning
+
+4. **`be_healthy` (12.0)** - Medium-low priority
+   - Triggered by: `injured_belief` (health < 50%)
+   - Affects: All agents
+   - Active: Med bay queue system fully functional
+
+5. **`fix_generator` (9.0)** - Medium priority (Engineer only)
+   - Triggered by: `generator_broken_belief`
+   - Affects: Engineers when oxygen generator is broken
+
+6. **`heal_patients` (7.0)** - Medium priority (Medic only)
+   - Triggered by: `patients_waiting_belief`
+   - Affects: Medics when med bay queue has patients
+
+7. **`retire` (6.0)** - Low priority
+   - Triggered by: `should_retire_belief` (ETA >= 2000 cycles)
+   - Affects: All agents when retirement age reached
+
+8. **`mine_resources` (5.0)** - Low-medium priority (Scavenger only)
+   - Triggered by: `mission_time_belief` (20% probability per cycle)
+   - Affects: Scavengers for resource collection missions
+
+9. **`wander` (default/lowest)** - Lowest priority
+   - Default idle behavior
+   - Affects: All agents when no other desires are active
+
+**Priority order is critical:** Changing these values significantly influences agent behavior. Current values ensure survival needs (storms, oxygen) are handled before job-specific tasks. 
