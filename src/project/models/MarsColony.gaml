@@ -314,9 +314,9 @@ species Human skills: [moving, fipa] control: simple_bdi {
     // === LEARNING / TRUST (Q-Learning) ===
     float happiness <- 0.0;
 
-    float alpha <- 0.2;
-    float gamma <- 0.0;
-    float epsilon <- 0.20;
+    float sociability <- 0.2;  // Learning rate: how much agents learn from interactions
+    float patience <- 0.0;     // Discount factor: how much they value future rewards
+    float curiosity <- 0.20;   // Exploration rate: how often they try new interactions
 
     map<string, list<float>> Q <- map([]);
     map<string, float> trust_memory <- map([]);
@@ -508,7 +508,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     action choose_action(string s) {
-        if (flip(epsilon)) { return (flip(0.5) ? "TRADE" : "IGNORE"); }
+        if (flip(curiosity)) { return (flip(0.5) ? "TRADE" : "IGNORE"); }
         list<float> qs <- Q[s];
         return (qs[0] >= qs[1] ? "TRADE" : "IGNORE");
     }
@@ -519,7 +519,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
         list<float> qs <- Q[s];
         float old <- qs[idx];
-        float updated <- old + alpha * (r - old);
+        float updated <- old + sociability * (r - old);
         qs[idx] <- updated;
         Q[s] <- qs;
 
