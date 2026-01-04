@@ -340,6 +340,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     predicate injured_belief <- new_predicate("injured");
     predicate should_retire_belief <- new_predicate("should_retire");
     predicate storm_warning_belief <- new_predicate("storm_warning");
+    predicate want_to_trade_belief <- new_predicate("want_to_trade");
 
     predicate has_oxygen_desire <- new_predicate("has_oxygen");
     predicate has_energy_desire <- new_predicate("has_energy");
@@ -347,6 +348,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     predicate wander_desire <- new_predicate("wander");
     predicate retire_desire <- new_predicate("retire");
     predicate escape_storm_desire <- new_predicate("escape_storm");
+    predicate seek_trading_area_desire <- new_predicate("seek_trading_area");
 
     init {
         do add_desire(wander_desire);
@@ -402,6 +404,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     rule belief: starving_belief new_desire: has_energy_desire strength: 25.0;
     rule belief: injured_belief new_desire: be_healthy_desire strength: 12.0;
     rule belief: should_retire_belief new_desire: retire_desire strength: 6.0;
+    rule belief: want_to_trade_belief new_desire: seek_trading_area_desire strength: 8.0;
 
     // === PLANS ===
 
@@ -455,6 +458,31 @@ species Human skills: [moving, fipa] control: simple_bdi {
             do goto target: habitat_dome.location speed: movement_speed;
         } else {
             do wander amplitude: 50.0 speed: movement_speed;
+        }
+    }
+
+    plan go_to_trading_area intention: seek_trading_area_desire {
+        // Pick the nearest trading area
+        float dist_to_common <- habitat_dome.common_area.location distance_to location;
+        float dist_to_recreation <- habitat_dome.recreation_area.location distance_to location;
+        point target_area <- (dist_to_common <= dist_to_recreation) ? 
+                             habitat_dome.common_area.location : 
+                             habitat_dome.recreation_area.location;
+
+        // Navigate to the trading area
+        if ((location distance_to target_area) > facility_proximity) {
+            state <- "going_to_trading_area";
+            do goto target: target_area speed: movement_speed;
+        } else {
+            // Arrived at trading area - wait here for trading opportunities
+            state <- "at_trading_area";
+            do wander amplitude: 10.0 speed: movement_speed * 0.3;
+            
+            // Once trade is made, resume wandering
+            if (trade_cooldown > 0) {
+                do remove_intention(seek_trading_area_desire, true);
+                do add_desire(wander_desire);
+            }
         }
     }
 
@@ -543,6 +571,29 @@ species Human skills: [moving, fipa] control: simple_bdi {
     
     reflex debug_state when: cycle mod 1000 = 0 {
         write name + " [cycle " + cycle + "] role=" + role + ", location=" + location + ", cooldown=" + trade_cooldown + ", inside_dome=" + (habitat_dome.shape covers location) + ", Q_entries=" + length(keys(Q)) + ", trust_entries=" + length(keys(trust_memory));
+    }
+
+    reflex assess_trading_motivation when:
+        trade_cooldown = 0
+        and (habitat_dome.shape covers location)
+        and not has_belief(storm_warning_belief)
+        and not has_belief(want_to_trade_belief)
+    {
+        // Decide to seek trading based on curiosity (higher curiosity = more eager to trade)
+        if (flip(curiosity)) {
+            do add_belief(want_to_trade_belief);
+        }
+    }
+
+    reflex update_trading_belief when: has_belief(want_to_trade_belief) {
+        // Check if in a trading area or if trade cooldown is active
+        bool at_trading_area <- ((habitat_dome.common_area.location distance_to location) <= facility_proximity) or 
+                               ((habitat_dome.recreation_area.location distance_to location) <= facility_proximity);
+        
+        // Remove belief once trade cooldown starts (means we just traded)
+        if (trade_cooldown > 0) {
+            do remove_belief(want_to_trade_belief);
+        }
     }
 
     // Trade with minimal gating to enable learning
