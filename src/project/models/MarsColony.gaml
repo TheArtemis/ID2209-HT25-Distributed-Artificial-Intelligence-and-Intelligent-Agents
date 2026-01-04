@@ -146,6 +146,12 @@ global {
     float avg_sociability <- 0.0;
     float avg_happiness <- 0.0;
     float avg_generosity <- 0.0;
+    
+    // === SURVIVAL METRICS ===
+    float avg_living_agent_age <- 0.0;
+    float avg_dead_agent_lifespan <- 0.0;
+    int total_deaths <- 0;
+    float total_age_at_death <- 0.0;
 
     init {
         create HabitatDome number: 1 returns: domes;
@@ -323,6 +329,16 @@ global {
         avg_sociability <- (agent_count > 0 ? (sum_sociability / float(agent_count)) * 100.0 : 0.0);
         avg_happiness <- (agent_count > 0 ? sum_happiness / float(agent_count) : 0.0);
         avg_generosity <- (agent_count > 0 ? sum_generosity / float(agent_count) : 0.0);
+        
+        // Calculate average age of living agents
+        float sum_age <- 0.0;
+        loop h over: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) {
+            sum_age <- sum_age + h.eta;
+        }
+        avg_living_agent_age <- (agent_count > 0 ? sum_age / float(agent_count) : 0.0);
+        
+        // Calculate average lifespan of dead agents
+        avg_dead_agent_lifespan <- (total_deaths > 0 ? total_age_at_death / float(total_deaths) : 0.0);
     }
 }
 
@@ -347,6 +363,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     float sociability <- 0.2;  // Learning rate: how much agents learn from interactions
     float patience <- 0.0;     // Discount factor: how much they value future rewards
     float curiosity <- 0.20;   // Exploration rate: how often they try new interactions
+    float base_curiosity <- 0.20;  // Base exploration rate for adaptation
 
     map<string, list<float>> Q <- map([]);
     map<string, float> trust_memory <- map([]);
@@ -553,6 +570,11 @@ species Human skills: [moving, fipa] control: simple_bdi {
         else if (self is Scavenger) { current_number_of_scavengers <- max(0, current_number_of_scavengers - 1); }
         else if (self is Parasite) { current_number_of_parasites <- max(0, current_number_of_parasites - 1); }
         else if (self is Commander) { current_number_of_commanders <- max(0, current_number_of_commanders - 1); }
+        
+        // Track lifespan for survival metrics
+        total_age_at_death <- total_age_at_death + eta;
+        total_deaths <- total_deaths + 1;
+        
         do die;
     }
 
@@ -581,13 +603,15 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
         list<float> qs <- Q[s];
         float old <- qs[idx];
-        float updated <- old + sociability * (r - old);
+        float discount_factor <- 0.8;  // Gamma: weight future rewards
+        float max_future <- max(qs[0], qs[1]);  // Best possible future reward
+        float updated <- old + sociability * (r + discount_factor * max_future - old);
         qs[idx] <- updated;
         Q[s] <- qs;
 
-        // Calculate trust based on Q-value preference (scaled for typical reward range of -20 to +20)
+        // Calculate trust based on Q-value preference (scaled for typical reward range -50 to +100)
         float pref <- Q[s][0] - Q[s][1];
-        trust_memory[s] <- max(-1.0, min(1.0, pref / 10.0));
+        trust_memory[s] <- max(-1.0, min(1.0, pref / 75.0));  // Increased divisor for new reward scale
         
         if (cycle mod 200 = 0) {
             write name + " update_q: s=" + s + ", a=" + a + ", r=" + r + ", old_q=" + old + ", new_q=" + updated + ", trust=" + trust_memory[s];
@@ -597,6 +621,37 @@ species Human skills: [moving, fipa] control: simple_bdi {
     reflex update_trade_cooldown when: trade_cooldown > 0 {
         trade_cooldown <- trade_cooldown - 1;
     }
+    
+    reflex adapt_curiosity when: cycle mod 100 = 0 and length(keys(trust_memory)) > 0 {
+        // Calculate average trust from recent interactions
+        float total_trust <- 0.0;
+        int count <- 0;
+        loop t over: values(trust_memory) {
+            total_trust <- total_trust + t;
+            count <- count + 1;
+        }
+        float avg_trust_value <- total_trust / float(count);
+        
+        // Adapt curiosity: increase when learning is poor (low trust), decrease when learning is good (high trust)
+        // This encourages exploration when stuck, and exploitation when successful
+        if (avg_trust_value < -0.2) {
+            // Very poor: explore more aggressively
+            curiosity <- min(0.50, base_curiosity + 0.15);
+        } else if (avg_trust_value < 0.0) {
+            // Poor: explore more
+            curiosity <- min(0.45, base_curiosity + 0.10);
+        } else if (avg_trust_value < 0.3) {
+            // Moderate: maintain base curiosity
+            curiosity <- base_curiosity;
+        } else if (avg_trust_value < 0.6) {
+            // Good: exploit more (reduce exploration)
+            curiosity <- max(0.10, base_curiosity - 0.05);
+        } else {
+            // Excellent: exploit heavily (minimum exploration)
+            curiosity <- max(0.05, base_curiosity - 0.10);
+        }
+    }
+
     
     reflex debug_state when: cycle mod 1000 = 0 {
         write name + " [cycle " + cycle + "] role=" + role + ", location=" + location + ", cooldown=" + trade_cooldown + ", inside_dome=" + (habitat_dome.shape covers location) + ", Q_entries=" + length(keys(Q)) + ", trust_entries=" + length(keys(trust_memory));
@@ -697,6 +752,13 @@ species Human skills: [moving, fipa] control: simple_bdi {
                     energy_level <- min(max_energy_level, energy_level + 10.0);
                 }
             }
+            
+            // Fallback: all non-parasites can offer a small boost if they haven't given specialized resources
+            if (not i_gave and energy_level > 20.0) {
+                i_gave <- true;
+                energy_level <- max(0, energy_level - 5.0);
+                ask partner { energy_level <- min(max_energy_level, energy_level + 10.0); }
+            }
         }
 
         if (partner is Parasite) {
@@ -757,9 +819,13 @@ species Human skills: [moving, fipa] control: simple_bdi {
         if (i_gave) { generosity <- generosity + 1.0; }
         if (partner_gave) { generosity <- generosity - 0.5; } // Receiving counts less
 
-        if (i_gave and partner_gave) { return 20.0; }
-        if (i_gave and !partner_gave) { return ((partner is Parasite) ? -20.0 : -1.0); }
-        return 0.0;
+        if (i_gave and partner_gave) { return 100.0; }  // Strong reward for mutual cooperation
+        if (i_gave and !partner_gave) { 
+            if (partner is Parasite) { return -50.0; }  // Victim heavily penalized for trusting parasite
+            if (self is Parasite) { return -50.0; }     // Parasite heavily penalized for stealing attempt
+            return 5.0;  // Non-parasite helpfully gave, modest reward for altruism
+        }
+        return -10.0;  // Default penalty for missed trading opportunity
     }
 
     rgb get_color_for_presented_role {
@@ -1219,6 +1285,13 @@ experiment MarsColony type: gui {
                 data 'Avg Sociability' value: avg_sociability color: #blue;
                 data 'Avg Happiness' value: avg_happiness color: #green;
                 data 'Avg Generosity' value: avg_generosity color: #orange;
+            }
+        }
+        
+        display SurvivalMetrics {
+            chart "Agent Lifespan & Survival" type: series {
+                data 'Avg Living Agent Age' value: avg_living_agent_age color: rgb(0, 102, 204);
+                data 'Avg Dead Agent Lifespan' value: avg_dead_agent_lifespan color: rgb(204, 0, 0);
             }
         }
     }
