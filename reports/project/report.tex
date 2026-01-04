@@ -86,10 +86,12 @@ The simulation demonstrates how a population can evolve a "social immune system"
 \subsubsection*{3.1 Explanation}
 The simulation features five distinct agent types, each with unique roles, capabilities, and interaction rules. All agents share three core biological traits: \texttt{oxygen\_level}, \texttt{energy\_level}, and \texttt{health\_level}, which decrease over time and must be managed for survival. Each agent type has specific interaction rules that determine how they trade resources with other agents.
 
+	extbf{Note:} In the current implementation, the BDI plans \texttt{get\_oxygen} and \texttt{get\_energy} are intentionally disabled to prioritize learning through social interactions. Oxygen/energy can still change due to environmental drain, role-specific trades (e.g., Engineers/Commanders), and the Med-Bay proximity "immunity" behavior.
+
 \textbf{Agent Types:}
 \begin{enumerate}
   \item \textbf{Engineer:} Repairs broken oxygen generators. Provides oxygen (+10) or repairs generators during trades.
-  \item \textbf{Medic:} Heals other agents at the med-bay. Provides health restoration (+30) during trades.
+    \item \textbf{Medic:} Heals other agents at the med-bay via a queue system. (Healing is performed at the Med-Bay, not through trading.)
   \item \textbf{Scavenger:} Ventures into wasteland to mine resources. Provides raw materials (converted to +20 energy) during trades.
   \item \textbf{Parasite:} Antagonist agent that steals resources without reciprocating. Uses \texttt{presented\_role} to disguise as other types.
   \item \textbf{Commander:} Broadcasts storm warnings via FIPA. Provides both oxygen (+10) and energy (+10) during trades.
@@ -160,7 +162,7 @@ action attempt_trade(Human partner) {
   
   \item \textbf{Input:} Agents engage in trading interactions within the habitat dome.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agents in close proximity within the dome, with the agent state inspector showing trade cooldown values, happiness levels, and trust\_memory entries. The console should show trade log messages indicating successful trades between different agent types.]
-  \item \textbf{Interpretation:} Agents successfully interact with each other following their type-specific rules. Scavengers provide energy, Medics provide health, Engineers provide oxygen, and parasites attempt to steal resources.
+    \item \textbf{Interpretation:} Agents successfully interact with each other following their type-specific rules. Scavengers provide energy via raw resources, Engineers provide oxygen/repairs, Commanders provide oxygen+energy, and Parasites attempt to steal/drain. Medic contributions occur through Med-Bay queue healing (not via trade).
 \end{enumerate}
 
 \section{Environment and Places}
@@ -169,7 +171,9 @@ The simulation features multiple distinct places where agents can interact and p
 
 \textbf{Places:}
 \begin{enumerate}
-  \item \textbf{Habitat Dome:} Large safe zone (250x250 units) containing Greenhouse, Oxygen Generator, and Med-Bay facilities. Agents have slower oxygen depletion here.
+    \item \textbf{Habitat Dome:} Large safe zone (250x250 units) containing Greenhouse, Oxygen Generator, Med-Bay, and the two meeting places used for social interaction.
+    \item \textbf{Common Area:} Meeting/trading area (circle) inside the dome.
+    \item \textbf{Recreation Area:} Meeting/trading area (circle) inside the dome.
   \item \textbf{Wasteland:} Danger zone (100x100 units) where Scavengers mine. Features 1.2x faster oxygen depletion and random dust storms that increase danger.
   \item \textbf{Med-Bay:} Facility within the dome where injured agents queue for treatment. Features visual feedback (orange color when queue has patients).
   \item \textbf{Landing Pad:} Location where agents retire and despawn.
@@ -185,6 +189,8 @@ species HabitatDome {
     Greenhouse greenhouse;
     OxygenGenerator oxygen_generator;
     MedBay med_bay;
+    CommonArea common_area;
+    RecreationArea recreation_area;
     
     init {
         location <- point(200, 200);
@@ -507,8 +513,8 @@ The simulation implements a full BDI (Belief-Desire-Intention) architecture usin
 \textbf{Desires (Goals):} Desires are ranked by rule strengths, determining priority:
 \begin{itemize}
   \item \texttt{escape\_storm} (200.0) - Highest priority
-  \item \texttt{has\_oxygen} (100.0) - High priority
-  \item \texttt{has\_energy} (25.0) - Medium priority
+    \item \texttt{has\_oxygen} (100.0) - High priority (plan currently disabled)
+    \item \texttt{has\_energy} (25.0) - Medium priority (plan currently disabled)
   \item \texttt{be\_healthy} (12.0) - Medium-low priority
   \item \texttt{fix\_generator} (9.0) - Engineer only
   \item \texttt{heal\_patients} (7.0) - Medic only
@@ -601,8 +607,8 @@ species Engineer parent: Human {
 \subsubsection*{8.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} An agent's oxygen level drops below 20\% threshold.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with an agent having \texttt{oxygen\_level} $<$ 20. The agent should have state showing it is responding to the suffocating belief (e.g., \texttt{"going\_to\_oxygen"} or similar). Console should show belief additions and desire creations. The agent should be moving toward an oxygen source.]
-  \item \textbf{Interpretation:} The perception reflex correctly detects low oxygen and adds the \texttt{suffocating\_belief}. The BDI system creates the \texttt{has\_oxygen\_desire} with high priority (100.0), and the agent forms an intention to seek oxygen, demonstrating the Belief → Desire → Intention cycle.
+    \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with an agent having \texttt{oxygen\_level} $<$ 20. Console should show the \texttt{suffocating\_belief} being added and the \texttt{has\_oxygen\_desire} being created.]
+    \item \textbf{Interpretation:} The perception reflex correctly detects low oxygen and adds the \texttt{suffocating\_belief}. The BDI system creates the \texttt{has\_oxygen\_desire} with high priority (100.0). In the current implementation, the corresponding plan \texttt{get\_oxygen} is disabled to prioritize learning interactions.
   
   \item \textbf{Input:} An agent's health drops below 50\% threshold.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with an agent having \texttt{health\_level} $<$ 50. The agent should have state \texttt{"going\_to\_med\_bay"} or \texttt{"waiting\_at\_med\_bay"}. The med-bay should show the agent in its queue (orange color, queue count $>$ 0). Console should show the agent adding itself to the med-bay queue.]
@@ -633,7 +639,7 @@ The simulation implements Q-Learning, a model-free reinforcement learning algori
       \item Ignore action: 0.0
     \end{itemize}
   \item \textbf{Q-Value Update:} $Q(s,a) = Q(s,a) + sociability \times (reward - Q(s,a))$ where $sociability = 0.2$
-  \item \textbf{Trust Calculation:} $trust = (Q[TRADE] - Q[IGNORE]) / 4.0$, clamped to $[-1.0, 1.0]$
+    \item \textbf{Trust Calculation:} $trust = (Q[TRADE] - Q[IGNORE]) / 10.0$, clamped to $[-1.0, 1.0]$
   \item \textbf{Detection:} Trust $< 0$ indicates predicted parasite (used for precision/recall metrics)
 \end{itemize}
 
@@ -661,7 +667,7 @@ action ensure_state_exists(string s) {
 }
 
 action choose_action(string s) {
-    if (flip(cursiosity)) { 
+    if (flip(curiosity)) { 
         return (flip(0.5) ? "TRADE" : "IGNORE"); 
     }
     list<float> qs <- Q[s];
@@ -683,7 +689,7 @@ action update_q(string s, string a, float r) {
     Q[s] <- qs;
     
     float pref <- Q[s][0] - Q[s][1];
-    trust_memory[s] <- max(-1.0, min(1.0, pref / 4.0));
+    trust_memory[s] <- max(-1.0, min(1.0, pref / 10.0));
 }
 \end{verbatim}
 
@@ -692,7 +698,7 @@ Trade interaction with learning:
 \begin{verbatim}
 reflex learn_and_trade when:
     trade_cooldown = 0
-    and (habitat_dome.shape covers location)
+    and (habitat_dome.common_area.shape covers location or habitat_dome.recreation_area.shape covers location)
     and not has_belief(storm_warning_belief)
 {
     list<Human> all_humans <- list(Engineer) + list(Medic) + 
