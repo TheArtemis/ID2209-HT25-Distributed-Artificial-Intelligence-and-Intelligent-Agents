@@ -328,7 +328,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     map<string, float> trust_memory <- map([]);
 
     int trade_cooldown <- 0;
-    int trade_cooldown_max <- 10;
+    int trade_cooldown_max <- 5;
     float meet_distance <- 300.0;
 
     string state <- "idle";
@@ -580,17 +580,14 @@ species Human skills: [moving, fipa] control: simple_bdi {
         and not has_belief(storm_warning_belief)
         and not has_belief(want_to_trade_belief)
     {
-        // Decide to seek trading based on curiosity (higher curiosity = more eager to trade)
-        if (flip(curiosity)) {
+        // Higher base probability to encourage more frequent trading
+        // Curiosity parameter amplifies the base 50% probability
+        if (flip(0.5 + curiosity)) {
             do add_belief(want_to_trade_belief);
         }
     }
 
     reflex update_trading_belief when: has_belief(want_to_trade_belief) {
-        // Check if in a trading area or if trade cooldown is active
-        bool at_trading_area <- ((habitat_dome.common_area.location distance_to location) <= facility_proximity) or 
-                               ((habitat_dome.recreation_area.location distance_to location) <= facility_proximity);
-        
         // Remove belief once trade cooldown starts (means we just traded)
         if (trade_cooldown > 0) {
             do remove_belief(want_to_trade_belief);
@@ -600,7 +597,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     // Trade with minimal gating to enable learning
     reflex learn_and_trade when:
         trade_cooldown = 0
-        and ((habitat_dome.common_area.location distance_to location) <= facility_proximity or (habitat_dome.recreation_area.location distance_to location) <= facility_proximity)
+        and (habitat_dome.common_area.shape covers location or habitat_dome.recreation_area.shape covers location)
         and not has_belief(storm_warning_belief)
     {
         list<Human> all_humans <- list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander);
@@ -1022,20 +1019,20 @@ species OxygenGenerator {
 
 species CommonArea {
     point location;
-    geometry shape <- circle(30);
+    geometry shape <- circle(50);
 
     aspect base {
-        draw circle(30) color: common_area_color border: common_area_border_color;
+        draw circle(50) color: common_area_color border: common_area_border_color;
         draw "Common Area" at: location color: #black;
     }
 }
 
 species RecreationArea {
     point location;
-    geometry shape <- circle(30);
+    geometry shape <- circle(50);
 
     aspect base {
-        draw circle(30) color: recreation_area_color border: recreation_area_border_color;
+        draw circle(50) color: recreation_area_color border: recreation_area_border_color;
         draw "Recreation" at: location color: #black;
     }
 }
