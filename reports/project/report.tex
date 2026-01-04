@@ -57,7 +57,7 @@ KTH Royal Institute of Technology \\[0.3em]
 
 % --- SECTION 2 ---
 \section{General Overview}
-\subsection{Solution Summary}
+\subsection*{Solution Summary}
 This project implements a Mars Colony simulation where five different types of agents (Engineer, Medic, Scavenger, Parasite, and Commander) must survive in a hostile environment while managing biological needs (oxygen, energy, health) and learning to identify malicious actors through reinforcement learning.
 
 The simulation demonstrates how a population can evolve a "social immune system" using Q-Learning to distinguish between cooperative agents and parasites that steal resources. Agents use BDI (Belief-Desire-Intention) architecture for survival behaviors and Q-Learning for social interaction decisions.
@@ -70,6 +70,7 @@ The simulation demonstrates how a population can evolve a "social immune system"
   \item Q-Learning for trust-based parasite detection
   \item FIPA communication for long-distance messaging (storm warnings)
   \item Real-time learning metrics visualization
+    \item Behavioral metrics visualization (sociability, happiness, generosity)
 \end{itemize}
 
 \textbf{Assumptions and Limitations:}
@@ -78,6 +79,7 @@ The simulation demonstrates how a population can evolve a "social immune system"
   \item Oxygen and energy refill plans are disabled to prioritize learning interactions
   \item Maximum colony size is capped at 60 agents
   \item Agents spawn at the habitat dome location, not the landing pad
+    \item The variable \texttt{patience} is defined but not currently used in decision-making
 \end{itemize}
 
 % --- SECTION 3 ---
@@ -86,7 +88,9 @@ The simulation demonstrates how a population can evolve a "social immune system"
 \subsubsection*{3.1 Explanation}
 The simulation features five distinct agent types, each with unique roles, capabilities, and interaction rules. All agents share three core biological traits: \texttt{oxygen\_level}, \texttt{energy\_level}, and \texttt{health\_level}, which decrease over time and must be managed for survival. Each agent type has specific interaction rules that determine how they trade resources with other agents.
 
-	extbf{Note:} In the current implementation, the BDI plans \texttt{get\_oxygen} and \texttt{get\_energy} are intentionally disabled to prioritize learning through social interactions. Oxygen/energy can still change due to environmental drain, role-specific trades (e.g., Engineers/Commanders), and the Med-Bay proximity "immunity" behavior.
+{Note:} In the current implementation, the BDI plans \texttt{get\_oxygen} 
+and \texttt{get\_energy} are intentionally disabled to prioritize learning through social interactions.
+Oxygen/energy can still change due to environmental drain, role-specific trades (e.g., Engineers/Commanders), and the Med-Bay proximity "immunity" behavior.
 
 \textbf{Agent Types:}
 \begin{enumerate}
@@ -413,6 +417,9 @@ The simulation includes real-time monitoring of learning metrics through charts 
   \item \texttt{precision}: True positives / (True positives + False positives) for parasite detection
   \item \texttt{recall}: True positives / (True positives + False negatives) for parasite detection
   \item \texttt{total\_trades}: Counter of total trade interactions
+    \item \texttt{avg\_sociability}: Average learning-rate parameter across agents
+    \item \texttt{avg\_happiness}: Average accumulated reward from social interactions
+    \item \texttt{avg\_generosity}: Average giving/receiving balance tracked during trades
 \end{itemize}
 
 The chart displays these metrics over time, showing the learning evolution. The expectation is that trust toward parasites decreases over time while trust toward non-parasites remains positive, and precision/recall improve as agents learn.
@@ -438,9 +445,17 @@ reflex update_learning_metrics {
     float sum_par <- 0.0; int cnt_par <- 0;
     float sum_non <- 0.0; int cnt_non <- 0;
     int tp0 <- 0; int fp0 <- 0; int fn0 <- 0; int tn0 <- 0;
+
+    float sum_soc <- 0.0;
+    float sum_hap <- 0.0;
+    float sum_gen <- 0.0;
     
     loop h over: (list(Engineer) + list(Medic) + list(Scavenger) + 
                   list(Parasite) + list(Commander)) {
+        sum_soc <- sum_soc + h.sociability;
+        sum_hap <- sum_hap + h.happiness;
+        sum_gen <- sum_gen + h.generosity;
+
         loop k over: keys(h.trust_memory) {
             float v <- h.trust_memory[k];
             bool gt_par <- ((is_parasite_by_id contains_key k) ? 
@@ -465,6 +480,10 @@ reflex update_learning_metrics {
     avg_trust_to_non_parasites <- (cnt_non > 0 ? sum_non / float(cnt_non) : 0.0);
     precision <- ((tp0 + fp0) > 0 ? float(tp0) / float(tp0 + fp0) : 0.0);
     recall <- ((tp0 + fn0) > 0 ? float(tp0) / float(tp0 + fn0) : 0.0);
+
+    avg_sociability <- (total_agents > 0 ? sum_soc / float(total_agents) : 0.0);
+    avg_happiness <- (total_agents > 0 ? sum_hap / float(total_agents) : 0.0);
+    avg_generosity <- (total_agents > 0 ? sum_gen / float(total_agents) : 0.0);
 }
 \end{verbatim}
 
@@ -477,6 +496,14 @@ display LearningMetrics {
         data 'Avg trust (non-parasites)' value: avg_trust_to_non_parasites;
         data 'Precision' value: precision;
         data 'Recall' value: recall;
+    }
+}
+
+display BehavioralMetrics {
+    chart "Sociability, Happiness & Generosity" type: series {
+        data 'Avg sociability' value: avg_sociability;
+        data 'Avg happiness' value: avg_happiness;
+        data 'Avg generosity' value: avg_generosity;
     }
 }
 \end{verbatim}
