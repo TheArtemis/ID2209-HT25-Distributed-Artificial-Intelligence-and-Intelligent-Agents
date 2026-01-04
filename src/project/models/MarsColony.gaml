@@ -61,6 +61,12 @@ global {
     rgb mine_color <- rgb(0, 0, 0);
     rgb mine_color_border <- rgb(0, 0, 0);
 
+    rgb common_area_color <- rgb(200, 200, 200);
+    rgb common_area_border_color <- rgb(100, 100, 100);
+
+    rgb recreation_area_color <- rgb(173, 216, 230);
+    rgb recreation_area_border_color <- rgb(70, 130, 180);
+
     // === PLACES ===
     HabitatDome habitat_dome;
     Wasteland wasteland;
@@ -542,7 +548,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
     // Trade with minimal gating to enable learning
     reflex learn_and_trade when:
         trade_cooldown = 0
-        and (habitat_dome.shape covers location)
+        and ((habitat_dome.common_area.location distance_to location) <= facility_proximity or (habitat_dome.recreation_area.location distance_to location) <= facility_proximity)
         and not has_belief(storm_warning_belief)
     {
         list<Human> all_humans <- list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander);
@@ -898,6 +904,8 @@ species HabitatDome {
     Greenhouse greenhouse;
     OxygenGenerator oxygen_generator;
     MedBay med_bay;
+    CommonArea common_area;
+    RecreationArea recreation_area;
 
     init {
         location <- point(200, 200);
@@ -916,6 +924,14 @@ species HabitatDome {
         create MedBay number: 1 returns: med_bays;
         med_bay <- med_bays[0];
         ask med_bay { location <- dome_center + point(0, -80); }
+
+        create CommonArea number: 1 returns: common_areas;
+        common_area <- common_areas[0];
+        ask common_area { location <- dome_center + point(-60, 60); }
+
+        create RecreationArea number: 1 returns: recreation_areas;
+        recreation_area <- recreation_areas[0];
+        ask recreation_area { location <- dome_center + point(60, 60); }
     }
 
     aspect base {
@@ -949,6 +965,26 @@ species OxygenGenerator {
 
     reflex break_oxygen_generator when: rnd(0.0, 1.0) < oxygen_generator_break_probability {
         is_broken <- true;
+    }
+}
+
+species CommonArea {
+    point location;
+    geometry shape <- circle(30);
+
+    aspect base {
+        draw circle(30) color: common_area_color border: common_area_border_color;
+        draw "Common Area" at: location color: #black;
+    }
+}
+
+species RecreationArea {
+    point location;
+    geometry shape <- circle(30);
+
+    aspect base {
+        draw circle(30) color: recreation_area_color border: recreation_area_border_color;
+        draw "Recreation" at: location color: #black;
     }
 }
 
@@ -1073,6 +1109,8 @@ experiment MarsColony type: gui {
             species Greenhouse aspect: base;
             species OxygenGenerator aspect: base;
             species Wasteland aspect: base;
+            species CommonArea aspect: base;
+            species RecreationArea aspect: base;
             species MedBay aspect: base;
             species Engineer aspect: base;
             species Medic aspect: base;
