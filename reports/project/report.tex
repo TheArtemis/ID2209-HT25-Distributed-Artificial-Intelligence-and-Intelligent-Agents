@@ -984,8 +984,7 @@ reflex learn_and_trade when:
     
     string a <- choose_action(s);
     if (a = "IGNORE") {
-        do update_q(s, a, 2.0);  // Small positive reward for avoiding bad interactions
-        do update_q(s, a, 2.0);  // Small positive reward for avoiding bad interactions
+        do update_q(s, a, 2.0);
         trade_cooldown <- trade_cooldown_max;
         return;
     }
@@ -1000,53 +999,45 @@ reflex learn_and_trade when:
 
 \subsubsection*{9.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
-  \item \textbf{Input:} Simulation starts with agents having empty Q-tables and trust memory. Agents begin trading with each other.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with trust\_memory column showing initial values (mostly 0.0 or empty). Console should show trade interactions with rewards. The learning metrics chart should show initial trust values (around 0) for both parasites and non-parasites. Some trades should show positive rewards (+100 for mutual cooperation) and some negative rewards (-80 from parasites).]
-  \item \textbf{Interpretation:} Agents initially interact randomly (20\% exploration rate, adaptively adjusted). Q-tables are being populated as agents encounter each other. Both positive (mutual trades) and negative (parasite scams) rewards are being recorded, starting the learning process.
-  
-  \item \textbf{Input:} Simulation runs for several hundred cycles, allowing multiple trade interactions with the same agents.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with trust\_memory containing negative values for parasite IDs and positive values for cooperative agent IDs. Console should show agents choosing IGNORE actions for agents with negative trust. The learning metrics chart should show average trust to parasites trending downward while average trust to non-parasites remains positive or increases.]
-  \item \textbf{Interpretation:} After multiple interactions, agents have learned to distinguish parasites from cooperative agents. Q-values for parasite interactions have decreased (negative rewards accumulate), resulting in negative trust values. Agents begin using exploitation (80\%) more than exploration, making informed decisions based on learned Q-values.
-  
-  \item \textbf{Input:} Simulation runs for an extended period (1000+ cycles) with learning metrics being tracked.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing the learning metrics chart with clear trends: average trust to parasites significantly negative (approaching -1.0), average trust to non-parasites positive, precision increasing (more true positives, fewer false positives), recall increasing (more parasites correctly identified). Console should show decreasing number of trades with parasites as agents learn to ignore them.]
-  \item \textbf{Interpretation:} The learning system has successfully evolved. Agents have developed strong negative trust toward parasites (trust values near -1.0) and positive trust toward cooperative agents. Precision and recall metrics improve as agents correctly identify parasites (trust $<$ 0) and avoid trading with them, while maintaining positive relationships with cooperative agents.
-  
-  \item \textbf{Input:} A new agent is spawned by the supply shuttle and begins interacting with existing agents.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing a newly spawned agent with empty Q-table and trust memory. The agent begins trading with existing agents. Console should show the new agent learning from scratch, while existing agents maintain their learned trust values. Over time, the new agent should develop similar trust patterns to existing agents after sufficient interactions.]
-  \item \textbf{Interpretation:} New agents start with empty Q-tables and must learn from scratch. However, existing agents have already learned to avoid parasites, so the new agent can observe patterns (though direct observation isn't implemented, the new agent learns through its own interactions). This demonstrates that learning is individual but the population as a whole develops immunity to parasites over time.
-  \item Simulation starts with agents having empty Q-tables and trust memory (Ref. \ref{fig:initialTrust}). Agents begin trading with each other. 
-  \begin{figure}
+  \item \textbf{Input:} Simulation starts with agents having empty Q-tables and trust memory (Ref. \ref{fig:initialTrust}). Agents begin trading with each other. 
+  \item \textbf{Screenshot:}
+  \begin{figure}[h]
     \centering
-    \includegraphics[width=0.6\textwidth]{imgs/q1.png}
+    \includegraphics[width=0.45\textwidth]{imgs/q1.png}
     \caption{Initial Q values}
     \label{fig:initialTrust}
   \end{figure}
+  \item \textbf{Interpretation: } Initially, Q-values are zero and all agents are randomly exploring all trade suggestions.
   
-  \item Simulation runs for several hundred cycles, allowing multiple trade interactions with the same agents. Q-table is updated with positive or negative values based on trade outcomes (Fig. \ref{fig:after10cycles}). After multiple interactions, agents are starting to learn to distinguish parasites from cooperative agents. Agents begin exploiting learned patterns (80\% greedy) more than exploring, making informed decisions based on learned Q-values.
-  \begin{figure}
+  \item \textbf{Input:} Simulation runs for several hundred cycles, allowing multiple trade interactions with the same agents.
+  \item \textbf{Screenshot:}
+  \begin{figure}[h]
     \centering
-    \includegraphics[width=0.6\textwidth]{imgs/q2.png}
+    \includegraphics[width=0.45\textwidth]{imgs/q2.png}
     \caption{Q values after 10 cycles}
     \label{fig:after10cycles}
   \end{figure}
+  \item \textbf{Interpretation:} Q-table is updated with positive or negative values based on trade outcomes (Fig. \ref{fig:after10cycles}). After multiple interactions, agents are starting to learn to distinguish parasites from cooperative agents. Agents begin exploiting learned patterns (80\% greedy) more than exploring, making informed decisions based on learned Q-values. 
 
-  \item Simulation runs for an extended period (1000+ cycles) with learning metrics being tracked.
-  The learning system has successfully evolved. Agents have developed strong negative trust toward parasites and positive trust toward cooperative agents. This continuous improvement can be seen in \ref{fig:avgtrust} Adaptive curiosity has adjusted to 10-15\% exploration since agents are now successful (high average trust).
-  \begin{figure}
+  \item \textbf{Input:} Simulation runs for an extended period (1000+ cycles) with learning metrics being tracked.
+  \item \textbf{Screenshot:}
+    \begin{figure}[h]
     \centering
-    \includegraphics[width=0.6\textwidth]{imgs/q3.png}
+    \includegraphics[width=0.45\textwidth]{imgs/q3.png}
     \caption{Avg. trust after extended learning}
     \label{fig:avgtrust}
   \end{figure}
+  \item \textbf{Interpretation:} The learning system has successfully evolved. Agents have developed strong negative trust toward parasites and positive trust toward cooperative agents. This continuous improvement can be seen in \ref{fig:avgtrust} Adaptive curiosity has adjusted to 10-15\% exploration since agents are now successful (high average trust).
 
-  \item Average lifespan of agents increase as they learn to trade more with trustworthy agents and trade less with parasite agents. This is shown by graph fig. \ref{fig:lifespans}.
-  \begin{figure}
+  \item \textbf{Input:} Simulation runs for an extended period (1000+ cycles) with average agent lifespan being tracked.
+  \item \textbf{Screenshot:}
+    \begin{figure}[h]
     \centering
-    \includegraphics[width=0.6\textwidth]{imgs/q4.png}
+    \includegraphics[width=0.45\textwidth]{imgs/q4.png}
     \caption{Avg. lifespan of dead and alive agents}
     \label{fig:lifespans}
   \end{figure}
+  \item \textbf{Interpretation:} As shown in \ref{fig:lifespans}, the average lifespan of living agents increases over time, while the average lifespan of deceased agents stabilizes. This indicates that agents are successfully avoiding parasites, leading to longer survival times for cooperative agents.
 \end{enumerate}
 
 % --- SECTION 5 ---
