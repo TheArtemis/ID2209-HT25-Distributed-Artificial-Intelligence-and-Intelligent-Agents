@@ -67,18 +67,24 @@ The simulation demonstrates how a population can evolve a "social immune system"
   \item Five distinct agent types with unique roles and behaviors
   \item Continuous simulation with supply shuttle system maintaining population
   \item BDI architecture for survival-oriented decision making
-  \item Q-Learning for trust-based parasite detection
+  \item Q-Learning with adaptive curiosity for trust-based parasite detection
+  \item Facility replenishment system (greenhouse, oxygen generator) for survival alternatives
   \item FIPA communication for long-distance messaging (storm warnings)
-  \item Real-time learning metrics visualization
-    \item Behavioral metrics visualization (sociability, happiness, generosity)
+  \item Real-time learning metrics visualization (trust, precision, recall)
+  \item Behavioral metrics visualization (sociability, happiness, generosity)
+  \item Survival metrics visualization (agent lifespan tracking)
 \end{itemize}
 
-\textbf{Assumptions and Limitations:}
+\textbf{Current Implementation State:}
 \begin{itemize}
+  \item Death system is enabled with resource-based pressure enabling agent selection
+  \item Oxygen and energy refill plans are enabled with slow facility replenishment (backup survival path)
+  \item Trading remains the faster/better survival strategy than facilities alone
   \item Maximum colony size is capped at 60 agents
-  \item Agents spawn at the habitat dome location, not the landing pad
-  \item The variable \texttt{patience} (discount factor) is defined but not currently used in learning (set to 0.0)
-  \item Q-table inheritance from supply shuttle averages is calculated but not yet applied to new agents
+  \item Agents spawn at the habitat dome location
+  \item Q-Learning uses exponential moving average (sociability = 0.35) for faster convergence
+  \item Adaptive curiosity scales from 5\% to 50\% based on average trust
+  \item Adaptive sociability recovery prevents learning stagnation
 \end{itemize}
 
 % --- SECTION 3 ---
@@ -87,7 +93,7 @@ The simulation demonstrates how a population can evolve a "social immune system"
 \subsubsection*{3.1 Explanation}
 The simulation features five distinct agent types, each with unique roles, capabilities, and interaction rules. All agents share three core biological traits: \texttt{oxygen\_level}, \texttt{energy\_level}, and \texttt{health\_level}, which decrease over time and must be managed for survival. Each agent type has specific interaction rules that determine how they trade resources with other agents.
 
-Agents actively manage their biological needs through BDI plans. When oxygen or energy levels drop below thresholds, agents navigate to the appropriate facilities (Oxygen Generator or Greenhouse) to replenish resources. Facilities automatically provide replenishment when agents are within proximity.
+\textbf{Survival Mechanisms:} Agents can sustain themselves through two paths: (1) Trading with other agents for immediate resource boosts, or (2) Using facility replenishment systems (Greenhouse and OxygenGenerator) for slower but reliable resource restoration. Facilities provide +0.5 energy/cycle and +0.3 oxygen/cycle within their proximity radius, creating a survival baseline while trading provides faster growth opportunities.
 
 \textbf{Agent Types:}
 \begin{enumerate}
@@ -780,30 +786,31 @@ species Engineer parent: Human {
 
 \section{Challenge 2: Reinforcement Learning}
 \subsubsection*{9.1 Explanation}
-The simulation implements Q-Learning, a model-free reinforcement learning algorithm, to enable agents to learn which other agents are trustworthy through experience. Agents learn to identify parasites by tracking the outcomes of trade interactions and updating Q-values accordingly.
-
+The simulation implements Q-Learning, a reinforcement learning algorithm, to enable agents to learn which other agents are trustworthy through experience. 
+Agents learn to identify parasite agents by tracking the outcomes of trade interactions (e.g., trades of energy, health, etc.) and updating Q-values accordingly.
+\\ \\
+There are two fixed-coordinate areas where agents can trade. When agents sense a need for a resource replenishment (e.g., low energy, low health), they move to a trading area and randomly select another agent present to attempt a trade. The trade interaction results in rewards based on the actions of both agents (mutual cooperation, altruism, theft, etc.). Agents update their Q-values based on these rewards, allowing them to learn trustworthiness over time.
 \textbf{Q-Learning Implementation:}
 \begin{itemize}
-  \item \textbf{State:} Agent ID (e.g., "id:agent\_name") - Each agent tracks trust per individual, not per type
-  \item \textbf{Actions:} TRADE or IGNORE (selected via curiosity-greedy: 20\% random exploration, 80\% exploitation)
+  \item \textbf{State:} Agent ID ("id:agent\_name") - Each agent tracks trust per individual, not per type
+  \item \textbf{Actions:} TRADE or IGNORE (selected via $\epsilon$-greedy: 20\% random exploration, 80\% exploitation)
   \item \textbf{Rewards:}
     \begin{itemize}
-      \item Successful mutual trade: +100.0
-      \item Scammed by Parasite (victim or parasite): -80.0
-      \item Altruistic giving (non-parasite gave but partner didn't): +20.0
-      \item Ignore action: +2.0 (small positive reward for avoiding potentially bad interactions)
-      \item Neutral: 0.0
+      \item Mutual cooperation (both give): +100.0
+      \item Altruism (non-parasite gives goods without receiving anything back): +20.0
+      \item Victim trusts parasite: -80.0
+      \item Parasite steals: -80.0
+      \item IGNORE (avoid risky interaction): +2.0
+      \item Failed/no-interaction: 0.0
     \end{itemize}
-  \item \textbf{Q-Value Update:} $Q(s,a) = Q(s,a) + sociability \times (reward - Q(s,a))$ where $sociability = 0.35$ (increased for faster convergence)
-    \item \textbf{Trust Calculation:} $trust = (Q[TRADE] - Q[IGNORE]) / 100.0$, clamped to $[-1.0, 1.0]$ (normalized by max expected difference)
-  \item \textbf{Detection:} Trust $< 0$ indicates predicted parasite (used for precision/recall metrics)
+  \item \textbf{Q-Value Update:} $Q(s,a) = Q(s,a) + \alpha(reward - Q(s,a))$ where $\alpha = 0.35$ (learning rate/sociability)
+  \item \textbf{Trust Calculation:} $trust = \frac{Q[TRADE] - Q[IGNORE]}{100.0}$, clamped to $[-1.0, 1.0]$
+  \item \textbf{Detection:} Trust $< 0$ indicates predicted parasite
+  \item \textbf{Adaptive Learning:} Sociability gradually recovers if it drops below 0.15 to prevent learning stagnation
 \end{itemize}
 
 \textbf{Learning Evolution:}
-Initially, agents interact randomly (curiosity = 20\%). Parasites thrive and get rich through scams. Over time, Q-values for parasite interactions decrease due to negative rewards. Trust values drop toward -1.0 for parasites, and agents learn to IGNORE agents with negative trust values. The learning metrics track average trust to parasites vs non-parasites, plus precision/recall for parasite detection.
-
-\textbf{Adaptive Learning:}
-Agents adapt their learning parameters based on experience. Every 100 cycles, agents adjust their \texttt{curiosity} (exploration rate) based on average trust: if trust is low (indicating poor learning), curiosity increases to encourage more exploration; if trust is high (indicating good learning), curiosity decreases to exploit learned knowledge. Additionally, if \texttt{sociability} drops below 0.15, it gradually recovers to prevent agents from getting stuck in low-learning states.
+Initially, agents interact randomly (curiosity = 20\%). Parasites attempt to exploit others, gaining -80 rewards when caught stealing. Over time, Q-values for parasite interactions decrease due to accumulated negative rewards. Trust values drop toward -0.8 to -1.0 for parasites. Agents learn to prefer IGNORE actions (reward +2) over trading with distrusted partners. Adaptive curiosity increases exploration when agents are struggling (low average trust), forcing them out of local optima. The learning rate (sociability = 0.35) enables fast convergence. The learning metrics track average trust to parasites vs non-parasites, plus precision/recall for parasite detection.
 
 \subsubsection*{9.2 Code}
 Q-Learning state and action selection:
@@ -813,13 +820,11 @@ map<string, list<float>> Q <- map([]);
 map<string, float> trust_memory <- map([]);
 
 float sociability <- 0.35;  // Learning rate (increased for faster convergence)
-float patience <- 0.0;      // Discount factor (not currently used)
-float curiosity <- 0.20;     // Exploration rate (adaptively adjusted)
-float base_curiosity <- 0.20;  // Base exploration rate for adaptation
+float curiosity <- 0.20;    // Exploration rate
 
 action ensure_state_exists(string s) {
     if (!(Q contains_key s)) { 
-        Q[s] <- [0.0, 0.0]; 
+        Q[s] <- [0.0, 0.0];  // [Q(TRADE), Q(IGNORE)]
     }
     if (!(trust_memory contains_key s)) { 
         trust_memory[s] <- 0.0; 
@@ -827,6 +832,7 @@ action ensure_state_exists(string s) {
 }
 
 action choose_action(string s) {
+    // Epsilon-greedy: explore or exploit
     if (flip(curiosity)) { 
         return (flip(0.5) ? "TRADE" : "IGNORE"); 
     }
@@ -835,7 +841,7 @@ action choose_action(string s) {
 }
 \end{verbatim}
 
-Q-value update and trust calculation:
+Q-value update with proper exponential moving average:
 
 \begin{verbatim}
 action update_q(string s, string a, float r) {
@@ -844,10 +850,12 @@ action update_q(string s, string a, float r) {
     
     list<float> qs <- Q[s];
     float old <- qs[idx];
+    // Exponential moving average: converges to average reward
     float updated <- old + sociability * (r - old);
     qs[idx] <- updated;
     Q[s] <- qs;
     
+    // Calculate trust and downscale trust (from -100 and +100 to -1.0 to +1.0)
     float pref <- Q[s][0] - Q[s][1];
     trust_memory[s] <- max(-1.0, min(1.0, pref / 100.0));  // Normalize by max expected difference
 }
@@ -876,6 +884,39 @@ reflex adapt_learning_parameters when: cycle mod 100 = 0 and length(keys(trust_m
     }
     
     // Gradually recover sociability if it has dropped too low
+    if (sociability < 0.15) {
+        sociability <- sociability + 0.01;
+    }
+    trust_memory[s] <- max(-1.0, min(1.0, pref / 100.0));
+}
+\end{verbatim}
+
+Adaptive learning parameters:
+
+\begin{verbatim}
+reflex adapt_learning_parameters when: cycle mod 100 = 0 and 
+    length(keys(trust_memory)) > 0 {
+    // Calculate average trust
+    float total_trust <- 0.0;
+    loop t over: values(trust_memory) { 
+        total_trust <- total_trust + t; 
+    }
+    float avg_trust <- total_trust / float(length(values(trust_memory)));
+    
+    // Adapt curiosity: explore more when struggling, exploit when successful
+    if (avg_trust < -0.2) {
+        curiosity <- min(0.50, base_curiosity + 0.15);
+    } else if (avg_trust < 0.0) {
+        curiosity <- min(0.45, base_curiosity + 0.10);
+    } else if (avg_trust < 0.3) {
+        curiosity <- base_curiosity;
+    } else if (avg_trust < 0.6) {
+        curiosity <- max(0.10, base_curiosity - 0.05);
+    } else {
+        curiosity <- max(0.05, base_curiosity - 0.10);
+    }
+    
+    // Recover sociability if stuck in local optima
     if (sociability < 0.15) {
         sociability <- sociability + 0.01;
     }
@@ -924,6 +965,7 @@ reflex learn_and_trade when:
     string a <- choose_action(s);
     if (a = "IGNORE") {
         do update_q(s, a, 2.0);  // Small positive reward for avoiding bad interactions
+        do update_q(s, a, 2.0);  // Small positive reward for avoiding bad interactions
         trade_cooldown <- trade_cooldown_max;
         return;
     }
@@ -953,6 +995,38 @@ reflex learn_and_trade when:
   \item \textbf{Input:} A new agent is spawned by the supply shuttle and begins interacting with existing agents.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing a newly spawned agent with empty Q-table and trust memory. The agent begins trading with existing agents. Console should show the new agent learning from scratch, while existing agents maintain their learned trust values. Over time, the new agent should develop similar trust patterns to existing agents after sufficient interactions.]
   \item \textbf{Interpretation:} New agents start with empty Q-tables and must learn from scratch. However, existing agents have already learned to avoid parasites, so the new agent can observe patterns (though direct observation isn't implemented, the new agent learns through its own interactions). This demonstrates that learning is individual but the population as a whole develops immunity to parasites over time.
+  \item Simulation starts with agents having empty Q-tables and trust memory (Ref. \ref{fig:initialTrust}). Agents begin trading with each other. 
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/q1.png}
+    \caption{Initial Q values}
+    \label{fig:initialTrust}
+  \end{figure}
+  
+  \item Simulation runs for several hundred cycles, allowing multiple trade interactions with the same agents. Q-table is updated with positive or negative values based on trade outcomes (Fig. \ref{fig:after10cycles}). After multiple interactions, agents are starting to learn to distinguish parasites from cooperative agents. Agents begin exploiting learned patterns (80\% greedy) more than exploring, making informed decisions based on learned Q-values.
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/q2.png}
+    \caption{Q values after 10 cycles}
+    \label{fig:after10cycles}
+  \end{figure}
+
+  \item Simulation runs for an extended period (1000+ cycles) with learning metrics being tracked.
+  The learning system has successfully evolved. Agents have developed strong negative trust toward parasites and positive trust toward cooperative agents. This continuous improvement can be seen in \ref{fig:avgtrust} Adaptive curiosity has adjusted to 10-15\% exploration since agents are now successful (high average trust).
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/q3.png}
+    \caption{Avg. trust after extended learning}
+    \label{fig:avgtrust}
+  \end{figure}
+
+  \item Average lifespan of agents increase as they learn to trade more with trustworthy agents and trade less with parasite agents. This is shown by graph fig. \ref{fig:lifespans}.
+  \begin{figure}
+    \centering
+    \includegraphics[width=0.6\textwidth]{imgs/q4.png}
+    \caption{Avg. lifespan of dead and alive agents}
+    \label{fig:lifespans}
+  \end{figure}
 \end{enumerate}
 
 % --- SECTION 5 ---

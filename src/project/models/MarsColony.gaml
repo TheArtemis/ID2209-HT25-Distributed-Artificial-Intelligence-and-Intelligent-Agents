@@ -385,12 +385,12 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
     // === LEARNING / TRUST (Q-Learning) ===
     float happiness <- 0.0;
-    float generosity <- 0.0;   // Tracks giving behavior: positive when giving more than receiving
+    float generosity <- 0.0;   // positive when giving more than receiving
 
-    float sociability <- 0.35;  // Learning rate: how much agents learn from interactions (increased for faster convergence)
-    float patience <- 0.0;     // Discount factor: how much they value future rewards
-    float curiosity <- 0.20;   // Exploration rate: how often they try new interactions
-    float base_curiosity <- 0.20;  // Base exploration rate for adaptation
+    float sociability <- 0.35;  // learning rate
+    float patience <- 0.0;     // discount factor: how much agents value future rewards
+    float curiosity <- 0.20;   // exploration rate
+    float base_curiosity <- 0.20;  // base exploration rate for adaptation
 
     map<string, list<float>> Q <- map([]);
     map<string, float> trust_memory <- map([]);
