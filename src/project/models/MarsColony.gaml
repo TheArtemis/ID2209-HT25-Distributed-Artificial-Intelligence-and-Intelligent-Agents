@@ -122,7 +122,7 @@ global {
     float facility_proximity <- 5.0;
 
     // === ETA ===
-    int retirement_age <- 300;
+    int retirement_age <- 2000;
     float eta_increment <- 1.0;
 
     // === MOVEMENT ===
@@ -485,11 +485,11 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     // === RULES ===
+    rule belief: should_retire_belief new_desire: retire_desire strength: 500.0;
     rule belief: storm_warning_belief new_desire: escape_storm_desire strength: 200.0;
     rule belief: suffocating_belief new_desire: has_oxygen_desire strength: 100.0;
     rule belief: starving_belief new_desire: has_energy_desire strength: 25.0;
     rule belief: injured_belief new_desire: be_healthy_desire strength: 12.0;
-    rule belief: should_retire_belief new_desire: retire_desire strength: 500.0;
     rule belief: want_to_trade_belief new_desire: seek_trading_area_desire strength: 8.0;
 
     // === PLANS ===

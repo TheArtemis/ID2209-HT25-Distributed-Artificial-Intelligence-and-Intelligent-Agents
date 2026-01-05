@@ -635,14 +635,14 @@ The simulation implements a full BDI (Belief-Desire-Intention) architecture usin
 
 \textbf{Desires (Goals):} Desires are ranked by rule strengths, determining priority:
 \begin{itemize}
-  \item \texttt{escape\_storm} (200.0) - Highest priority
+  \item \texttt{retire} (500.0) - Highest priority
+  \item \texttt{escape\_storm} (200.0) - High priority
   \item \texttt{has\_oxygen} (100.0) - High priority
   \item \texttt{has\_energy} (25.0) - Medium priority
   \item \texttt{be\_healthy} (12.0) - Medium-low priority
   \item \texttt{seek\_trading\_area} (8.0) - Medium-low priority
   \item \texttt{fix\_generator} (9.0) - Engineer only
   \item \texttt{heal\_patients} (7.0) - Medic only
-  \item \texttt{retire} (6.0) - Low priority
   \item \texttt{mine\_resources} (5.0) - Scavenger only
   \item \texttt{wander} (default) - Lowest priority
 \end{itemize}
@@ -670,11 +670,11 @@ reflex perception {
 Desires are created through rules that link beliefs to desires:
 
 \begin{verbatim}
+rule belief: should_retire_belief new_desire: retire_desire strength: 500.0;
 rule belief: storm_warning_belief new_desire: escape_storm_desire strength: 200.0;
 rule belief: suffocating_belief new_desire: has_oxygen_desire strength: 100.0;
 rule belief: starving_belief new_desire: has_energy_desire strength: 25.0;
 rule belief: injured_belief new_desire: be_healthy_desire strength: 12.0;
-rule belief: should_retire_belief new_desire: retire_desire strength: 6.0;
 rule belief: want_to_trade_belief new_desire: seek_trading_area_desire strength: 8.0;
 \end{verbatim}
 
