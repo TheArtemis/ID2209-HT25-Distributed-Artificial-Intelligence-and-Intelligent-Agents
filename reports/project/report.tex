@@ -473,11 +473,21 @@ plan escape_storm intention: escape_storm_desire {
 \subsubsection*{6.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} A dust storm occurs in the wasteland while agents (particularly Scavengers) are present there.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing wasteland in storm state (orange color), with agents visible in the wasteland. The console should show FIPA messages from Commanders with "Return to Base" content. Agent state inspector should show some agents with state \texttt{"escaping\_storm"}.]
+  \item \textbf{Screenshot:} \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{imgs/return_to_base.png}
+    \caption{Agents receiving FIPA "Return to Base" messages during storm}
+    \label{fig:returntobase}
+  \end{figure}
   \item \textbf{Interpretation:} Commanders successfully detect the storm and send FIPA messages to agents in the wasteland. Receiving agents correctly process the messages and add the storm warning belief.
   
   \item \textbf{Input:} Agents receive storm warning messages and begin moving toward the habitat dome.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agents moving from wasteland toward the habitat dome. Agent state inspector should show agents with state \texttt{"escaping\_storm"} and locations gradually approaching the dome. Console should show agents removing the storm warning belief upon reaching safety.]
+  \item \textbf{Screenshot:} \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{imgs/agents_returning_to_base.png}
+    \caption{Agents returning to base after receiving storm warning}
+    \label{fig:agentsreturning}
+  \end{figure}
   \item \textbf{Interpretation:} The FIPA communication successfully triggers behavioral changes. Agents prioritize storm escape (strength 200.0, highest priority) and navigate to safety, demonstrating the integration between FIPA messaging and BDI architecture.
 \end{enumerate}
 
