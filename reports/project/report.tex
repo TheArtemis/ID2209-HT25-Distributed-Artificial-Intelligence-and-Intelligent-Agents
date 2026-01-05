@@ -172,7 +172,7 @@ action attempt_trade(Human partner) {
     \centering
     \includegraphics[width=0.6\textwidth]{imgs/map_Mars.png}
     \caption{Agents successfully inside the map}
-    \label{fig:mapmars}
+    \label{fig:agentsinmap}
 \end{figure}
   \item \textbf{Interpretation:} The simulation successfully initializes with all required agent types. Each type is visually distinct and has appropriate starting locations and attributes.
     They are already moving within the map
@@ -182,7 +182,7 @@ action attempt_trade(Human partner) {
     \centering
     \includegraphics[width=0.7\textwidth]{imgs/tradeHabitat.png}
     \caption{Trading between agents}
-    \label{fig:mapmars}
+    \label{fig:trading}
 \end{figure}
     \item \textbf{Interpretation:} Agents successfully interact with each other following their type-specific rules. Scavengers provide energy via raw resources, Engineers provide oxygen/repairs, Commanders provide oxygen+energy, and Parasites attempt to steal/drain. Medic contributions occur through Med-Bay queue healing (not via trade).
 \end{enumerate}
@@ -305,7 +305,7 @@ reflex update_oxygen{
     \centering
     \includegraphics[width=0.37\textwidth]{imgs/map_Mars.png}
     \caption{Mars colony map}
-    \label{fig:mapmars}
+    \label{fig:marsmap}
 \end{figure}
   \item \textbf{Interpretation:} All required places are correctly initialized and positioned. The habitat dome serves as the primary safe zone, while the wasteland represents a danger zone with different environmental properties.
   
@@ -314,7 +314,7 @@ reflex update_oxygen{
     \centering
     \includegraphics[width=0.55\textwidth]{imgs/Storm_Wasteland.png}
     \caption{Storm in the Wasteland}
-    \label{fig:mapmars}
+    \label{fig:stormwasteland}
 \end{figure}
   \item \textbf{Interpretation:} The wasteland correctly displays visual feedback (it has changed colors) during dust storms.
 \end{enumerate}
@@ -394,11 +394,21 @@ plan do_retire intention: retire_desire {
 \subsubsection*{5.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} Simulation runs for an extended period, allowing agents to reach retirement age (2000 cycles).
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with ETA values approaching or exceeding 2000. Some agents should have state "retiring" and be moving toward the landing pad. Console should show retirement-related messages.]
+  \item \textbf{Screenshot:} \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{imgs/agents_going_to_landing_pad.png}
+    \caption{Agents going to the landing pad after retirement}
+    \label{fig:agentsleaving}
+  \end{figure}
   \item \textbf{Interpretation:} The retirement system correctly tracks agent age and triggers retirement behavior when the threshold is reached. Agents successfully navigate to the landing pad to despawn.
   
   \item \textbf{Input:} Agents retire, causing population counts to drop below desired levels.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing the simulation after agents have retired. The console should show supply shuttle messages indicating new agents are being spawned. The agent state inspector should show newly created agents with default attributes at the habitat dome location.]
+  \item \textbf{Screenshot:} \begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{imgs/supply_shuttle_arrives.png}
+    \caption{Supply shuttle arriving with new agents}
+    \label{fig:supplyshuttle}
+  \end{figure}
   \item \textbf{Interpretation:} The supply shuttle system successfully detects population deficits and spawns new agents to maintain the desired population levels. The simulation continues running indefinitely.
 \end{enumerate}
 
@@ -592,14 +602,14 @@ display SurvivalMetrics {
     \centering
     \includegraphics[width=0.7\textwidth]{imgs/learningMetrics.png}
     \caption{Learning metrics}
-    \label{fig:mapmars}
+    \label{fig:learningmetrics}
 \end{figure}
   \item \textbf{Input:} Agent state inspector shows trust memory values for different agents.
   \item \textbf{Screenshot:} \begin{figure}[h]
     \centering
     \includegraphics[width=0.6\textwidth]{imgs/behaviouralMetrics.png}
     \caption{Behavioural metrics map}
-    \label{fig:mapmars}
+    \label{fig:behaviouralmetrics}
 \end{figure}
   \item \textbf{Interpretation:} Individual agents maintain trust memory maps that correctly distinguish between parasites (negative trust) and cooperative agents (positive trust). The learning system successfully updates trust values based on trade outcomes.
 \end{enumerate}
