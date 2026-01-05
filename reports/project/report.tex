@@ -75,11 +75,10 @@ The simulation demonstrates how a population can evolve a "social immune system"
 
 \textbf{Assumptions and Limitations:}
 \begin{itemize}
-  \item Death is currently disabled to allow learning to occur (can be re-enabled)
-  \item Oxygen and energy refill plans are disabled to prioritize learning interactions
   \item Maximum colony size is capped at 60 agents
   \item Agents spawn at the habitat dome location, not the landing pad
-    \item The variable \texttt{patience} is defined but not currently used in decision-making
+  \item The variable \texttt{patience} (discount factor) is defined but not currently used in learning (set to 0.0)
+  \item Q-table inheritance from supply shuttle averages is calculated but not yet applied to new agents
 \end{itemize}
 
 % --- SECTION 3 ---
@@ -88,13 +87,11 @@ The simulation demonstrates how a population can evolve a "social immune system"
 \subsubsection*{3.1 Explanation}
 The simulation features five distinct agent types, each with unique roles, capabilities, and interaction rules. All agents share three core biological traits: \texttt{oxygen\_level}, \texttt{energy\_level}, and \texttt{health\_level}, which decrease over time and must be managed for survival. Each agent type has specific interaction rules that determine how they trade resources with other agents.
 
-{Note:} In the current implementation, the BDI plans \texttt{get\_oxygen} 
-and \texttt{get\_energy} are intentionally disabled to prioritize learning through social interactions.
-Oxygen/energy can still change due to environmental drain, role-specific trades (e.g., Engineers/Commanders), and the Med-Bay proximity "immunity" behavior.
+Agents actively manage their biological needs through BDI plans. When oxygen or energy levels drop below thresholds, agents navigate to the appropriate facilities (Oxygen Generator or Greenhouse) to replenish resources. Facilities automatically provide replenishment when agents are within proximity.
 
 \textbf{Agent Types:}
 \begin{enumerate}
-  \item \textbf{Engineer:} Repairs broken oxygen generators. Provides oxygen (+10) or repairs generators during trades.
+  \item \textbf{Engineer:} Repairs broken oxygen generators via BDI plan. Provides oxygen (+10) during trades.
     \item \textbf{Medic:} Heals other agents at the med-bay via a queue system. (Healing is performed at the Med-Bay, not through trading.)
   \item \textbf{Scavenger:} Ventures into wasteland to mine resources. Provides raw materials (converted to +20 energy) during trades.
   \item \textbf{Parasite:} Antagonist agent that steals resources without reciprocating. Uses \texttt{presented\_role} to disguise as other types.
@@ -152,9 +149,13 @@ action attempt_trade(Human partner) {
         // ... stealing logic
     }
     
-    if (i_gave and partner_gave) { return 20.0; }
-    if (i_gave and !partner_gave) { return ((partner is Parasite) ? -20.0 : -1.0); }
-    return 0.0;
+    if (i_gave and partner_gave) { return 100.0; }  // Strong reward for mutual cooperation
+    if (i_gave and !partner_gave) { 
+        if (partner is Parasite) { return -80.0; }  // Victim strongly penalized for trusting parasite
+        if (self is Parasite) { return -80.0; }     // Parasite strongly penalized for stealing
+        return 20.0;  // Non-parasite helpfully gave, good reward for altruism
+    }
+    return 0.0;  // Neutral outcome for non-interaction
 }
 \end{verbatim}
 
@@ -236,6 +237,43 @@ species Wasteland {
         }
     }
 }
+
+species Greenhouse {
+    point location;
+    float replenish_rate <- 0.5;  // Energy restored per cycle
+    
+    reflex replenish_energy {
+        list<Human> nearby_agents <- Human where 
+            (each.location distance_to location <= facility_proximity);
+        loop h over: nearby_agents {
+            ask h {
+                if (energy_level < max_energy_level) {
+                    energy_level <- min(max_energy_level, 
+                                       energy_level + myself.replenish_rate);
+                }
+            }
+        }
+    }
+}
+
+species OxygenGenerator {
+    point location;
+    bool is_broken <- false;
+    float replenish_rate <- 0.3;  // Oxygen restored per cycle
+    
+    reflex replenish_oxygen when: not is_broken {
+        list<Human> nearby_agents <- Human where 
+            (each.location distance_to location <= facility_proximity);
+        loop h over: nearby_agents {
+            ask h {
+                if (oxygen_level < max_oxygen_level) {
+                    oxygen_level <- min(max_oxygen_level, 
+                                       oxygen_level + myself.replenish_rate);
+                }
+            }
+        }
+    }
+}
 \end{verbatim}
 
 Oxygen depletion rates differ based on location:
@@ -277,7 +315,7 @@ reflex update_oxygen{
 
 \section{Continuous Running System}
 \subsubsection*{5.1 Explanation}
-The simulation runs continuously by maintaining a target population through a supply shuttle system. When agents retire (after 2000 cycles) or die, new agents are spawned to maintain desired population levels. The system maintains at least 50 agents total across all types, with a maximum cap of 60 agents.
+The simulation runs continuously by maintaining a target population through a supply shuttle system. When agents retire (after 2000 cycles) or die (when health reaches 0), new agents are spawned to maintain desired population levels. The system maintains at least 50 agents total across all types, with a maximum cap of 60 agents. Death events are tracked for survival metrics, including average lifespan of deceased agents.
 
 The supply shuttle operates in "deficit mode," spawning new agents when any agent type falls below its desired count:
 \begin{itemize}
@@ -438,9 +476,12 @@ The simulation includes real-time monitoring of learning metrics through charts 
   \item \texttt{precision}: True positives / (True positives + False positives) for parasite detection
   \item \texttt{recall}: True positives / (True positives + False negatives) for parasite detection
   \item \texttt{total\_trades}: Counter of total trade interactions
-    \item \texttt{avg\_sociability}: Average learning-rate parameter across agents
-    \item \texttt{avg\_happiness}: Average accumulated reward from social interactions
-    \item \texttt{avg\_generosity}: Average giving/receiving balance tracked during trades
+    \item \texttt{avg\_sociability}: Average learning-rate parameter across agents (scaled to 0-100 range)
+  \item \texttt{avg\_happiness}: Average accumulated reward from social interactions
+  \item \texttt{avg\_generosity}: Average giving/receiving balance tracked during trades
+  \item \texttt{avg\_living\_agent\_age}: Average ETA (age) of currently living agents
+  \item \texttt{avg\_dead\_agent\_lifespan}: Average lifespan of deceased agents
+  \item \texttt{total\_deaths}: Total number of agents that have died
 \end{itemize}
 
 The chart displays these metrics over time, showing the learning evolution. The expectation is that trust toward parasites decreases over time while trust toward non-parasites remains positive, and precision/recall improve as agents learn.
@@ -521,10 +562,17 @@ display LearningMetrics {
 }
 
 display BehavioralMetrics {
-    chart "Sociability, Happiness & Generosity" type: series {
-        data 'Avg sociability' value: avg_sociability;
-        data 'Avg happiness' value: avg_happiness;
-        data 'Avg generosity' value: avg_generosity;
+    chart "Sociability, Happiness \& Generosity" type: series {
+        data 'Avg Sociability' value: avg_sociability color: \#blue;
+        data 'Avg Happiness' value: avg_happiness color: \#green;
+        data 'Avg Generosity' value: avg_generosity color: \#orange;
+    }
+}
+
+display SurvivalMetrics {
+    chart "Agent Lifespan \& Survival" type: series {
+        data 'Avg Living Agent Age' value: avg_living_agent_age color: rgb(0, 102, 204);
+        data 'Avg Dead Agent Lifespan' value: avg_dead_agent_lifespan color: rgb(204, 0, 0);
     }
 }
 \end{verbatim}
@@ -566,14 +614,16 @@ The simulation implements a full BDI (Belief-Desire-Intention) architecture usin
   \item \texttt{generator\_broken\_belief}: Engineer-specific, triggered when oxygen generator is broken
   \item \texttt{patients\_waiting\_belief}: Medic-specific, triggered when med-bay queue has patients
   \item \texttt{mission\_time\_belief}: Scavenger-specific, triggered with 20\% probability per cycle
+  \item \texttt{want\_to\_trade\_belief}: Triggered when agent assesses trading motivation (probability: 0.5 + curiosity)
 \end{itemize}
 
 \textbf{Desires (Goals):} Desires are ranked by rule strengths, determining priority:
 \begin{itemize}
   \item \texttt{escape\_storm} (200.0) - Highest priority
-    \item \texttt{has\_oxygen} (100.0) - High priority (plan currently disabled)
-    \item \texttt{has\_energy} (25.0) - Medium priority (plan currently disabled)
+  \item \texttt{has\_oxygen} (100.0) - High priority
+  \item \texttt{has\_energy} (25.0) - Medium priority
   \item \texttt{be\_healthy} (12.0) - Medium-low priority
+  \item \texttt{seek\_trading\_area} (8.0) - Medium-low priority
   \item \texttt{fix\_generator} (9.0) - Engineer only
   \item \texttt{heal\_patients} (7.0) - Medic only
   \item \texttt{retire} (6.0) - Low priority
@@ -609,6 +659,7 @@ rule belief: suffocating_belief new_desire: has_oxygen_desire strength: 100.0;
 rule belief: starving_belief new_desire: has_energy_desire strength: 25.0;
 rule belief: injured_belief new_desire: be_healthy_desire strength: 12.0;
 rule belief: should_retire_belief new_desire: retire_desire strength: 6.0;
+rule belief: want_to_trade_belief new_desire: seek_trading_area_desire strength: 8.0;
 \end{verbatim}
 
 Plans execute intentions:
@@ -627,6 +678,28 @@ plan get_health intention: be_healthy_desire
     if (health_level >= max_health_level) {
         ask habitat_dome.med_bay { do remove_from_queue(myself); }
         do remove_belief(injured_belief);
+    }
+}
+
+plan get_oxygen intention: has_oxygen_desire 
+      finished_when: oxygen_level >= max_oxygen_level * 0.8 {
+    if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
+        state <- "at_oxygen_generator";
+        // Facility reflex handles replenishment automatically
+    } else {
+        state <- "going_to_oxygen";
+        do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
+    }
+}
+
+plan get_energy intention: has_energy_desire 
+      finished_when: energy_level >= max_energy_level * 0.8 {
+    if ((location distance_to habitat_dome.greenhouse.location) <= facility_proximity) {
+        state <- "at_greenhouse";
+        // Facility reflex handles replenishment automatically
+    } else {
+        state <- "going_to_greenhouse";
+        do goto target: habitat_dome.greenhouse.location speed: movement_speed;
     }
 }
 \end{verbatim}
@@ -672,8 +745,7 @@ species Engineer parent: Human {
     \caption{Oxygen levels down}
     \label{fig:oxbroken}
   \end{figure}
-    \item \textbf{Interpretation:} The perception reflex correctly detects low oxygen and adds the \texttt{suffocating\_belief}. The BDI system creates the \texttt{has\_oxygen\_desire} with high priority (100.0). 
-    We increased a bit the oxygen decrease for the purpose of this screenshot
+    \item \textbf{Interpretation:} The perception reflex correctly detects low oxygen and adds the \texttt{suffocating\_belief}. The BDI system creates the \texttt{has\_oxygen\_desire} with high priority (100.0), and the agent executes the \texttt{get\_oxygen} plan to navigate to the oxygen generator. Once at the facility, the generator automatically replenishes oxygen at a rate of 0.3 per cycle.
   
   \item \textbf{Input:} An agent's health drops below 50\% threshold.
   \item \textbf{Screenshot:} 
@@ -716,18 +788,22 @@ The simulation implements Q-Learning, a model-free reinforcement learning algori
   \item \textbf{Actions:} TRADE or IGNORE (selected via curiosity-greedy: 20\% random exploration, 80\% exploitation)
   \item \textbf{Rewards:}
     \begin{itemize}
-      \item Successful mutual trade: +20.0
-      \item Scammed by Parasite: -20.0
-      \item One-sided trade (non-parasite): -1.0
-      \item Ignore action: 0.0
+      \item Successful mutual trade: +100.0
+      \item Scammed by Parasite (victim or parasite): -80.0
+      \item Altruistic giving (non-parasite gave but partner didn't): +20.0
+      \item Ignore action: +2.0 (small positive reward for avoiding potentially bad interactions)
+      \item Neutral: 0.0
     \end{itemize}
-  \item \textbf{Q-Value Update:} $Q(s,a) = Q(s,a) + sociability \times (reward - Q(s,a))$ where $sociability = 0.2$
-    \item \textbf{Trust Calculation:} $trust = (Q[TRADE] - Q[IGNORE]) / 10.0$, clamped to $[-1.0, 1.0]$
+  \item \textbf{Q-Value Update:} $Q(s,a) = Q(s,a) + sociability \times (reward - Q(s,a))$ where $sociability = 0.35$ (increased for faster convergence)
+    \item \textbf{Trust Calculation:} $trust = (Q[TRADE] - Q[IGNORE]) / 100.0$, clamped to $[-1.0, 1.0]$ (normalized by max expected difference)
   \item \textbf{Detection:} Trust $< 0$ indicates predicted parasite (used for precision/recall metrics)
 \end{itemize}
 
 \textbf{Learning Evolution:}
 Initially, agents interact randomly (curiosity = 20\%). Parasites thrive and get rich through scams. Over time, Q-values for parasite interactions decrease due to negative rewards. Trust values drop toward -1.0 for parasites, and agents learn to IGNORE agents with negative trust values. The learning metrics track average trust to parasites vs non-parasites, plus precision/recall for parasite detection.
+
+\textbf{Adaptive Learning:}
+Agents adapt their learning parameters based on experience. Every 100 cycles, agents adjust their \texttt{curiosity} (exploration rate) based on average trust: if trust is low (indicating poor learning), curiosity increases to encourage more exploration; if trust is high (indicating good learning), curiosity decreases to exploit learned knowledge. Additionally, if \texttt{sociability} drops below 0.15, it gradually recovers to prevent agents from getting stuck in low-learning states.
 
 \subsubsection*{9.2 Code}
 Q-Learning state and action selection:
@@ -736,9 +812,10 @@ Q-Learning state and action selection:
 map<string, list<float>> Q <- map([]);
 map<string, float> trust_memory <- map([]);
 
-float sociability <- 0.2;
-float patience <- 0.0;
-float curiosity <- 0.20;
+float sociability <- 0.35;  // Learning rate (increased for faster convergence)
+float patience <- 0.0;      // Discount factor (not currently used)
+float curiosity <- 0.20;     // Exploration rate (adaptively adjusted)
+float base_curiosity <- 0.20;  // Base exploration rate for adaptation
 
 action ensure_state_exists(string s) {
     if (!(Q contains_key s)) { 
@@ -772,13 +849,53 @@ action update_q(string s, string a, float r) {
     Q[s] <- qs;
     
     float pref <- Q[s][0] - Q[s][1];
-    trust_memory[s] <- max(-1.0, min(1.0, pref / 10.0));
+    trust_memory[s] <- max(-1.0, min(1.0, pref / 100.0));  // Normalize by max expected difference
+}
+
+reflex adapt_learning_parameters when: cycle mod 100 = 0 and length(keys(trust_memory)) > 0 {
+    // Calculate average trust from recent interactions
+    float total_trust <- 0.0;
+    int count <- 0;
+    loop t over: values(trust_memory) {
+        total_trust <- total_trust + t;
+        count <- count + 1;
+    }
+    float avg_trust_value <- total_trust / float(count);
+    
+    // Adapt curiosity: increase when learning is poor, decrease when good
+    if (avg_trust_value < -0.2) {
+        curiosity <- min(0.50, base_curiosity + 0.15);
+    } else if (avg_trust_value < 0.0) {
+        curiosity <- min(0.45, base_curiosity + 0.10);
+    } else if (avg_trust_value < 0.3) {
+        curiosity <- base_curiosity;
+    } else if (avg_trust_value < 0.6) {
+        curiosity <- max(0.10, base_curiosity - 0.05);
+    } else {
+        curiosity <- max(0.05, base_curiosity - 0.10);
+    }
+    
+    // Gradually recover sociability if it has dropped too low
+    if (sociability < 0.15) {
+        sociability <- sociability + 0.01;
+    }
 }
 \end{verbatim}
 
 Trade interaction with learning:
 
 \begin{verbatim}
+reflex assess_trading_motivation when:
+    trade_cooldown = 0
+    and (habitat_dome.shape covers location)
+    and not has_belief(storm_warning_belief)
+    and not has_belief(want_to_trade_belief)
+{
+    if (flip(0.5 + curiosity)) {
+        do add_belief(want_to_trade_belief);
+    }
+}
+
 reflex learn_and_trade when:
     trade_cooldown = 0
     and (habitat_dome.common_area.shape covers location or habitat_dome.recreation_area.shape covers location)
@@ -806,7 +923,7 @@ reflex learn_and_trade when:
     
     string a <- choose_action(s);
     if (a = "IGNORE") {
-        do update_q(s, a, 0.0);
+        do update_q(s, a, 2.0);  // Small positive reward for avoiding bad interactions
         trade_cooldown <- trade_cooldown_max;
         return;
     }
@@ -815,15 +932,15 @@ reflex learn_and_trade when:
     do update_q(s, a, reward);
     happiness <- happiness + reward;
     total_trades <- total_trades + 1;
-    trade_cooldown <- trade_cooldown_max;
+    trade_cooldown <- trade_cooldown_max;  // Cooldown is 5 cycles
 }
 \end{verbatim}
 
 \subsubsection*{9.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} Simulation starts with agents having empty Q-tables and trust memory. Agents begin trading with each other.
-  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with trust\_memory column showing initial values (mostly 0.0 or empty). Console should show trade interactions with rewards. The learning metrics chart should show initial trust values (around 0) for both parasites and non-parasites. Some trades should show positive rewards (+20) and some negative rewards (-20 from parasites).]
-  \item \textbf{Interpretation:} Agents initially interact randomly (20\% exploration rate). Q-tables are being populated as agents encounter each other. Both positive (mutual trades) and negative (parasite scams) rewards are being recorded, starting the learning process.
+  \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with trust\_memory column showing initial values (mostly 0.0 or empty). Console should show trade interactions with rewards. The learning metrics chart should show initial trust values (around 0) for both parasites and non-parasites. Some trades should show positive rewards (+100 for mutual cooperation) and some negative rewards (-80 from parasites).]
+  \item \textbf{Interpretation:} Agents initially interact randomly (20\% exploration rate, adaptively adjusted). Q-tables are being populated as agents encounter each other. Both positive (mutual trades) and negative (parasite scams) rewards are being recorded, starting the learning process.
   
   \item \textbf{Input:} Simulation runs for several hundred cycles, allowing multiple trade interactions with the same agents.
   \item \textbf{Screenshot:} [PLACEHOLDER: Screenshot showing agent state inspector with trust\_memory containing negative values for parasite IDs and positive values for cooperative agent IDs. Console should show agents choosing IGNORE actions for agents with negative trust. The learning metrics chart should show average trust to parasites trending downward while average trust to non-parasites remains positive or increases.]
@@ -853,22 +970,21 @@ This project successfully demonstrates how a distributed multi-agent system can 
 
 \textbf{Limitations:}
 \begin{itemize}
-  \item Death system is currently disabled to allow learning to occur (can be re-enabled)
-  \item Oxygen and energy refill plans are disabled, prioritizing learning interactions over full survival simulation
   \item Q-table inheritance from supply shuttle averages is calculated but not yet applied to new agents
   \item Learning is individual - agents don't directly share knowledge (though they could observe patterns)
   \item Parasites use simple disguise mechanism - could be enhanced with more sophisticated deception
+  \item The \texttt{patience} parameter (discount factor) is defined but not used in the learning algorithm
 \end{itemize}
 
 \textbf{Potential Improvements:}
 \begin{itemize}
   \item Apply Q-table inheritance so new agents start with averaged knowledge from survivors
   \item Implement knowledge sharing mechanisms (e.g., agents can share trust information)
-  \item Re-enable death system with proper handling to test learning under population pressure
+  \item Implement the \texttt{patience} parameter (discount factor) for temporal discounting of future rewards
   \item Add more sophisticated parasite strategies (e.g., temporary cooperation, selective stealing)
   \item Implement reputation systems where agents can observe others' interactions
   \item Add more complex reward structures (e.g., reputation-based rewards, long-term relationship benefits)
-  \item Enhance visualization with additional charts (population over time, trade success rates, etc.)
+  \item Enhance visualization with additional charts (population over time, trade success rates, death rates, etc.)
 \end{itemize}
 
 \textbf{Conclusion:}
