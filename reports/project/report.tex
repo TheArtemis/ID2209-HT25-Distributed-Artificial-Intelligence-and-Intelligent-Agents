@@ -1,6 +1,5 @@
 \documentclass[a4paper,12pt]{article}
 
-% --- PACKAGES ---
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \usepackage{hyperref}
@@ -10,7 +9,6 @@
 \usepackage{xcolor}
 \usepackage{enumitem}
 
-% --- PAGE SETUP ---
 \geometry{margin=2.5cm}
 \setlength{\parskip}{0.7em}
 \setlength{\parindent}{0pt}
@@ -21,12 +19,10 @@
 \lhead{Deflorian, Fragale, Skarbalius}
 \cfoot{\thepage}
 
-% --- SECTION FORMATTING ---
 \titleformat{\section}{\large\bfseries\color{blue}}{\thesection.}{0.5em}{}
 \titleformat{\subsection}{\bfseries}{\thesubsection}{0.5em}{}
 \titleformat{\subsubsection}[runin]{\bfseries}{\thesubsubsection}{0.5em}{}[.]
 
-% --- TITLE ---
 \title{\textbf{DAIIA Assignment Report}\\[0.5em]
 \large Course: Distributed Artificial Intelligence and Intelligent Agents \\[0.3em]
 Assignment: Final Project - Mars Colony: The Evolution of Trust}
@@ -41,7 +37,6 @@ KTH Royal Institute of Technology \\[0.3em]
 \tableofcontents
 \newpage
 
-% --- SECTION 1 ---
 \section{Running Instructions}
 \begin{itemize}[leftmargin=*]
   \item \textbf{How to run the program:} 
@@ -55,12 +50,11 @@ KTH Royal Institute of Technology \\[0.3em]
   \item \textbf{Expected inputs:} No manual inputs are required. The simulation runs automatically with predefined parameters that can be modified in the global section if desired (e.g., desired number of agents per type, map dimensions, learning parameters).
 \end{itemize}
 
-% --- SECTION 2 ---
 \section{General Overview}
 \subsection*{Solution Summary}
-This project implements a Mars Colony simulation where five different types of agents (Engineer, Medic, Scavenger, Parasite, and Commander) must survive in a hostile environment while managing biological needs (oxygen, energy, health) and learning to identify malicious actors through reinforcement learning.
+This project presents a Mars Colony simulation with five agent roles (Engineer, Medic, Scavenger, Parasite, and Commander). Agents must survive in a resource-constrained environment by managing biological needs (oxygen, energy, health) and interacting with other agents.
 
-The simulation demonstrates how a population can evolve a "social immune system" using Q-Learning to distinguish between cooperative agents and parasites that steal resources. Agents use BDI (Belief-Desire-Intention) architecture for survival behaviors and Q-Learning for social interaction decisions.
+The main focus is whether decentralized learning can reduce harmful interactions over time. Agents use a BDI (Belief-Desire-Intention) controller for survival behaviors and Q-Learning to guide social decisions (e.g., whether to trade with a specific partner).
 
 \textbf{Key Features:}
 \begin{itemize}
@@ -87,11 +81,9 @@ The simulation demonstrates how a population can evolve a "social immune system"
   \item Adaptive sociability recovery prevents learning stagnation
 \end{itemize}
 
-% --- SECTION 3 ---
-
 \section{Agent Types and Interactions}
 \subsubsection*{3.1 Explanation}
-The simulation features five distinct agent types, each with unique roles, capabilities, and interaction rules. All agents share three core biological traits: \texttt{oxygen\_level}, \texttt{energy\_level}, and \texttt{health\_level}, which decrease over time and must be managed for survival. Each agent type has specific interaction rules that determine how they trade resources with other agents.
+The model includes five agent types with different roles, capabilities, and interaction rules. All agents share three core biological traits: \texttt{oxygen\_level}, \texttt{energy\_level}, and \texttt{health\_level}, which decrease over time and constrain survival. Each agent type follows specific rules that determine how it trades resources with other agents.
 
 \textbf{Survival Mechanisms:} Agents can sustain themselves through two paths: (1) Trading with other agents for immediate resource boosts, or (2) Using facility replenishment systems (Greenhouse and OxygenGenerator) for slower but reliable resource restoration. Facilities provide +0.5 energy/cycle and +0.3 oxygen/cycle within their proximity radius, creating a survival baseline while trading provides faster growth opportunities.
 
@@ -104,7 +96,7 @@ The simulation features five distinct agent types, each with unique roles, capab
   \item \textbf{Commander:} Broadcasts storm warnings via FIPA. Provides both oxygen (+10) and energy (+10) during trades.
 \end{enumerate}
 
-Each agent type has at least one unique set of interaction rules. For example, Engineers repair generators, Medics heal at the med-bay, Scavengers mine resources, Parasites steal, and Commanders broadcast alerts.
+Each agent type has its own interaction logic. For example, Engineers repair generators, Medics heal at the med-bay, Scavengers mine resources, Parasites steal, and Commanders broadcast alerts.
 
 \subsubsection*{3.2 Code}
 The agent types are defined as species inheriting from the \texttt{Human} base species. Each agent initializes with its role and presented role:
@@ -171,33 +163,32 @@ action attempt_trade(Human partner) {
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.6\textwidth]{imgs/map_Mars.png}
-    \caption{Agents successfully inside the map}
+        \caption{Agents inside the map}
     \label{fig:agentsinmap}
 \end{figure}
-  \item \textbf{Interpretation:} The simulation successfully initializes with all required agent types. Each type is visually distinct and has appropriate starting locations and attributes.
-    They are already moving within the map
+    \item \textbf{Interpretation:} The simulation starts with all five agent types present in the habitat dome. Agents are rendered with distinct visuals and begin moving immediately.
   
   \item \textbf{Input:} Agents engage in trading interactions within the habitat dome.
-  \item \textbf{Screenshot:} \begin{figure}[h]
+  \item \textbf{Screenshot:} \ref{fig:trading} \begin{figure}[h]
     \centering
     \includegraphics[width=0.7\textwidth]{imgs/tradeHabitat.png}
     \caption{Trading between agents}
     \label{fig:trading}
 \end{figure}
-    \item \textbf{Interpretation:} Agents successfully interact with each other following their type-specific rules. Scavengers provide energy via raw resources, Engineers provide oxygen/repairs, Commanders provide oxygen+energy, and Parasites attempt to steal/drain. Medic contributions occur through Med-Bay queue healing (not via trade).
+    \item \textbf{Interpretation:} As can be seen from \ref{fig:trading} trades follow the intended type-specific rules: Scavengers provide energy via raw resources, Engineers provide oxygen/repairs, Commanders provide oxygen+energy, and Parasites attempt one-sided interactions. Medic contributions occur through the Med-Bay queue (not via trade).
 \end{enumerate}
 
 \section{Environment and Places}
 \subsubsection*{4.1 Explanation}
-The simulation features multiple distinct places where agents can interact and perform activities. The environment includes safe zones (habitat dome) and danger zones (wasteland), each with different properties affecting agent survival.
+The environment is organized into distinct locations where agents move, interact, and perform activities. It includes a safe zone (habitat dome) and a hazard zone (wasteland), each with different effects on survival.
 
 \textbf{Places:}
 \begin{enumerate}
     \item \textbf{Habitat Dome:} Large safe zone (250x250 units) containing Greenhouse, Oxygen Generator, Med-Bay, and the two meeting places used for social interaction.
     \item \textbf{Common Area:} Meeting/trading area (circle) inside the dome.
     \item \textbf{Recreation Area:} Meeting/trading area (circle) inside the dome.
-  \item \textbf{Wasteland:} Danger zone (100x100 units) where Scavengers mine. Features 1.2x faster oxygen depletion and random dust storms that increase danger.
-  \item \textbf{Med-Bay:} Facility within the dome where injured agents queue for treatment. Features visual feedback (orange color when queue has patients).
+    \item \textbf{Wasteland:} Danger zone (100x100 units) where Scavengers mine. Oxygen depletes 1.2x faster, and random dust storms increase risk.
+    \item \textbf{Med-Bay:} Facility within the dome where injured agents queue for treatment. The queue status is shown visually (orange when patients are waiting).
   \item \textbf{Landing Pad:} Location where agents retire and despawn.
   \item \textbf{Rock Mine:} Location in wasteland where Scavengers collect raw materials.
 \end{enumerate}
@@ -307,7 +298,7 @@ reflex update_oxygen{
     \caption{Mars colony map}
     \label{fig:marsmap}
 \end{figure}
-  \item \textbf{Interpretation:} All required places are correctly initialized and positioned. The habitat dome serves as the primary safe zone, while the wasteland represents a danger zone with different environmental properties.
+    \item \textbf{Interpretation:} All places are initialized and positioned as expected. The habitat dome functions as the primary safe zone, while the wasteland introduces harsher environmental conditions.
   
   \item \textbf{Input:} A dust storm occurs in the wasteland.
   \item \textbf{Screenshot:} \begin{figure}[h]
@@ -316,7 +307,7 @@ reflex update_oxygen{
     \caption{Storm in the Wasteland}
     \label{fig:stormwasteland}
 \end{figure}
-  \item \textbf{Interpretation:} The wasteland correctly displays visual feedback (it has changed colors) during dust storms.
+    \item \textbf{Interpretation:} During a dust storm, the wasteland changes color to provide immediate visual feedback.
 \end{enumerate}
 
 \section{Continuous Running System}
@@ -400,7 +391,7 @@ plan do_retire intention: retire_desire {
     \caption{Agents going to the landing pad after retirement}
     \label{fig:agentsleaving}
   \end{figure}
-  \item \textbf{Interpretation:} The retirement system correctly tracks agent age and triggers retirement behavior when the threshold is reached. Agents successfully navigate to the landing pad to despawn.
+    \item \textbf{Interpretation:} The retirement system tracks agent age and triggers retirement when the threshold is reached. Retiring agents move to the landing pad and despawn.
   
   \item \textbf{Input:} Agents retire, causing population counts to drop below desired levels.
   \item \textbf{Screenshot:} \begin{figure}[h]
@@ -409,12 +400,12 @@ plan do_retire intention: retire_desire {
     \caption{Supply shuttle arriving with new agents}
     \label{fig:supplyshuttle}
   \end{figure}
-  \item \textbf{Interpretation:} The supply shuttle system successfully detects population deficits and spawns new agents to maintain the desired population levels. The simulation continues running indefinitely.
+    \item \textbf{Interpretation:} When population counts fall below the targets, the supply shuttle spawns new agents to restore the desired levels. This keeps the simulation running without manual intervention.
 \end{enumerate}
 
 \section{FIPA Communication}
 \subsubsection*{6.1 Explanation}
-FIPA (Foundation for Intelligent Physical Agents) protocol is used for long-distance messaging between agents. In this simulation, Commanders send storm warning messages to all agents in the wasteland when a dust storm is detected. This demonstrates asynchronous, long-range communication that triggers behavioral changes in receiving agents.
+FIPA (Foundation for Intelligent Physical Agents) messaging is used for long-distance coordination. In this simulation, Commanders send storm warnings to agents in the wasteland when a dust storm is detected. The goal is to model asynchronous communication that can influence behavior at a distance.
 
 When a dust storm occurs in the wasteland, Commanders detect it and broadcast a "Return to Base" message using the FIPA propose protocol. Agents receiving this message add a \texttt{storm\_warning\_belief} to their BDI system, which triggers the highest-priority desire (\texttt{escape\_storm}) to return to the safe habitat dome.
 
@@ -479,7 +470,7 @@ plan escape_storm intention: escape_storm_desire {
     \caption{Agents receiving FIPA "Return to Base" messages during storm}
     \label{fig:returntobase}
   \end{figure}
-  \item \textbf{Interpretation:} Commanders successfully detect the storm and send FIPA messages to agents in the wasteland. Receiving agents correctly process the messages and add the storm warning belief.
+    \item \textbf{Interpretation:} Commanders detect the storm and broadcast FIPA messages to agents in the wasteland. Receiving agents process the messages and add the storm warning belief.
   
   \item \textbf{Input:} Agents receive storm warning messages and begin moving toward the habitat dome.
   \item \textbf{Screenshot:} \begin{figure}[h]
@@ -488,12 +479,12 @@ plan escape_storm intention: escape_storm_desire {
     \caption{Agents returning to base after receiving storm warning}
     \label{fig:agentsreturning}
   \end{figure}
-  \item \textbf{Interpretation:} The FIPA communication successfully triggers behavioral changes. Agents prioritize storm escape (strength 200.0, highest priority) and navigate to safety, demonstrating the integration between FIPA messaging and BDI architecture.
+    \item \textbf{Interpretation:} The warning message changes agent priorities: agents with a storm warning prioritize escape (strength 200.0) and move back to the habitat dome.
 \end{enumerate}
 
 \section{Charts and Monitoring}
 \subsubsection*{7.1 Explanation}
-The simulation includes real-time monitoring of learning metrics through charts and global values. The primary chart tracks the evolution of trust and parasite detection accuracy over time, demonstrating how the population learns to identify malicious actors.
+The simulation provides real-time monitoring of learning metrics through charts and global values. The main chart tracks trust and parasite-detection metrics over time.
 
 \textbf{Global Values and Metrics:}
 \begin{itemize}
@@ -510,10 +501,10 @@ The simulation includes real-time monitoring of learning metrics through charts 
   \item \texttt{total\_deaths}: Total number of agents that have died
 \end{itemize}
 
-The chart displays these metrics over time, showing the learning evolution. The expectation is that trust toward parasites decreases over time while trust toward non-parasites remains positive, and precision/recall improve as agents learn.
+The expectation is that trust toward parasites decreases over time while trust toward non-parasites remains positive, and that precision/recall improve as agents accumulate interactions.
 
 \textbf{Interesting Conclusion:}
-The simulation demonstrates that a population utilizing Reinforcement Learning can develop a "Social Immune System," effectively identifying and isolating malicious actors (Parasites) without centralized police control, simply through individual negative experiences and learning.
+In repeated runs, negative outcomes with parasites reduce trust and increase avoidance. This functions like a decentralized reputation effect: agents do not need a centralized authority to change behavior, but instead adapt based on their own interaction history.
 
 \subsubsection*{7.2 Code}
 Learning metrics are updated each cycle:
@@ -606,8 +597,7 @@ display SurvivalMetrics {
 \subsubsection*{7.3 Demonstration}
 \begin{enumerate}[leftmargin=*]
   \item \textbf{Input:} Simulation runs for an extended period to allow learning to occur.
-  \item \textbf{Interpretation of the figure below:} The learning metrics chart successfully tracks the evolution of trust and detection accuracy. Over time, agents learn to distinguish parasites from cooperative agents, as evidenced by slightly decreasing trust toward parasites and improving precision/recall metrics.
-     Improving an recall are measured using machine learning principles
+    \item \textbf{Interpretation of the figure below:} The learning metrics chart shows how trust and detection accuracy change over time. Precision and recall follow the standard machine learning definitions.
   \item \textbf{Screenshot:} \begin{figure}[h]
     \centering
     \includegraphics[width=0.7\textwidth]{imgs/learningMetrics.png}
@@ -621,10 +611,8 @@ display SurvivalMetrics {
     \caption{Behavioural metrics map}
     \label{fig:behaviouralmetrics}
 \end{figure}
-  \item \textbf{Interpretation:} Individual agents maintain trust memory maps that correctly distinguish between parasites (negative trust) and cooperative agents (positive trust). The learning system successfully updates trust values based on trade outcomes.
+    \item \textbf{Interpretation:} Trust memory maps separate parasites (negative trust) from cooperative agents (positive trust), reflecting the cumulative outcomes of trade interactions.
 \end{enumerate}
-
-% --- SECTION 4 ---
 
 \section{Challenge 1: BDI Agents}
 \subsubsection*{8.1 Explanation}
@@ -771,7 +759,7 @@ species Engineer parent: Human {
     \caption{Oxygen levels down}
     \label{fig:oxygenlevel}
   \end{figure}
-    \item \textbf{Interpretation:} The perception reflex correctly detects low oxygen and adds the \texttt{suffocating\_belief}. The BDI system creates the \texttt{has\_oxygen\_desire} with high priority (100.0), and the agent executes the \texttt{get\_oxygen} plan to navigate to the oxygen generator. Once at the facility, the generator automatically replenishes oxygen at a rate of 0.3 per cycle.
+    \item \textbf{Interpretation:} When oxygen falls below the threshold, the perception reflex adds \texttt{suffocating\_belief}. The BDI system creates \texttt{has\_oxygen\_desire} with high priority (100.0), and the agent executes \texttt{get\_oxygen} to reach the oxygen generator. Once within range, the generator replenishes oxygen at 0.3 per cycle.
   
   \item \textbf{Input:} An agent's health drops below 50\% threshold.
   \item \textbf{Screenshot:} 
@@ -781,17 +769,17 @@ species Engineer parent: Human {
     \caption{Health level below threshold}
     \label{fig:healthLow}
   \end{figure}
-  \item \textbf{Interpretation:} Scavenger 4 has health level below threshold. The agent correctly adds the \texttt{injured\_belief}, creates the \texttt{be\_healthy\_desire}, and executes the \texttt{get\_health} plan. The agent navigates to the med-bay and queues for treatment, demonstrating BDI-driven behavior with proper plan execution.
+    \item \textbf{Interpretation:} When health drops below the threshold, the agent adds the \texttt{injured\_belief}, creates the \texttt{be\_healthy\_desire}, and executes the \texttt{get\_health} plan. The agent navigates to the med-bay and queues for treatment.
   
   \item \textbf{Input:} The oxygen generator breaks (5\% probability per cycle).
   \item \textbf{Screenshot:} 
   \begin{figure}[h]
     \centering
-    \includegraphics[width=0.6\textwidth]{imgs/oxygen_generator.png}
+    \includegraphics[width=0.25\textwidth]{imgs/oxygen_generator.png}
     \caption{Oxygen generator broken}
     \label{fig:oxygengenerator}
   \end{figure}
-  \item \textbf{Interpretation:} Some engineers correctly detect the broken generator through their \texttt{check\_generator} reflex, add the \texttt{generator\_broken\_belief}, create the \texttt{fix\_generator\_desire}, and execute the repair plan. This demonstrates role-specific BDI behavior where only Engineers respond to generator failures.
+    \item \textbf{Interpretation:} Engineers detect the broken generator via \texttt{check\_generator}, add \texttt{generator\_broken\_belief}, and execute the repair plan. Only Engineers respond to generator failures.
   
   \item \textbf{Input:} Multiple agents have different priority desires simultaneously (e.g., one suffocating, one injured, one with storm warning).
   \item \textbf{Screenshot:} 
@@ -801,7 +789,7 @@ species Engineer parent: Human {
     \caption{Different states}
     \label{fig:diffStates}
   \end{figure}
-  \item \textbf{Interpretation:} The BDI system correctly prioritizes desires based on rule strengths. The agent with storm warning (strength 200.0) prioritizes escape over other tasks, while agents with suffocating (strength 100.0) prioritize oxygen over injured agents (strength 12.0). This demonstrates the priority system working correctly across the population.
+    \item \textbf{Interpretation:} Desire selection follows rule strengths. For example, agents with a storm warning (200.0) prioritize escape over other tasks, while suffocating agents (100.0) prioritize oxygen above low-priority goals such as healing (12.0).
 \end{enumerate}
 
 \section{Challenge 2: Reinforcement Learning}
@@ -1007,7 +995,7 @@ reflex learn_and_trade when:
     \caption{Initial Q values}
     \label{fig:initialTrust}
   \end{figure}
-  \item \textbf{Interpretation: } Initially, Q-values are zero and all agents are randomly exploring all trade suggestions.
+    \item \textbf{Interpretation:} Initially, Q-values are zero, so agents explore trade decisions frequently under the $\epsilon$-greedy policy.
   
   \item \textbf{Input:} Simulation runs for several hundred cycles, allowing multiple trade interactions with the same agents.
   \item \textbf{Screenshot:}
@@ -1017,7 +1005,7 @@ reflex learn_and_trade when:
     \caption{Q values after 10 cycles}
     \label{fig:after10cycles}
   \end{figure}
-  \item \textbf{Interpretation:} Q-table is updated with positive or negative values based on trade outcomes (Fig. \ref{fig:after10cycles}). After multiple interactions, agents are starting to learn to distinguish parasites from cooperative agents. Agents begin exploiting learned patterns (80\% greedy) more than exploring, making informed decisions based on learned Q-values. 
+    \item \textbf{Interpretation:} The Q-table accumulates positive and negative values based on trade outcomes (Fig. \ref{fig:after10cycles}). After repeated interactions, agents start separating parasites from cooperative partners and increasingly exploit learned preferences (80\% greedy).
 
   \item \textbf{Input:} Simulation runs for an extended period (1000+ cycles) with learning metrics being tracked.
   \item \textbf{Screenshot:}
@@ -1027,7 +1015,7 @@ reflex learn_and_trade when:
     \caption{Avg. trust after extended learning}
     \label{fig:avgtrust}
   \end{figure}
-  \item \textbf{Interpretation:} The learning system has successfully evolved. Agents have developed strong negative trust toward parasites and positive trust toward cooperative agents. This continuous improvement can be seen in \ref{fig:avgtrust} Adaptive curiosity has adjusted to 10-15\% exploration since agents are now successful (high average trust).
+    \item \textbf{Interpretation:} After extended learning, average trust becomes strongly negative for parasites and remains positive for cooperative agents (Fig. \ref{fig:avgtrust}). Adaptive curiosity settles around 10--15\% exploration once average trust is high.
 
   \item \textbf{Input:} Simulation runs for an extended period (1000+ cycles) with average agent lifespan being tracked.
   \item \textbf{Screenshot:}
@@ -1037,16 +1025,15 @@ reflex learn_and_trade when:
     \caption{Avg. lifespan of dead and alive agents}
     \label{fig:lifespans}
   \end{figure}
-  \item \textbf{Interpretation:} As shown in \ref{fig:lifespans}, the average lifespan of living agents increases over time, while the average lifespan of deceased agents stabilizes. This indicates that agents are successfully avoiding parasites, leading to longer survival times for cooperative agents.
+    \item \textbf{Interpretation:} As shown in \ref{fig:lifespans}, the average lifespan of living agents increases over time, while the average lifespan of deceased agents stabilizes. This is consistent with fewer damaging interactions as agents learn to avoid risky partners.
 \end{enumerate}
 
-% --- SECTION 5 ---
 \section{Final Remarks}
-This project successfully demonstrates how a distributed multi-agent system can evolve collective intelligence through individual learning. The Mars Colony simulation combines BDI architecture for survival behaviors with Q-Learning for social interaction, creating a complex adaptive system where agents learn to identify and avoid malicious actors.
+This project shows how individual learning can shape system-level behavior in a distributed multi-agent setting. The Mars Colony simulation combines BDI architecture for survival behaviors with Q-Learning for social decisions, allowing agents to adapt their interactions based on experience.
 
 \textbf{Key Achievements:}
 \begin{itemize}
-  \item Successfully implemented a full BDI architecture with multiple belief types, prioritized desires, and executable plans
+    \item Implemented a full BDI architecture with multiple belief types, prioritized desires, and executable plans
   \item Implemented Q-Learning with state-action-reward framework for trust-based decision making
   \item Created a continuous simulation system that maintains population through supply shuttles
   \item Integrated FIPA communication for long-distance messaging
@@ -1072,6 +1059,6 @@ This project successfully demonstrates how a distributed multi-agent system can 
 \end{itemize}
 
 \textbf{Conclusion:}
-The simulation successfully demonstrates the evolution of a "Social Immune System" where agents learn to identify and avoid parasites through reinforcement learning. Without centralized control, the population develops collective immunity through individual negative experiences, showing how distributed learning can lead to emergent protective behaviors. This has implications for understanding trust formation in multi-agent systems, reputation mechanisms, and the evolution of cooperation in distributed environments.
+Over time, agents learn to avoid parasites through reinforcement learning. Without centralized control, behavior shifts as agents adapt to negative experiences, which provides an intuition for how trust and avoidance can emerge in multi-agent systems.
 
 \end{document}

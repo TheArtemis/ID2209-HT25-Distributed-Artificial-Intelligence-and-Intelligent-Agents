@@ -1,24 +1,14 @@
-/**
-* Name: MarsColony
-* Based on the internal empty template.
-* Author: Lorenzo Deflorian, Riccardo Fragale, Juozas Skarbalius
-* Tags:
-*/
-
 model MarsColony
 
 global {
-    // === MAP ===
     int map_width <- 400;
     int map_height <- 400;
     geometry shape <- rectangle(map_width, map_height);
 
-    // === AGENTS ===
     float max_oxygen_level <- 100.0;
     float max_energy_level <- 100.0;
     float max_health_level <- 100.0;
 
-    // === COLORS ===
     rgb habitat_dome_color <- rgb(0, 255, 0);
     rgb habitat_dome_border_color <- rgb(0, 128, 0);
 
@@ -67,13 +57,11 @@ global {
     rgb recreation_area_color <- rgb(173, 216, 230);
     rgb recreation_area_border_color <- rgb(70, 130, 180);
 
-    // === PLACES ===
     HabitatDome habitat_dome;
     Wasteland wasteland;
     LandingPad landing_pad;
     RockMine rock_mine;
 
-    // === AGENTS ===
     list<Engineer> engineers;
     list<Medic> medics;
     list<Scavenger> scavengers;
@@ -84,14 +72,12 @@ global {
         return list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander);
     }
 
-    // === GLOBAL VARIABLES ===
     int desired_number_of_engineers <- 16;
     int desired_number_of_medics <- 10;
     int desired_number_of_scavengers <- 8;
     int desired_number_of_parasites <- 12;
     int desired_number_of_commanders <- 4;
 
-    // Cap the total number of agents in the colony
     int max_colony_size <- 60;
 
     int current_number_of_engineers <- 0;
@@ -100,7 +86,6 @@ global {
     int current_number_of_parasites <- 0;
     int current_number_of_commanders <- 0;
 
-    // === HEALTH ===
     float oxygen_decrease_rate <- 0.1;
     float oxygen_decrease_factor_in_wasteland <- 1.2;
 
@@ -112,43 +97,34 @@ global {
     float energy_level_threshold <- max_energy_level * 0.2;
     float health_level_threshold <- max_health_level * 0.5;
 
-    // === RANDOMNESS ===
     float oxygen_generator_break_probability <- 0.05;
     float scavenger_mission_probability <- 0.2;
 
-    // === REFILL ===
     float oxygen_refill_rate <- 50.0;
     float energy_refill_rate <- 50.0;
     float facility_proximity <- 5.0;
 
-    // === ETA ===
     int retirement_age <- 2000;
     float eta_increment <- 1.0;
 
-    // === MOVEMENT ===
     float movement_speed <- 10.0;
 
-    // === CONFIGURATION ===
     bool enable_supply_shuttle <- true;
     bool enable_retirement <- true;
-    int chart_refresh_rate <- 1;  // Charts update every N cycles
+    int chart_refresh_rate <- 1;
 
-    // === SIMULATION STATE ===
     bool first_shuttle_arrived <- false;
 
-    // === LEARNING METRICS (aggregated) ===
     float avg_trust_to_parasites <- 0.0;
     float avg_trust_to_non_parasites <- 0.0;
-    float precision <- 0.0; // TP / (TP + FP)
-    float recall <- 0.0;    // TP / (TP + FN)
+    float precision <- 0.0;
+    float recall <- 0.0;
     int total_trades <- 0;
     
-    // === BEHAVIORAL METRICS ===
     float avg_sociability <- 0.0;
     float avg_happiness <- 0.0;
     float avg_generosity <- 0.0;
     
-    // === SURVIVAL METRICS ===
     float avg_living_agent_age <- 0.0;
     float avg_dead_agent_lifespan <- 0.0;
     int total_deaths <- 0;
@@ -174,7 +150,6 @@ global {
         commanders <- [];
     }
 
-    // Synchronize counters with actual agent counts to fix retirement tracking
     reflex sync_agent_counters {
         current_number_of_engineers <- length(list(Engineer));
         current_number_of_medics <- length(list(Medic));
@@ -304,7 +279,6 @@ global {
         }
     }
 
-    // Aggregate trust and detection metrics each tick
     reflex update_learning_metrics {
         int total_agents <- length(list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander));
         int trades_this_tick <- total_trades;
@@ -339,7 +313,6 @@ global {
         precision <- ((tp0 + fp0) > 0 ? float(tp0) / float(tp0 + fp0) : 0.0);
         recall <- ((tp0 + fn0) > 0 ? float(tp0) / float(tp0 + fn0) : 0.0);
         
-        // Calculate behavioral metrics
         float sum_sociability <- 0.0;
         float sum_happiness <- 0.0;
         float sum_generosity <- 0.0;
@@ -352,19 +325,16 @@ global {
             agent_count <- agent_count + 1;
         }
         
-        // Scale sociability (0.05-0.4 range) to make it comparable with happiness and generosity
         avg_sociability <- (agent_count > 0 ? (sum_sociability / float(agent_count)) * 100.0 : 0.0);
         avg_happiness <- (agent_count > 0 ? sum_happiness / float(agent_count) : 0.0);
         avg_generosity <- (agent_count > 0 ? sum_generosity / float(agent_count) : 0.0);
         
-        // Calculate average age of living agents
         float sum_age <- 0.0;
         loop h over: (list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander)) {
             sum_age <- sum_age + h.eta;
         }
         avg_living_agent_age <- (agent_count > 0 ? sum_age / float(agent_count) : 0.0);
         
-        // Calculate average lifespan of dead agents
         avg_dead_agent_lifespan <- (total_deaths > 0 ? total_age_at_death / float(total_deaths) : 0.0);
     }
 }
@@ -379,18 +349,16 @@ species Human skills: [moving, fipa] control: simple_bdi {
     float eta <- 0.0;
     int raw_amount <- 0;
 
-    // === IDENTITY / APPEARANCE ===
     string role <- "Human";
     string presented_role <- "Human";
 
-    // === LEARNING / TRUST (Q-Learning) ===
     float happiness <- 0.0;
-    float generosity <- 0.0;   // positive when giving more than receiving
+    float generosity <- 0.0;
 
-    float sociability <- 0.35;  // learning rate
-    float patience <- 0.0;     // discount factor: how much agents value future rewards
-    float curiosity <- 0.20;   // exploration rate
-    float base_curiosity <- 0.20;  // base exploration rate for adaptation
+    float sociability <- 0.35;
+    float patience <- 0.0;
+    float curiosity <- 0.20;
+    float base_curiosity <- 0.20;
 
     map<string, list<float>> Q <- map([]);
     map<string, float> trust_memory <- map([]);
@@ -398,12 +366,11 @@ species Human skills: [moving, fipa] control: simple_bdi {
     int trade_cooldown <- 0;
     int trade_cooldown_max <- 5;
     float meet_distance <- 300.0;
-    int trading_area_timeout <- 0;  // Timeout counter for trading area
+    int trading_area_timeout <- 0;
 
     string state <- "idle";
     string received_message <- nil;
 
-    // === BDI PREDICATES ===
     predicate suffocating_belief <- new_predicate("suffocating");
     predicate starving_belief <- new_predicate("starving");
     predicate injured_belief <- new_predicate("injured");
@@ -444,7 +411,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
     }
 
-    // === PERCEPTION ===
     reflex perception {
         if (oxygen_level < oxygen_level_threshold) {
             if (not has_belief(suffocating_belief)) {
@@ -477,7 +443,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
     }
 
-    // Keep agents topped up while inside the med-bay zone so they do not die while waiting
     reflex med_bay_immunity when: false {
         oxygen_level <- max_oxygen_level;
         energy_level <- max_energy_level;
@@ -485,15 +450,12 @@ species Human skills: [moving, fipa] control: simple_bdi {
         if (has_belief(starving_belief)) { do remove_belief(starving_belief); }
     }
 
-    // === RULES ===
     rule belief: should_retire_belief new_desire: retire_desire strength: 500.0;
     rule belief: storm_warning_belief new_desire: escape_storm_desire strength: 200.0;
     rule belief: suffocating_belief new_desire: has_oxygen_desire strength: 100.0;
     rule belief: starving_belief new_desire: has_energy_desire strength: 25.0;
     rule belief: injured_belief new_desire: be_healthy_desire strength: 12.0;
     rule belief: want_to_trade_belief new_desire: seek_trading_area_desire strength: 8.0;
-
-    // === PLANS ===
 
     plan escape_storm intention: escape_storm_desire {
         state <- "escaping_storm";
@@ -507,17 +469,14 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     plan do_retire intention: retire_desire {
-        // Suspend other lower-priority intentions when retiring
         if (state != "retiring") {
             write "[RETIREMENT] " + name + " (role=" + role + ", age=" + eta + " cycles) starting retirement plan from state: " + state;
-            // Remove other active intentions to prioritize retirement
             do remove_intention(has_oxygen_desire, true);
             do remove_intention(has_energy_desire, true);
             ask habitat_dome.med_bay { do remove_from_queue(myself); }
             do remove_intention(be_healthy_desire, true);
             do remove_intention(seek_trading_area_desire, true);
             do remove_intention(wander_desire, true);
-            // Set state immediately to prevent other plans from interfering
             state <- "retiring";
         }
         
@@ -528,7 +487,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
             write "[LEAVING] " + name + " (role=" + role + ", age=" + eta + " cycles) is leaving the colony";
             do die_and_update_counter;
         } else {
-            // Keep state as "retiring" while moving to landing pad
             state <- "retiring";
             if (cycle mod 50 = 0) {
                 write "[RETIREMENT] " + name + " (role=" + role + ", age=" + eta + " cycles) is traveling to landing pad, distance: " + dist_to_pad + ", state=" + state;
@@ -554,11 +512,8 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     plan get_oxygen intention: has_oxygen_desire finished_when: oxygen_level >= max_oxygen_level * 0.8 {
-        // Navigate to oxygen generator
         if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
             state <- "at_oxygen_generator";
-            // Facility reflex handles replenishment automatically
-            // Check if we've reached the target level and finish the plan
             if (oxygen_level >= max_oxygen_level * 0.8) {
                 do remove_intention(has_oxygen_desire, true);
                 state <- "idle";
@@ -570,11 +525,8 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     plan get_energy intention: has_energy_desire finished_when: energy_level >= max_energy_level * 0.8 {
-        // Navigate to greenhouse
         if ((location distance_to habitat_dome.greenhouse.location) <= facility_proximity) {
             state <- "at_greenhouse";
-            // Facility reflex handles replenishment automatically
-            // Check if we've reached the target level and finish the plan
             if (energy_level >= max_energy_level * 0.8) {
                 do remove_intention(has_energy_desire, true);
                 state <- "idle";
@@ -586,15 +538,9 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     plan wander_around intention: wander_desire {
-        // Don't execute wander if retirement is in progress (highest priority)
-        // Check if agent has should_retire_belief which triggers retire_desire
         if (has_belief(should_retire_belief) or state = "retiring") {
             return;
         }
-        
-        // Only set state to idle if we're truly idle (state not set by other plans)
-        // Don't override states set by higher-priority plans
-        // Check if state indicates another plan is running
         bool other_plan_active <- state in ['going_to_oxygen', 'at_oxygen_generator', 'going_to_greenhouse', 
                                              'at_greenhouse', 'going_to_med_bay', 'waiting_at_med_bay', 
                                              'healing', 'retiring', 'escaping_storm', 'going_to_trading_area',
@@ -605,7 +551,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
             state <- 'idle';
         }
         
-        // Only execute wander behavior if no other plan is active
         if (not other_plan_active) {
             if (not (habitat_dome.shape covers location)) {
                 do goto target: habitat_dome.location speed: movement_speed;
@@ -616,25 +561,21 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     plan go_to_trading_area intention: seek_trading_area_desire {
-        // Pick the nearest trading area
         float dist_to_common <- habitat_dome.common_area.location distance_to location;
         float dist_to_recreation <- habitat_dome.recreation_area.location distance_to location;
         point target_area <- (dist_to_common <= dist_to_recreation) ? 
                              habitat_dome.common_area.location : 
                              habitat_dome.recreation_area.location;
 
-        // Navigate to the trading area
         if ((location distance_to target_area) > facility_proximity) {
             state <- "going_to_trading_area";
-            trading_area_timeout <- 0;  // Reset timeout when moving
+            trading_area_timeout <- 0;
             do goto target: target_area speed: movement_speed;
         } else {
-            // Arrived at trading area - wait here for trading opportunities
             state <- "at_trading_area";
             trading_area_timeout <- trading_area_timeout + 1;
             do wander amplitude: 10.0 speed: movement_speed * 0.3;
             
-            // Once trade is made, resume wandering
             if (trade_cooldown > 0) {
                 do remove_intention(seek_trading_area_desire, true);
                 do remove_belief(want_to_trade_belief);
@@ -642,7 +583,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
                 trading_area_timeout <- 0;
                 state <- "idle";
             }
-            // Timeout after 50 cycles if no trade happens (prevent getting stuck)
             else if (trading_area_timeout > 50) {
                 do remove_intention(seek_trading_area_desire, true);
                 do remove_belief(want_to_trade_belief);
@@ -653,8 +593,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
     }
 
-    // === Biological reflexes ===
-
     reflex update_oxygen{
         if (habitat_dome.shape covers location)
         {
@@ -664,7 +602,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
         {
             float decrease <- oxygen_decrease_rate * oxygen_decrease_factor_in_wasteland;
             if (wasteland.dust_storm and (wasteland.shape covers location)) {
-                 decrease <- decrease * 2.0; // Faster reduction
+                  decrease <- decrease * 2.0;
             }
             oxygen_level <- max(0, oxygen_level - decrease);
         }
@@ -678,7 +616,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
 
         if (wasteland.dust_storm and (wasteland.shape covers location)) {
-             energy_level <- max(0, energy_level - 1.0); // Extra drain
+               energy_level <- max(0, energy_level - 1.0);
         }
     }
 
@@ -697,7 +635,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
         else if (self is Parasite) { current_number_of_parasites <- max(0, current_number_of_parasites - 1); }
         else if (self is Commander) { current_number_of_commanders <- max(0, current_number_of_commanders - 1); }
         
-        // Track lifespan for survival metrics
         total_age_at_death <- total_age_at_death + eta;
         total_deaths <- total_deaths + 1;
         
@@ -709,13 +646,8 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     reflex death_from_old_age when: enable_retirement and eta > retirement_age * 1.2 {
-        // write "[DEATH] " + name + " (role=" + role + ", age=" + eta + " cycles) has exceeded 20% over retirement age and dies";
         do die_and_update_counter;
     }
-
-    // =========================================================
-    // Q-LEARNING TRADE + PARASITE DISTINGUISHING (PER-AGENT)
-    // =========================================================
 
     action ensure_state_exists(string s) {
         if (!(Q contains_key s)) { Q[s] <- [0.0, 0.0]; }
@@ -734,17 +666,11 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
         list<float> qs <- Q[s];
         float old <- qs[idx];
-        // Use exponential moving average: Q_new = Q_old + α(reward - Q_old)
-        // This prevents unbounded growth and converges to the average reward
         float updated <- old + sociability * (r - old);
         qs[idx] <- updated;
         Q[s] <- qs;
-
-        // Calculate trust based on Q-value preference
-        // For range -50 to +100, if mutual cooperation (100) dominates, pref approaches 100
-        // Trust of 0.30 means pref ≈ 30, suggesting Q[TRADE] ≈ 30, Q[IGNORE] ≈ 0
         float pref <- Q[s][0] - Q[s][1];
-        trust_memory[s] <- max(-1.0, min(1.0, pref / 100.0));  // Normalize by max expected difference
+        trust_memory[s] <- max(-1.0, min(1.0, pref / 100.0));
         
         if (cycle mod 200 = 0) {
             write name + " update_q: s=" + s + ", a=" + a + ", r=" + r + ", old_q=" + old + ", new_q=" + updated + ", trust=" + trust_memory[s];
@@ -756,7 +682,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
     
     reflex adapt_learning_parameters when: cycle mod 100 = 0 and length(keys(trust_memory)) > 0 {
-        // Calculate average trust from recent interactions
         float total_trust <- 0.0;
         int count <- 0;
         loop t over: values(trust_memory) {
@@ -764,8 +689,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
             count <- count + 1;
         }
         float avg_trust_value <- total_trust / float(count);
-        
-        // Adapt curiosity: increase when learning is poor (low trust), decrease when learning is good (high trust)
         if (avg_trust_value < -0.2) {
             curiosity <- min(0.50, base_curiosity + 0.15);
         } else if (avg_trust_value < 0.0) {
@@ -777,18 +700,10 @@ species Human skills: [moving, fipa] control: simple_bdi {
         } else {
             curiosity <- max(0.05, base_curiosity - 0.10);
         }
-        
-        // Gradually recover sociability if it has dropped too low
-        // This prevents agents from getting stuck in low-learning states
         if (sociability < 0.15) {
-            sociability <- sociability + 0.01;  // Slowly recover learning ability
+            sociability <- sociability + 0.01;
         }
     }
-
-    
-    // reflex debug_state when: cycle mod 1000 = 0 {
-    //     write name + " [cycle " + cycle + "] role=" + role + ", location=" + location + ", cooldown=" + trade_cooldown + ", inside_dome=" + (habitat_dome.shape covers location) + ", Q_entries=" + length(keys(Q)) + ", trust_entries=" + length(keys(trust_memory));
-    // }
 
     reflex assess_trading_motivation when:
         trade_cooldown = 0
@@ -796,21 +711,16 @@ species Human skills: [moving, fipa] control: simple_bdi {
         and not has_belief(storm_warning_belief)
         and not has_belief(want_to_trade_belief)
     {
-        // Higher base probability to encourage more frequent trading
-        // Curiosity parameter amplifies the base 50% probability
         if (flip(0.5 + curiosity)) {
             do add_belief(want_to_trade_belief);
         }
     }
 
     reflex update_trading_belief when: has_belief(want_to_trade_belief) {
-        // Remove belief once trade cooldown starts (means we just traded)
         if (trade_cooldown > 0) {
             do remove_belief(want_to_trade_belief);
         }
     }
-
-    // Trade with minimal gating to enable learning
     reflex learn_and_trade when:
         trade_cooldown = 0
         and (habitat_dome.common_area.shape covers location or habitat_dome.recreation_area.shape covers location)
@@ -839,7 +749,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
 
         string a <- choose_action(s);
         if (a = "IGNORE") {
-            do update_q(s, a, 2.0);  // Small positive reward for avoiding bad interactions
+            do update_q(s, a, 2.0);
             trade_cooldown <- trade_cooldown_max;
             return;
         }
@@ -868,8 +778,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
                 ask partner { energy_level <- min(max_energy_level, energy_level + 20.0); }
             }
 
-            // Medic agents don't heal other agents outside of the medbay area
-
             if (self is Engineer) {
                 i_gave <- true;
                 ask partner { oxygen_level <- min(max_oxygen_level, oxygen_level + 10.0); }
@@ -883,7 +791,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
                 }
             }
             
-            // Fallback: all non-parasites can offer a small boost if they haven't given specialized resources
             if (not i_gave and energy_level > 20.0) {
                 i_gave <- true;
                 energy_level <- max(0, energy_level - 5.0);
@@ -902,14 +809,11 @@ species Human skills: [moving, fipa] control: simple_bdi {
                     energy_level <- min(max_energy_level, energy_level + 20.0);
                     partner_gave <- true;
                 } else {
-                    // Scavenger offers small assistance even without raw (at personal energy cost)
                     ask partner { energy_level <- max(0, energy_level - 5.0); }
                     energy_level <- min(max_energy_level, energy_level + 10.0);
                     partner_gave <- true;
                 }
             }
-
-            // Medic healing disabled - only happens at medbay
 
             if (partner is Engineer) {
                 oxygen_level <- min(max_oxygen_level, oxygen_level + 10.0);
@@ -924,35 +828,29 @@ species Human skills: [moving, fipa] control: simple_bdi {
         }
 
         if (self is Parasite) {
-            // Parasite performs a harmful, one-sided interaction (steal/drain)
-            // Mark as actor "gave" harm and partner did NOT give back.
             i_gave <- true;
             partner_gave <- false;
 
             int their_raw2 <- 0;
             ask partner { their_raw2 <- raw_amount; }
             if (their_raw2 > 0) {
-                // Steal a raw resource if available
                 ask partner { raw_amount <- raw_amount - 1; }
                 raw_amount <- raw_amount + 1;
             } else {
-                // Otherwise drain some energy from the partner
                 ask partner { energy_level <- max(0, energy_level - 10.0); }
                 energy_level <- min(max_energy_level, energy_level + 10.0);
             }
         }
-
-        // Update generosity metric based on giving behavior
         if (i_gave) { generosity <- generosity + 1.0; }
-        if (partner_gave) { generosity <- generosity - 0.5; } // Receiving counts less
+        if (partner_gave) { generosity <- generosity - 0.5; }
 
-        if (i_gave and partner_gave) { return 100.0; }  // Strong reward for mutual cooperation
+        if (i_gave and partner_gave) { return 100.0; }
         if (i_gave and !partner_gave) { 
-            if (partner is Parasite) { return -80.0; }  // Victim strongly penalized for trusting parasite
-            if (self is Parasite) { return -80.0; }     // Parasite strongly penalized for stealing
-            return 20.0;  // Non-parasite helpfully gave, good reward for altruism
+            if (partner is Parasite) { return -80.0; }
+            if (self is Parasite) { return -80.0; }
+            return 20.0;
         }
-        return 0.0;  // Neutral outcome for non-interaction
+        return 0.0;
     }
 
     rgb get_color_for_presented_role {
@@ -979,8 +877,6 @@ species Human skills: [moving, fipa] control: simple_bdi {
 }
 
 
-// ================== ROLES ==================
-
 species Engineer parent: Human {
     predicate generator_broken_belief <- new_predicate("generator_broken");
     predicate fix_generator_desire <- new_predicate("fix_generator");
@@ -995,20 +891,14 @@ species Engineer parent: Human {
         if (habitat_dome.oxygen_generator.is_broken) {
             if (not has_belief(generator_broken_belief)) { 
                 do add_belief(generator_broken_belief);
-                //write "[ENGINEER] " + name + " detected that the oxygen generator is broken!";
             }
-            // Cancel lower-priority intentions if generator is broken - must fix first!
-            // Remove the suffocating belief to cancel the has_oxygen_desire intention
             if (has_belief(suffocating_belief)) {
                 do remove_belief(suffocating_belief);
                 do remove_intention(has_oxygen_desire, true);
-                //write "[ENGINEER] " + name + " cancelling oxygen plan to fix generator first";
             }
-            // Cancel other lower-priority intentions to prioritize fixing
             do remove_intention(has_energy_desire, true);
             do remove_intention(seek_trading_area_desire, true);
             do remove_intention(wander_desire, true);
-            // Remove beliefs that might trigger lower-priority plans
             if (has_belief(starving_belief)) {
                 do remove_belief(starving_belief);
             }
@@ -1022,32 +912,24 @@ species Engineer parent: Human {
         }
     }
     
-    // Maintain oxygen/energy while fixing generator to prevent death
-    // This runs after update_oxygen and update_energy to counteract depletion
     reflex maintain_resources_while_fixing when: (state = "going_to_oxygen_generator" or state = "fixing_generator") and habitat_dome.oxygen_generator.is_broken {
-        // Replenish oxygen/energy to ensure engineers can complete the repair
-        // Use higher replenishment to counteract normal depletion rates
         if (oxygen_level < max_oxygen_level * 0.5) {
-            oxygen_level <- min(max_oxygen_level, oxygen_level + oxygen_decrease_rate * 2.0);  // Counteract depletion
+            oxygen_level <- min(max_oxygen_level, oxygen_level + oxygen_decrease_rate * 2.0);
         }
         if (energy_level < max_energy_level * 0.5) {
-            energy_level <- min(max_energy_level, energy_level + energy_decrease_rate_when_moving * 2.0);  // Counteract depletion
+            energy_level <- min(max_energy_level, energy_level + energy_decrease_rate_when_moving * 2.0);
         }
     }
 
     rule belief: generator_broken_belief new_desire: fix_generator_desire strength: 200.0;
 
-    // Override get_oxygen plan to check if generator is broken first
     plan get_oxygen intention: has_oxygen_desire finished_when: (oxygen_level >= max_oxygen_level * 0.8) or habitat_dome.oxygen_generator.is_broken {
-        // If generator is broken, fail this plan so fix_generator can take priority
         if (habitat_dome.oxygen_generator.is_broken) {
             do remove_intention(has_oxygen_desire, true);
             return;
         }
-        // Otherwise, proceed with normal oxygen replenishment
         if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
             state <- "at_oxygen_generator";
-            // Facility reflex handles replenishment automatically
         } else {
             state <- "going_to_oxygen";
             do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
@@ -1057,13 +939,11 @@ species Engineer parent: Human {
     plan fix_generator intention: fix_generator_desire {
         if ((location distance_to habitat_dome.oxygen_generator.location) <= facility_proximity) {
             state <- "fixing_generator";
-            // Repair the generator
             habitat_dome.oxygen_generator.is_broken <- false;
-            habitat_dome.oxygen_generator.repair_cooldown <- 50;  // 50 cycle cooldown after repair
+            habitat_dome.oxygen_generator.repair_cooldown <- 50;
             do remove_belief(generator_broken_belief);
             do remove_intention(fix_generator_desire, true);
             state <- "idle";
-            // write "[ENGINEER] " + name + " has repaired the oxygen generator!";
         } else {
             state <- "going_to_oxygen_generator";
             do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
@@ -1198,7 +1078,6 @@ species Parasite parent: Human {
         do add_desire(wander_desire);
         role <- "Parasite";
         presented_role <- one_of(["Engineer", "Medic", "Scavenger", "Commander"]);
-        // Inherit meet_distance and trade_cooldown from parent for consistent trading
     }
 
     aspect base {
@@ -1216,17 +1095,12 @@ species Commander parent: Human {
     }
 
     reflex check_storm {
-        // Check for dust storm and broadcast warning to agents in wasteland
-        // This reflex runs every cycle to monitor for storms
         if (wasteland != nil) {
-            // Reset flag when storm ends
             if (not wasteland.dust_storm) {
                 message_sent_for_current_storm <- false;
             }
             
-            // Only send message once per storm
             if (wasteland.dust_storm and not message_sent_for_current_storm) {
-                // Find all agents in the wasteland
                 list<Human> all_agents <- list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander);
                 list<Human> agents_in_wasteland <- [];
                 loop ag over: all_agents {
@@ -1250,8 +1124,6 @@ species Commander parent: Human {
     }
 }
 
-
-// ================== PLACES ==================
 
 species HabitatDome {
     geometry shape <- rectangle(250, 250);
@@ -1297,7 +1169,7 @@ species HabitatDome {
 
 species Greenhouse {
     point location;
-    float replenish_rate <- 0.5;  // Energy restored per cycle to agents at facility
+    float replenish_rate <- 0.5;
 
     reflex replenish_energy {
         list<Human> nearby_agents <- Human where (each.location distance_to location <= facility_proximity);
@@ -1319,8 +1191,8 @@ species Greenhouse {
 species OxygenGenerator {
     point location;
     bool is_broken <- false;
-    float replenish_rate <- 0.3;  // Oxygen restored per cycle to agents at facility (slower than energy)
-    int repair_cooldown <- 0;  // Cooldown after repair to prevent immediate re-breaking
+    float replenish_rate <- 0.3;
+    int repair_cooldown <- 0;
 
     reflex replenish_oxygen when: not is_broken {
         list<Human> nearby_agents <- Human where (each.location distance_to location <= facility_proximity);
@@ -1390,7 +1262,6 @@ species Wasteland {
                 dust_storm <- false;
             }
         } else {
-            // Increased probability for easier screenshot capture (20% chance per cycle)
             if (flip(0.01)) {
                 dust_storm <- true;
                 storm_timer <- 15;
@@ -1484,8 +1355,6 @@ species RockMine {
     }
 }
 
-
-// ================== EXPERIMENT ==================
 
 experiment MarsColony type: gui {
     output {
