@@ -428,6 +428,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
         mailbox <- mailbox - msg;
         string msg_contents <- string(msg.contents);
         if (msg_contents contains "Return to Base") {
+            write "[FIPA] " + name + " (" + role + ") received 'Return to Base' message from " + msg.sender;
             if (not has_belief(storm_warning_belief)) { do add_belief(storm_warning_belief); }
         }
     }
@@ -1206,6 +1207,8 @@ species Parasite parent: Human {
 }
 
 species Commander parent: Human {
+    bool message_sent_for_current_storm <- false;
+
     init {
         do add_desire(wander_desire);
         role <- "Commander";
@@ -1213,11 +1216,31 @@ species Commander parent: Human {
     }
 
     reflex check_storm {
-        if (wasteland.dust_storm) {
-            list<Human> agents_in_wasteland <- Human where (wasteland.shape covers each.location);
-            if (!empty(agents_in_wasteland)) {
-                do start_conversation to: agents_in_wasteland protocol: "fipa-propose"
-                   performative: "propose" contents: ["Return to Base"];
+        // Check for dust storm and broadcast warning to agents in wasteland
+        // This reflex runs every cycle to monitor for storms
+        if (wasteland != nil) {
+            // Reset flag when storm ends
+            if (not wasteland.dust_storm) {
+                message_sent_for_current_storm <- false;
+            }
+            
+            // Only send message once per storm
+            if (wasteland.dust_storm and not message_sent_for_current_storm) {
+                // Find all agents in the wasteland
+                list<Human> all_agents <- list(Engineer) + list(Medic) + list(Scavenger) + list(Parasite) + list(Commander);
+                list<Human> agents_in_wasteland <- [];
+                loop ag over: all_agents {
+                    if (wasteland.shape covers ag.location) {
+                        agents_in_wasteland <- agents_in_wasteland + [ag];
+                    }
+                }
+                
+                if (!empty(agents_in_wasteland)) {
+                    write "[COMMANDER] " + name + " detected dust storm and broadcasting 'Return to Base' to " + length(agents_in_wasteland) + " agent(s) in wasteland";
+                    do start_conversation to: agents_in_wasteland protocol: "fipa-propose"
+                       performative: "propose" contents: ["Return to Base"];
+                    message_sent_for_current_storm <- true;
+                }
             }
         }
     }
@@ -1367,6 +1390,7 @@ species Wasteland {
                 dust_storm <- false;
             }
         } else {
+            // Increased probability for easier screenshot capture (20% chance per cycle)
             if (flip(0.01)) {
                 dust_storm <- true;
                 storm_timer <- 15;
