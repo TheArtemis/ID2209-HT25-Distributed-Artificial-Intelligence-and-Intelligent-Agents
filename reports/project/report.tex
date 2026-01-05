@@ -769,7 +769,7 @@ species Engineer parent: Human {
     \centering
     \includegraphics[width=0.55\textwidth]{imgs/OxygenLevel.png}
     \caption{Oxygen levels down}
-    \label{fig:oxbroken}
+    \label{fig:oxygenlevel}
   \end{figure}
     \item \textbf{Interpretation:} The perception reflex correctly detects low oxygen and adds the \texttt{suffocating\_belief}. The BDI system creates the \texttt{has\_oxygen\_desire} with high priority (100.0), and the agent executes the \texttt{get\_oxygen} plan to navigate to the oxygen generator. Once at the facility, the generator automatically replenishes oxygen at a rate of 0.3 per cycle.
   
@@ -789,7 +789,7 @@ species Engineer parent: Human {
     \centering
     \includegraphics[width=0.6\textwidth]{imgs/oxygen_generator.png}
     \caption{Oxygen generator broken}
-    \label{fig:oxbroken}
+    \label{fig:oxygengenerator}
   \end{figure}
   \item \textbf{Interpretation:} Some engineers correctly detect the broken generator through their \texttt{check\_generator} reflex, add the \texttt{generator\_broken\_belief}, create the \texttt{fix\_generator\_desire}, and execute the repair plan. This demonstrates role-specific BDI behavior where only Engineers respond to generator failures.
   
