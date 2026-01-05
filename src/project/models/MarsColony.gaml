@@ -516,6 +516,8 @@ species Human skills: [moving, fipa] control: simple_bdi {
             do remove_intention(be_healthy_desire, true);
             do remove_intention(seek_trading_area_desire, true);
             do remove_intention(wander_desire, true);
+            // Set state immediately to prevent other plans from interfering
+            state <- "retiring";
         }
         
         float dist_to_pad <- location distance_to landing_pad.location;
@@ -525,6 +527,7 @@ species Human skills: [moving, fipa] control: simple_bdi {
             write "[LEAVING] " + name + " (role=" + role + ", age=" + eta + " cycles) is leaving the colony";
             do die_and_update_counter;
         } else {
+            // Keep state as "retiring" while moving to landing pad
             state <- "retiring";
             if (cycle mod 50 = 0) {
                 write "[RETIREMENT] " + name + " (role=" + role + ", age=" + eta + " cycles) is traveling to landing pad, distance: " + dist_to_pad + ", state=" + state;
@@ -582,6 +585,12 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     plan wander_around intention: wander_desire {
+        // Don't execute wander if retirement is in progress (highest priority)
+        // Check if agent has should_retire_belief which triggers retire_desire
+        if (has_belief(should_retire_belief) or state = "retiring") {
+            return;
+        }
+        
         // Only set state to idle if we're truly idle (state not set by other plans)
         // Don't override states set by higher-priority plans
         // Check if state indicates another plan is running
@@ -695,6 +704,11 @@ species Human skills: [moving, fipa] control: simple_bdi {
     }
 
     reflex death when: health_level <= 0 {
+        do die_and_update_counter;
+    }
+
+    reflex death_from_old_age when: enable_retirement and eta > retirement_age * 1.2 {
+        // write "[DEATH] " + name + " (role=" + role + ", age=" + eta + " cycles) has exceeded 20% over retirement age and dies";
         do die_and_update_counter;
     }
 
@@ -980,14 +994,14 @@ species Engineer parent: Human {
         if (habitat_dome.oxygen_generator.is_broken) {
             if (not has_belief(generator_broken_belief)) { 
                 do add_belief(generator_broken_belief);
-                write "[ENGINEER] " + name + " detected that the oxygen generator is broken!";
+                //write "[ENGINEER] " + name + " detected that the oxygen generator is broken!";
             }
             // Cancel lower-priority intentions if generator is broken - must fix first!
             // Remove the suffocating belief to cancel the has_oxygen_desire intention
             if (has_belief(suffocating_belief)) {
                 do remove_belief(suffocating_belief);
                 do remove_intention(has_oxygen_desire, true);
-                write "[ENGINEER] " + name + " cancelling oxygen plan to fix generator first";
+                //write "[ENGINEER] " + name + " cancelling oxygen plan to fix generator first";
             }
             // Cancel other lower-priority intentions to prioritize fixing
             do remove_intention(has_energy_desire, true);
@@ -1048,7 +1062,7 @@ species Engineer parent: Human {
             do remove_belief(generator_broken_belief);
             do remove_intention(fix_generator_desire, true);
             state <- "idle";
-            write "[ENGINEER] " + name + " has repaired the oxygen generator!";
+            // write "[ENGINEER] " + name + " has repaired the oxygen generator!";
         } else {
             state <- "going_to_oxygen_generator";
             do goto target: habitat_dome.oxygen_generator.location speed: movement_speed;
